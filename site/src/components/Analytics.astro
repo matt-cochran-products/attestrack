@@ -1,0 +1,84 @@
+---
+---
+
+<section id="analytics">
+  <div class="sh"><div class="sh-n">05</div><div class="sh-t">Portal analytics — BI without a third party in the query path</div></div>
+  <div class="analytics-wrap">
+    <div class="analytics-grid">
+      <div class="analytics-l">
+        <h2 class="analytics-h">Your warehouse.<br />Your charts.<br /><em>Your SQL.</em></h2>
+        <p class="analytics-p">
+          Events already land in <strong>your</strong> ClickHouse or Tinybird. The community portal adds a read-only <strong>query proxy</strong> on your Worker: curated dashboards and a SQL <strong>Explore</strong> surface run against that data. No embedded SaaS BI component receives your tracking rows — and query text and results are not sent to Attestrack or Attestrue infrastructure.
+        </p>
+        <p class="analytics-p">
+          <strong>Analysts get real tooling, not exports.</strong> Pre-built views answer the questions marketing and growth ask every day; Explore handles everything else with standard SQL, schema autocomplete, and optional visualisation.
+        </p>
+        <ul class="analytics-q">
+          <li class="aq-item"><div class="aq-n">Q</div><div class="aq-body">How many events were recovered from ad blockers or ITP in the period?</div></li>
+          <li class="aq-item"><div class="aq-n">Q</div><div class="aq-body">What share of converters converted more than seven days after first visit?</div></li>
+          <li class="aq-item"><div class="aq-n">Q</div><div class="aq-body">Consent rate by jurisdiction over time — and enforcement context.</div></li>
+          <li class="aq-item"><div class="aq-n">Q</div><div class="aq-body">Per-destination volume, success rate, and failures.</div></li>
+          <li class="aq-item"><div class="aq-n">Q</div><div class="aq-body">Bot detection rate and which signals fired.</div></li>
+        </ul>
+        <p class="analytics-sub">Explore: <code>SELECT</code>-only, schema allowlist, row limit enforced in the Worker. Chart types you choose — line, bar, scatter, pie, area, heatmap, or table. Save queries to <strong>your</strong> KV; pin charts to the dashboard; export CSV in the browser.</p>
+      </div>
+      <div class="analytics-r">
+        <div class="code">
+          <div class="code-label">Worker query proxy — conceptual contract</div>
+          <pre set:html={`<span class="cd">// POST /api/portal/analytics/query
+// CF Access–authenticated; body validated in YOUR Worker</span>
+
+<span class="cb">POST</span> /api/portal/analytics/query
+<span class="co">Authorization:</span> CF Access (existing)
+{
+  <span class="co">"sql"</span>: <span class="cg">"SELECT ..."</span>,   <span class="cd">// SELECT only — enforced server-side</span>
+  <span class="co">"limit"</span>: <span class="cg">10000</span>,        <span class="cd">// max rows capped in Worker</span>
+  <span class="co">"format"</span>: <span class="cg">"json"</span>
+}
+
+<span class="cd">// Execution: Worker → your ClickHouse credentials (your secrets)
+// No query logging to Attestrack. No result relay to Attestrue.
+// Table allowlist = Attestrack event schema only.</span>`} />
+        </div>
+        <div class="code" style="margin-top:12px">
+          <div class="code-label">Stack (open licenses — see behavioural spec Appendix A)</div>
+          <pre set:html={`<span class="cd"># Curated dashboard charts</span>
+<span class="cg">Recharts</span> <span class="cd">— time series & categorical (MIT)</span>
+
+<span class="cd"># Explore visualisation</span>
+<span class="cg">Apache ECharts</span> <span class="cd">— scatter, heatmap, sankey-class workloads</span>
+
+<span class="cd"># SQL editor + results</span>
+<span class="cg">CodeMirror 6</span> + <span class="cg">TanStack Table</span>
+
+<span class="cd"># Need alerting / shared Grafana dashboards?
+# Point Grafana at the same ClickHouse — encouraged, not competed with.</span>`} />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .analytics-wrap { border-bottom: 1px solid var(--rule) }
+  .analytics-grid { display: grid; grid-template-columns: 1fr 1fr }
+  .analytics-l { padding: 72px 64px 72px 48px; border-right: 1px solid var(--rule) }
+  .analytics-r { padding: 72px 48px; background: var(--paper-2) }
+  .analytics-h { font-family: var(--serif); font-size: clamp(32px, 3.5vw, 50px); letter-spacing: -.03em; line-height: 1.05; margin-bottom: 28px }
+  .analytics-h em { font-style: italic; color: var(--ink-3) }
+  .analytics-p { font-size: 15px; font-weight: 300; color: var(--ink-3); line-height: 1.75; max-width: 480px }
+  .analytics-p + .analytics-p { margin-top: 16px }
+  .analytics-p strong { font-weight: 500; color: var(--ink) }
+  .analytics-q { list-style: none; margin-top: 28px; margin-bottom: 24px }
+  .aq-item { display: grid; grid-template-columns: 28px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid var(--rule) }
+  .aq-n { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--green); padding-top: 3px }
+  .aq-body { font-size: 14px; font-weight: 300; color: var(--ink-3); line-height: 1.65 }
+  .analytics-sub { font-size: 13px; font-weight: 300; color: var(--ink-4); line-height: 1.7; max-width: 480px }
+  .analytics-sub code { font-family: var(--mono); font-size: 11px; background: var(--paper-2); padding: 1px 6px; border: 1px solid var(--rule) }
+  .analytics-sub strong { font-weight: 500; color: var(--ink) }
+
+  @media (max-width: 1024px) {
+    .analytics-grid { grid-template-columns: 1fr }
+    .analytics-l { border-right: none }
+  }
+</style>

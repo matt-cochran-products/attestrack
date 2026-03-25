@@ -1,0 +1,7 @@
+[
+  {
+    "name": "consent bundle",
+    "path": "dist/consent.js",
+    "limit": "12 kB"
+  }
+]

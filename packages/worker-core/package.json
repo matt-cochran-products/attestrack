@@ -1,0 +1,22 @@
+{
+  "name": "@attestrue/worker-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@attestrue/host-contracts": "workspace:*",
+    "@attestrue/schema": "workspace:*",
+    "@attestrue/sdk": "workspace:*",
+    "@attestrue/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@attestrue/strategies": "workspace:*",
+    "vitest": "^2.0.0"
+  }
+}

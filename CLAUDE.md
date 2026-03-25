@@ -1,0 +1,242 @@
+# Attestrue (Public Repository)
+
+**Repository:** `github.com/attestrue/attestrue`
+**License:** MIT
+**Purpose:** Attestrack — self-hosted analytics, server-side measurement, and community consent (`consent-js` + KV `ConsentConfig`); attorney-maintained regulation and Proof are licensed extensions
+**Last updated:** 2026-03-25
+
+## Quick Start
+
+```bash
+pnpm install
+pnpm build        # Build all packages (Turborepo)
+pnpm test         # Run all tests
+pnpm typecheck    # TypeScript checking across all packages
+pnpm lint         # Lint all packages
+pnpm boundary-check   # ADR-002/010: fail if packages/merkle exists
+```
+
+**Requirements:** Node >= 20, pnpm 9
+
+## Toolchain
+
+- **Package manager:** pnpm 9 (workspaces)
+- **Build orchestration:** Turborepo — `typecheck -> lint -> test -> build -> boundary-check`
+- **Language:** TypeScript 5.5+ (strict mode, ES2022 target)
+- **Test framework:** Vitest
+- **E2E:** Playwright against Miniflare (CF Worker local runtime)
+- **Community consent script:** `packages/consent-js` (stub → implementation); premium `consent-runtime` may extend via CDN
+
+## Code Conventions
+
+- No semicolons
+- Single quotes
+- Never use `any` type
+- All business logic in hooks; components are presentational (portal-community)
+- Narrow imports from generated models (not barrel imports)
+
+## CI Pipelines
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `ci.yml` | PR + push to main | typecheck, lint, test, build, boundary-check |
+| `e2e.yml` | PR + push to main | Playwright against Miniflare |
+| `publish.yml` | Version tags (`v*`) | Publish npm packages + CF Pages deploy |
+| `release-please.yml` | Push to main | Automated changelog + version management |
+
+## Published npm Packages
+
+These are consumed by the private repo as versioned npm dependencies (never local path deps):
+
+| Package | Description | Dependencies |
+|---|---|---|
+| `@attestrue/types` | Domain types (zero deps, root of graph) | none |
+| `@attestrue/schema` | Zod runtime validation schemas | `@attestrue/types`, `zod` |
+| `@attestrue/sdk` | Adapter development kit | `@attestrue/types`, `@attestrue/schema` |
+| `@attestrue/consent-js` | Community first-party consent script (contracts + stub) | `@attestrue/types`, `@attestrue/schema` |
+
+## Package Dependency Graph
+
+```
+@attestrue/host-contracts   (no deps)
+       |
+       |---> @attestrue/host-cloudflare-worker   (host-contracts + CF types)
+       |
+@attestrue/types            (no deps)
+       |
+       |---> @attestrue/schema     (types + zod)
+       |           |
+       |           '---> @attestrue/sdk        (types + schema + host-contracts)
+       |                       |
+       |           .-----------'
+       |           |
+       |---> consent-js             (types)
+       |---> worker-core            (host-contracts + types + schema + sdk)
+       |---> strategies             (types + schema + sdk)
+       |---> portal-community       (types + schema)
+       '---> deploy                 (types)
+```
+
+No circular dependencies. Types flow downward. Nothing flows up.
+
+## Repository Structure
+
+```
+attestrue/
+|
+|-- .github/
+|   |-- workflows/
+|   |   |-- ci.yml                    # PR/push: typecheck, lint, test, build, boundary-check
+|   |   |-- e2e.yml                  # Playwright + Miniflare
+|   |   |-- publish.yml              # npm publish on version tags
+|   |   '-- release-please.yml       # Automated changelog
+|   |-- CODEOWNERS
+|   '-- pull_request_template.md
+|
+|-- packages/
+|   |
+|   |-- types/                        # @attestrue/types (published)
+|   |   |-- src/
+|   |   |   |-- strategy.ts          # StrategyManifest, StrategyCategory
+|   |   |   |-- tracking.ts          # TrackingEvent (ClickHouse/Tinybird schema)
+|   |   |   '-- index.ts             # Public surface: tracking + strategy only (ADR-010)
+|   |   |   # consent / evidence / jurisdiction / policy / counsel → @attestrue/types-extensions (licensed)
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   |-- schema/                       # @attestrue/schema (published)
+|   |   |-- src/
+|   |   |   |-- strategy.schema.ts
+|   |   |   |-- tracking.schema.ts
+|   |   |   '-- index.ts             # Public: tracking + strategy only
+|   |   |   # consent / jurisdiction / evidence / policy / merkle schemas → @attestrue/schema-extensions (licensed)
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   |-- sdk/                          # @attestrue/sdk (published)
+|   |   |-- src/
+|   |   |   |-- interfaces.ts        # Strategy, StrategyLoader, NoopLoader
+|   |   |   |-- testing.ts           # StrategyTestHarness, MockConsentEvent
+|   |   |   |-- helpers.ts           # CF Worker env/KV utilities
+|   |   |   '-- index.ts
+|   |   |-- examples/
+|   |   |   |-- minimal-adapter/
+|   |   |   '-- analytics-adapter/
+|   |   |-- docs/
+|   |   |   |-- ADAPTER-GUIDE.md
+|   |   |   |-- TESTING.md
+|   |   |   '-- PUBLISHING.md
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   |   # consent-runtime + browser-adapters: licensed repo (ADR-010)
+|   |
+|   |-- worker-core/                  # Cloudflare Worker (not published)
+|   |   |-- src/
+|   |   |   |-- index.ts             # Worker fetch handler entry point
+|   |   |   |-- composite.ts         # CompositeStrategy execution engine
+|   |   |   |-- registry.ts          # Strategy bundle loader from CDN
+|   |   |   |-- config.ts            # CF KV configuration loader
+|   |   |   |-- policy-server.ts     # GET /privacy, GET /terms from CF KV
+|   |   |   |-- loader.ts            # THE EXTENSION SLOT (StrategyLoader + NoopLoader)
+|   |   |   |-- degraded.ts          # Fallback when CDN unavailable
+|   |   |   '-- types.ts             # Worker-specific types (Env interface)
+|   |   |-- __tests__/
+|   |   |   |-- composite.test.ts
+|   |   |   |-- registry.test.ts
+|   |   |   |-- loader.test.ts
+|   |   |   |-- policy-server.test.ts
+|   |   |   '-- degraded.test.ts
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   |-- strategies/                   # Community strategies (published)
+|   |   |-- src/
+|   |   |   |-- mandatory/           # Always execute (analytics path)
+|   |   |   |   '-- troll-shield.ts  # Behavioral signal detection
+|   |   |   |   # consent / jurisdiction / consent-log / TCF → strategies-licensed (private)
+|   |   |   |-- ad-networks/
+|   |   |   |   |-- meta.ts          # Meta Conversions API (CAPI)
+|   |   |   |   |-- google.ts        # Google Measurement Protocol
+|   |   |   |   |-- tiktok.ts        # TikTok Events API
+|   |   |   |   '-- microsoft.ts     # Microsoft UET Offline Conversions API
+|   |   |   |-- analytics/
+|   |   |   |   |-- clickhouse.ts    # Customer-hosted ClickHouse
+|   |   |   |   '-- tinybird.ts      # Tinybird Events API
+|   |   |   |-- drift/
+|   |   |   |   '-- detection.ts     # Configuration drift detection (post-Stage 2)
+|   |   |   '-- index.ts             # BUNDLED_STRATEGIES export
+|   |   |-- __tests__/
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   |-- portal-community/            # Community portal (React SPA, CF Pages)
+|   |   |-- src/
+|   |   |   |-- app.tsx
+|   |   |   |-- routes/
+|   |   |   |   |-- dashboard/       # Analytics cards, drift, strategies (ADR-010)
+|   |   |   |   |-- extensions/      # Handoff to licensed consent/regulation/proof
+|   |   |   |   |-- configuration/   # Site config, deployment mode
+|   |   |   |   |-- strategies/      # Activate/deactivate community strategies
+|   |   |   |   |-- migration/       # CMP migration wizard
+|   |   |   |   '-- upgrade/         # CTA to attestrue.com/upgrade
+|   |   |   |-- components/
+|   |   |   |-- hooks/
+|   |   |   '-- lib/
+|   |   |       '-- cf-kv.ts         # Reads from customer's own CF KV
+|   |   |-- package.json
+|   |   '-- tsconfig.json
+|   |
+|   '-- deploy/                       # One-click CF deployment tooling
+|       |-- src/
+|       |   |-- worker-template.ts    # Generates wrangler.toml + worker code
+|       |   |-- kv-schema.ts          # Initial CF KV structure
+|       |   |-- r2-setup.ts           # R2 bucket + object lock config
+|       |   |-- d1-schema.sql         # D1 database schema
+|       |   |-- dns-guide.ts          # Customer-specific DNS instructions
+|       |   '-- index.ts              # CLI entry point: npx @attestrue/deploy
+|       |-- package.json
+|       '-- tsconfig.json
+|
+|-- tooling/
+|   |-- eslint/
+|   |   '-- index.js                  # Shared ESLint config
+|   |-- tsconfig/
+|   |   |-- base.json                 # ES2022, strict, bundler moduleResolution
+|   |   |-- library.json              # Extends base + declaration maps
+|   |   '-- worker.json               # Extends base + CF workers-types
+|   '-- vitest/
+|       '-- setup.ts                   # Shared Vitest setup
+|
+|-- CONSENT-EVIDENCE-TOKEN-STANDARD.md   # Stub pointer — normative doc in licensed tree
+|-- ADAPTER-DEVELOPMENT-GUIDE.md
+|-- CONTRIBUTING.md
+|-- LICENSE                            # MIT
+|-- package.json                       # pnpm workspace root
+|-- pnpm-workspace.yaml               # packages/* + tooling/*
+'-- turbo.json                         # Build pipeline config
+```
+
+## Shared Contracts Bridge
+
+Three packages are published to npm and consumed by the private repo as versioned dependencies:
+
+- `@attestrue/types` -- Pure TS interfaces, zero deps, the shared vocabulary
+- `@attestrue/sdk` -- Adapter dev kit (Strategy interface, NoopLoader, test harness)
+- `@attestrue/schema` -- Zod runtime validation (carries zod as runtime dep)
+
+The private repo never has local path dependencies on this repo. Both compile against the same published type contracts.
+
+## Key Architecture Notes
+
+- **Worker Core extension slot:** `worker-core/src/loader.ts` exports `StrategyLoader` interface + `NoopLoader`. The private repo's `CDNLoader` is injected via CF Worker env var at licensed deploy time.
+- **Consent-runtime bundle** (licensed): size budget enforced in private CI; not in public repo.
+- **Community strategies are bundled** into the Worker at build time. CDN is a convenience for updates, not a dependency.
+- **CompositeStrategy execution order (Attestrack):** Stage 1 mandatory includes **troll-shield** only; consent/jurisdiction/TCF run from **strategies-licensed** when extensions bind.
+
+## Placement Rule
+
+Every package must satisfy all three tests:
+1. Runs on customer infrastructure
+2. Contains no secrets or proprietary logic
+3. Provides genuine standalone value

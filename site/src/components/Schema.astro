@@ -1,0 +1,94 @@
+<section id="schema">
+  <div class="sh"><div class="sh-n">04</div><div class="sh-t">The ClickHouse schema — better than GA4, yours forever</div></div>
+  <div class="schema-wrap">
+    <div class="schema-grid">
+      <div class="schema-l">
+        <h2 class="schema-h">The canonical<br />event schema.<br /><em>Yours. No sampling.</em></h2>
+        <p class="schema-p">GA4 samples data at scale. BigQuery exports cost money and lag. Segment takes a cut of every event and shares it with its data partners. ClickHouse gives you sub-second queries over billions of events on a $50/month server.</p>
+        <p class="schema-p">The Attestrack canonical schema is designed for the queries that actually matter: funnel analysis by consent state, attribution across ad networks using your own first-party data, anomaly detection when something breaks, and session replay correlation without a third-party tool.</p>
+        <p class="schema-p"><strong>Every field is documented. The materialized views are included. The query library is open source.</strong> You're not adopting a black box — you're adopting a schema you can read, fork, and extend.</p>
+        <div class="schema-caps">
+          <div class="schema-cap"><div class="sc-n">&lt;1ms</div><div class="sc-l">ClickHouse query latency on 1B+ rows</div></div>
+          <div class="schema-cap"><div class="sc-n">0</div><div class="sc-l">Data sharing with third parties</div></div>
+          <div class="schema-cap"><div class="sc-n">100%</div><div class="sc-l">Of events captured — no sampling</div></div>
+          <div class="schema-cap"><div class="sc-n">MIT</div><div class="sc-l">License — fork it, extend it, own it</div></div>
+        </div>
+      </div>
+      <div class="schema-r">
+        <div class="schema-r-intro">tracking_events — canonical schema (ClickHouse DDL)</div>
+        <div class="code">
+          <pre set:html={`<span class="cb">CREATE TABLE</span> <span class="cg">tracking_events</span> (
+  event_id             <span class="co">UUID</span>,
+  site_id              <span class="co">String</span>,
+  session_id           <span class="co">String</span>,       <span class="cd">-- opaque</span>
+  event_type           <span class="co">String</span>,       <span class="cd">-- page_view|purchase|etc</span>
+  event_name           <span class="co">String</span>,
+  timestamp            <span class="co">DateTime64(3, 'UTC')</span>,
+  page_url             <span class="co">String</span>,
+  page_path            <span class="co">String</span>,
+  referrer             <span class="co">String</span>,
+
+  <span class="cd">-- UTM parameters</span>
+  utm_source           <span class="co">String</span>,
+  utm_medium           <span class="co">String</span>,
+  utm_campaign         <span class="co">String</span>,
+  utm_content          <span class="co">String</span>,
+  utm_term             <span class="co">String</span>,
+
+  <span class="cd">-- Attribution</span>
+  ad_network           <span class="co">String</span>,
+  ad_campaign_id       <span class="co">String</span>,
+  ad_adset_id          <span class="co">String</span>,
+  ad_ad_id             <span class="co">String</span>,
+
+  <span class="cd">-- Consent — documented, not gated</span>
+  consent_state        <span class="co">String</span>,       <span class="cd">-- GRANTED|DENIED|GPC_DENIED</span>
+  consent_categories   <span class="co">Array(String)</span>,
+  gpc_signal           <span class="co">Boolean</span>,
+
+  <span class="cd">-- Conversion data</span>
+  value                <span class="co">Decimal(10,2)</span>,
+  currency             <span class="co">String</span>,
+  order_id             <span class="co">String</span>,
+
+  <span class="cd">-- Device</span>
+  device_type          <span class="co">String</span>,
+  browser              <span class="co">String</span>,
+  country              <span class="co">String</span>,
+
+  <span class="cd">-- System</span>
+  banner_version       <span class="co">String</span>,
+  jurisdiction         <span class="co">String</span>,
+  shadow_mode          <span class="co">Boolean</span>,
+  date                 <span class="co">Date</span>  <span class="co">MATERIALIZED</span> toDate(timestamp)
+)
+<span class="cb">ENGINE</span> = MergeTree()
+<span class="cb">PARTITION BY</span> toYYYYMM(date)
+<span class="cb">ORDER BY</span> (site_id, timestamp, event_id);`} />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .schema-wrap { border-bottom: 1px solid var(--rule) }
+  .schema-grid { display: grid; grid-template-columns: 1fr 1fr }
+  .schema-l { padding: 72px 64px 72px 48px; border-right: 1px solid var(--rule); background: var(--ink) }
+  .schema-r { padding: 72px 48px }
+  .schema-h { font-family: var(--serif); font-size: clamp(30px, 3.2vw, 46px); letter-spacing: -.03em; line-height: 1.05; color: var(--paper); margin-bottom: 24px }
+  .schema-h em { font-style: italic; color: rgba(245,242,236,.4) }
+  .schema-p { font-size: 15px; font-weight: 300; color: rgba(245,242,236,.5); line-height: 1.75; max-width: 440px }
+  .schema-p + .schema-p { margin-top: 16px }
+  .schema-p strong { font-weight: 500; color: rgba(245,242,236,.85) }
+  .schema-caps { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: rgba(255,255,255,.06) }
+  .schema-cap { background: var(--ink); padding: 24px 20px }
+  .sc-n { font-family: var(--serif); font-size: 32px; letter-spacing: -.03em; color: var(--paper); margin-bottom: 4px }
+  .sc-l { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: rgba(245,242,236,.3) }
+  .schema-r-intro { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 20px }
+
+  @media (max-width: 1024px) {
+    .schema-grid { grid-template-columns: 1fr }
+    .schema-l { border-right: none }
+  }
+</style>

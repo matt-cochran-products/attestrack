@@ -1,0 +1,17 @@
+{
+  "name": "@attestrue/deploy",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "attestrue-deploy": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@attestrue/types": "workspace:*"
+  },
+  "files": ["dist"]
+}

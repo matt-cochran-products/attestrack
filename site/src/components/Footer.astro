@@ -1,0 +1,62 @@
+<footer>
+  <div class="ft-brand">
+    <div class="ft-logo">Attes<span class="r">track</span></div>
+    <div class="ft-sub">by Attestrue</div>
+    <p class="ft-tag">First-party server-side tracking. Free. Open source. No middlemen.</p>
+  </div>
+  <div>
+    <div class="ft-ch">Product</div>
+    <ul class="ft-links">
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#strategies">Strategies</a></li>
+      <li><a href="#schema">ClickHouse Schema</a></li>
+      <li><a href="#analytics">Portal Analytics</a></li>
+      <li><a href="#deploy">Deploy</a></li>
+      <li><a href="#community">Community</a></li>
+    </ul>
+  </div>
+  <div>
+    <div class="ft-ch">Open Source</div>
+    <ul class="ft-links">
+      <li><a href="https://github.com/attestrue/attestrue">GitHub</a></li>
+      <li><a href="#">Adapter SDK</a></li>
+      <li><a href="#">Strategy Interface</a></li>
+      <li><a href="#">Migration Guides</a></li>
+      <li><a href="#">Contributing</a></li>
+    </ul>
+  </div>
+  <div>
+    <div class="ft-ch">Attestrue</div>
+    <ul class="ft-links">
+      <li><a href="/">For Companies</a></li>
+      <li><a href="/attorneys">For Attorneys</a></li>
+      <li><a href="#">Proof Layer</a></li>
+      <li><a href="#">Pricing</a></li>
+      <li><a href="#">GitHub</a></li>
+    </ul>
+  </div>
+  <div class="ft-bot">
+    <span>&copy; 2026 Attestrue — Attestrack is MIT licensed</span>
+    <span class="ft-legal">Attestrack is open source software provided as-is. Deploying server-side tracking does not constitute legal advice and does not guarantee compliance with applicable privacy laws. Consult qualified legal counsel for compliance questions.</span>
+  </div>
+</footer>
+
+<style>
+  footer { padding: 64px 48px; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 48px; border-top: 1px solid var(--rule) }
+  .ft-logo { font-family: var(--serif); font-size: 22px; letter-spacing: -.02em; color: var(--ink); margin-bottom: 6px }
+  .ft-logo .r { color: var(--red) }
+  .ft-sub { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-5); margin-bottom: 14px }
+  .ft-tag { font-size: 13px; font-weight: 300; color: var(--ink-4); line-height: 1.7; max-width: 180px }
+  .ft-ch { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-5); margin-bottom: 16px }
+  .ft-links { list-style: none; display: flex; flex-direction: column; gap: 10px }
+  .ft-links a { font-size: 14px; font-weight: 300; color: var(--ink-3); text-decoration: none; transition: color .15s }
+  .ft-links a:hover { color: var(--ink) }
+  .ft-bot { grid-column: 1 / -1; border-top: 1px solid var(--rule); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--ink-5); letter-spacing: .04em }
+  .ft-legal { max-width: 480px; text-align: right; line-height: 1.8 }
+
+  @media (max-width: 1024px) {
+    footer { grid-template-columns: 1fr 1fr }
+    .ft-bot { flex-direction: column; gap: 16px; text-align: center }
+    .ft-legal { text-align: center }
+  }
+</style>

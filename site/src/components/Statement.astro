@@ -1,0 +1,20 @@
+---
+---
+
+<section>
+  <div class="statement">
+    <div class="stmnt-tag">The principle</div>
+    <blockquote class="stmnt-q">You own the customer relationship. You should own the measurement infrastructure. <em>Renting both from the same platform is not a neutral arrangement.</em></blockquote>
+  </div>
+</section>
+
+<style>
+  .statement { display: grid; grid-template-columns: 180px 1fr; padding: 72px 48px; gap: 48px; border-bottom: 1px solid var(--rule); align-items: start }
+  .stmnt-tag { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-5); padding-top: 10px }
+  .stmnt-q { font-family: var(--serif); font-size: clamp(26px, 2.8vw, 40px); line-height: 1.15; letter-spacing: -.02em }
+  .stmnt-q em { font-style: italic; color: var(--ink-3) }
+
+  @media (max-width: 1024px) {
+    .statement { grid-template-columns: 1fr; gap: 16px }
+  }
+</style>

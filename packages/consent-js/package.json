@@ -1,0 +1,25 @@
+{
+  "name": "@attestrue/consent-js",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/consent.js",
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "size-check": "size-limit"
+  },
+  "dependencies": {
+    "@attestrue/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@size-limit/preset-small-lib": "^11.1.4",
+    "rollup": "^4.28.1",
+    "size-limit": "^11.1.4",
+    "tslib": "^2.8.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

@@ -1,0 +1,80 @@
+<section id="strategies">
+  <div class="sh"><div class="sh-n">03</div><div class="sh-t">Built-in strategies — free, open source, extend to anything</div></div>
+  <div class="strat-wrap">
+    <div class="strat-intro">
+      <h2 class="strat-intro-h">Everything ships free. Add what you need.</h2>
+      <p class="strat-intro-p">Every strategy in the repo is MIT licensed and runs in your Cloudflare account. Your credentials stay in your CF environment variables — they're never sent to or stored by Attestrack. The strategy interface is simple enough to implement in an afternoon. Build your own and submit a PR.</p>
+    </div>
+    <div class="strat-grid">
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">Meta Conversions API</div>
+        <div class="strat-desc">Server-side purchase, lead, and custom events to Meta CAPI with hashed PII matching. Better match rates than browser pixel. Works after iOS 14.</div>
+        <div class="strat-pkg">packages/strategies/src/ad-networks/meta.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">Google Measurement Protocol</div>
+        <div class="strat-desc">GA4 server-side events and Enhanced Conversions for Google Ads. Sends hashed email for identity matching. Bypasses ITP attribution limits.</div>
+        <div class="strat-pkg">packages/strategies/src/ad-networks/google.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">TikTok Events API</div>
+        <div class="strat-desc">Server-side conversion events to TikTok's Events API. Following vendor instructions is not a safe harbor under CIPA — server-side with consent verification is.</div>
+        <div class="strat-pkg">packages/strategies/src/ad-networks/tiktok.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">Microsoft UET</div>
+        <div class="strat-desc">Bing Ads Universal Event Tracking server-side. Offline conversions API for post-consent purchase attribution.</div>
+        <div class="strat-pkg">packages/strategies/src/ad-networks/microsoft.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">ClickHouse Strategy</div>
+        <div class="strat-desc">Writes the full canonical event schema to your ClickHouse instance. Executes for all events regardless of consent — consent state is a field, not a gate. Your ClickHouse is your source of truth.</div>
+        <div class="strat-pkg">packages/strategies/src/analytics/clickhouse.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">Tinybird Strategy</div>
+        <div class="strat-desc">Identical schema to ClickHouse. Writes to Tinybird Events API. Real-time analytics queries via Tinybird Pipes without managing your own database.</div>
+        <div class="strat-pkg">packages/strategies/src/analytics/tinybird.ts</div>
+      </div>
+      <div class="strat-cell">
+        <div class="strat-icon built">Built-in</div>
+        <div class="strat-name">TCF Consent String</div>
+        <div class="strat-desc">IAB TCF v2.2 consent string generator for programmatic advertising. Required for Google Ad Manager, DV360, and most DSPs. Included because you need it if you run programmatic.</div>
+        <div class="strat-pkg">packages/strategies/src/compliance/tcf.ts</div>
+      </div>
+      <div class="strat-cell ext">
+        <div class="strat-icon oss">+ Community</div>
+        <div class="strat-name">Add Any Destination</div>
+        <div class="strat-desc">Implement the Strategy interface — 3 methods, strongly typed. Submit a PR. Snowflake, BigQuery, Amplitude, Mixpanel, PostHog, Klaviyo, Braze, Heap — if it takes an HTTP request, it's a strategy.</div>
+        <div class="strat-pkg">packages/sdk/src/interfaces.ts — Strategy interface</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .strat-wrap { border-bottom: 1px solid var(--rule) }
+  .strat-intro { padding: 64px 48px 0 }
+  .strat-intro-h { font-family: var(--serif); font-size: clamp(30px, 3vw, 44px); letter-spacing: -.03em; line-height: 1.05; margin-bottom: 16px }
+  .strat-intro-p { font-size: 15px; font-weight: 300; color: var(--ink-3); line-height: 1.75; max-width: 760px }
+  .strat-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--rule); margin-top: 48px }
+  .strat-cell { padding: 36px 32px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule) }
+  .strat-cell:nth-child(4n) { border-right: none }
+  .strat-cell.ext { background: var(--paper-2) }
+  .strat-icon { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-5); margin-bottom: 12px }
+  .strat-icon.built { color: var(--green) }
+  .strat-icon.oss { color: var(--blue) }
+  .strat-name { font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 8px }
+  .strat-desc { font-size: 13px; font-weight: 300; color: var(--ink-4); line-height: 1.7 }
+  .strat-pkg { font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: var(--ink-5); margin-top: 10px }
+
+  @media (max-width: 1024px) {
+    .strat-grid { grid-template-columns: 1fr 1fr }
+  }
+</style>

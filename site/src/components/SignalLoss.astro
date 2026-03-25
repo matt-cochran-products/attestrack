@@ -1,0 +1,47 @@
+---
+---
+
+<section>
+  <div class="sh"><div class="sh-n">01</div><div class="sh-t">Why browser-side pixels are losing the fight</div></div>
+  <div class="signal-grid">
+    <div class="signal-cell">
+      <div class="sig-n">Problem 01</div>
+      <h2 class="sig-h">Ad blockers hide 30–40% of your conversions.</h2>
+      <p class="sig-p">uBlock Origin, Brave, and privacy-focused browsers block third-party pixels by default. On developer-heavy or privacy-conscious audiences, block rates exceed 50%. Your Facebook Pixel and Google Tag never fire. Those conversions never make it back to your ad platform. You’re optimizing campaigns on half the signal.</p>
+      <p class="sig-p">Server-side requests from your own domain are not blocked. They’re first-party. They’re invisible to browser extensions. Every conversion reaches the ad network.</p>
+      <div class="sig-stat"><strong>30–40%</strong><span>Typical conversion signal loss from browser-side tracking on desktop audiences with ad blockers active.</span></div>
+    </div>
+    <div class="signal-cell">
+      <div class="sig-n">Problem 02</div>
+      <h2 class="sig-h">iOS ITP makes your attribution window a week.</h2>
+      <p class="sig-p">Safari’s Intelligent Tracking Prevention caps third-party cookies at 7 days and first-party cookies set by JavaScript at 7 days with ITP 2.3+. A customer who sees your ad on Monday and buys the following Saturday may never be attributed. Your 30-day attribution window is aspirational, not real.</p>
+      <p class="sig-p">Server-side tracking with hashed customer identifiers bypasses cookie-based attribution entirely. Email hash matching to Meta CAPI and Google’s Enhanced Conversions works across sessions, devices, and browser restrictions.</p>
+      <div class="sig-stat"><strong>7 days</strong><span>Safari’s effective attribution window for browser-side tracking under ITP 2.3+. Your actual window is much shorter.</span></div>
+    </div>
+    <div class="signal-cell">
+      <div class="sig-n">Problem 03</div>
+      <h2 class="sig-h">You’re giving your customer data to the platforms bidding against you.</h2>
+      <p class="sig-p">When you install the Meta Pixel, Meta receives your customer purchase data, browsing behavior, and conversion events. They use it to improve their advertising models — for you and for your competitors. You paid to acquire that customer. You’re now funding the targeting model that shows your competitor to the same customer next week.</p>
+      <p class="sig-p">Server-side tracking through your own Cloudflare account puts you in control of what reaches the platform. You send what you choose to send. You keep what you choose to keep. In your ClickHouse.</p>
+      <div class="sig-stat"><strong>0%</strong><span>Of your conversion data that needs to leave your infrastructure. Server-side means you decide what goes where.</span></div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .signal-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--rule) }
+  .signal-cell { padding: 52px 44px; border-right: 1px solid var(--rule) }
+  .signal-cell:last-child { border-right: none }
+  .sig-n { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--red); margin-bottom: 18px }
+  .sig-h { font-family: var(--serif); font-size: 26px; letter-spacing: -.02em; line-height: 1.15; margin-bottom: 18px }
+  .sig-p { font-size: 14px; font-weight: 300; color: var(--ink-3); line-height: 1.75 }
+  .sig-p + .sig-p { margin-top: 12px }
+  .sig-stat { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--rule) }
+  .sig-stat strong { font-family: var(--serif); font-size: 40px; letter-spacing: -.03em; color: var(--ink); display: block; margin-bottom: 6px }
+  .sig-stat span { font-family: var(--mono); font-size: 11px; color: var(--ink-4); letter-spacing: .04em; line-height: 1.8 }
+
+  @media (max-width: 1024px) {
+    .signal-grid { grid-template-columns: 1fr }
+    .signal-cell { border-right: none; border-bottom: 1px solid var(--rule) }
+  }
+</style>

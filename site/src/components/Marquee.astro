@@ -1,0 +1,44 @@
+<div class="mq" aria-hidden="true">
+  <div class="mq-track">
+    <span class="mq-w">First-Party</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">No Middleman</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Your Data</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">No Sampling</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Open Source</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">ITP Immune</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Ad-Blocker Resistant</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">First-Party</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">No Middleman</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Your Data</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">No Sampling</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Open Source</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">ITP Immune</span><span class="mq-w faint">&middot;</span>
+    <span class="mq-w">Ad-Blocker Resistant</span><span class="mq-w faint">&middot;</span>
+  </div>
+</div>
+
+<style>
+  .mq {
+    overflow: hidden;
+    border-bottom: 1px solid var(--rule);
+    padding: 28px 0;
+    background: var(--paper-2);
+  }
+  .mq-track {
+    display: flex;
+    white-space: nowrap;
+    animation: mqr 32s linear infinite;
+  }
+  .mq-w {
+    font-family: var(--serif);
+    font-size: 44px;
+    letter-spacing: -.02em;
+    padding: 0 36px;
+    color: var(--ink-2);
+  }
+  .mq-w.faint { color: var(--rule) }
+  @keyframes mqr {
+    from { transform: translateX(0) }
+    to { transform: translateX(-50%) }
+  }
+</style>

@@ -1,0 +1,2 @@
+-- Attestrue D1 database schema
+-- TODO: define schema

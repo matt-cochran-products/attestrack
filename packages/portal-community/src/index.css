@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ink: #0a0a0a;
+    --ink-2: #1c1c1c;
+    --ink-3: #3a3a3a;
+    --ink-4: #6b6b6b;
+    --ink-5: #9a9a9a;
+    --rule: #d4d0c8;
+    --paper: #f5f2ec;
+    --paper-2: #ede9e0;
+    --red: #c8341a;
+    --green: #3a7d55;
+    --gold: #b8860b;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Instrument Serif', serif;
+    --sans: 'IBM Plex Sans', sans-serif;
+
+    --accent-green: #4caf7d;
+    --accent-amber: #e0c060;
+    --accent-red: #c8341a;
+
+    --bg-shell: #0a0a0a;
+    --bg-card: rgba(255, 255, 255, 0.04);
+    --border-card: rgba(255, 255, 255, 0.07);
+    --text-muted: rgba(245, 242, 236, 0.45);
+    --text-active: rgba(245, 242, 236, 0.85);
+    --text-label: rgba(245, 242, 236, 0.25);
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --radius: 0rem;
+  }
+
+  html,
+  body,
+  #root {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-color: var(--bg-shell);
+    color: var(--text-active);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    display: block;
+  }
+}
+
+@layer components {
+  .font-mono {
+    font-family: var(--mono);
+  }
+
+  .font-serif {
+    font-family: var(--serif);
+  }
+
+  .font-sans {
+    font-family: var(--sans);
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-label);
+  }
+
+  .label-lg {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-label);
+  }
+
+  .value {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(245, 242, 236, 0.75);
+  }
+
+  .value-lg {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: rgba(245, 242, 236, 0.75);
+  }
+
+  .card-surface {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0;
+  }
+
+  .btn-primary {
+    background: var(--red);
+    color: white;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 20px;
+    border-radius: 0;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: #a82a15;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-active);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 20px;
+    border-radius: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .btn-secondary:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .btn-destructive {
+    background: transparent;
+    color: var(--accent-red);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 20px;
+    border-radius: 0;
+    border: 1px solid var(--accent-red);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .btn-destructive:hover {
+    background: rgba(200, 52, 26, 0.1);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .status-dot.active {
+    background-color: var(--accent-green);
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .status-dot.warning {
+    background-color: var(--accent-amber);
+  }
+
+  .status-dot.error {
+    background-color: var(--accent-red);
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .hash {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+}

@@ -1,0 +1,99 @@
+---
+---
+
+<section id="architecture">
+  <div class="sh"><div class="sh-n">02</div><div class="sh-t">How it works — one Worker, all your destinations</div></div>
+  <div class="arch-wrap">
+    <div class="arch-grid">
+      <div class="arch-l">
+        <h2 class="arch-h">Your Cloudflare<br />account. Your<br /><em>credentials. Your data.</em></h2>
+        <p class="arch-p">Attestrack is a Cloudflare Worker that runs in your account. You deploy it once. It proxies tracking events server-side to Meta, Google, TikTok, Microsoft, and any analytics destination you configure. Your ad network credentials live in your Worker environment variables — they never touch Attestrack’s infrastructure because there is no Attestrack infrastructure to touch.</p>
+        <p class="arch-p">The browser-side adapters initialize pixels after consent and send conversion events to your Worker endpoint — which is on your own domain. First-party. Not blocked. Then the Worker forwards those events to each configured destination simultaneously, server-side, with any additional data enrichment you’ve configured.</p>
+        <p class="arch-p"><strong>Nothing goes to Attestrack servers.</strong> There are no Attestrack servers in the tracking data path. It’s your Cloudflare account, your Worker, your event data. The GitHub repo is the product.</p>
+        <ul class="flow">
+          <li class="flow-item"><div class="flow-n">01</div><div class="flow-body"><strong>Browser fires event to your domain.</strong> <code>/t/event</code> on your own subdomain. First-party request. Not blocked by any ad blocker.</div></li>
+          <li class="flow-item"><div class="flow-n">02</div><div class="flow-body"><strong>consent.js verifies consent state.</strong> If consent granted for the relevant category, the event is forwarded to the Worker. If not, it’s logged as a non-consented event in your ClickHouse only.</div></li>
+          <li class="flow-item"><div class="flow-n">03</div><div class="flow-body"><strong>Worker enriches and fans out.</strong> Adds hashed PII matching fields, reads your configured strategies, and executes all destinations in parallel via <code>Promise.all</code>.</div></li>
+          <li class="flow-item"><div class="flow-n">04</div><div class="flow-body"><strong>ClickHouse gets everything.</strong> Every event — consented or not — goes to your ClickHouse with consent state as a field. Your analytics are complete. Your ad platforms only get consented events.</div></li>
+          <li class="flow-item"><div class="flow-n">05</div><div class="flow-body"><strong>Worker returns 200 immediately.</strong> Strategy execution happens in <code>ctx.waitUntil</code>. Zero latency impact on your pages. The browser never waits for ad network responses.</div></li>
+        </ul>
+      </div>
+      <div class="arch-r">
+        <div class="code">
+          <div class="code-label">wrangler.toml — your configuration</div>
+          <pre set:html={`<span class="cd"># Deploy to your Cloudflare account
+# npx wrangler deploy</span>
+
+name = <span class="cg">"my-tracking-worker"</span>
+main = <span class="cg">"worker/index.js"</span>
+
+[vars]
+  SITE_ID = <span class="cg">"your-site"</span>
+
+<span class="cd"># Ad network credentials — yours only
+# Never sent anywhere except the ad network</span>
+[secrets]
+  META_PIXEL_ID        = <span class="co">"..."</span>
+  META_ACCESS_TOKEN    = <span class="co">"..."</span>
+  GA4_MEASUREMENT_ID   = <span class="co">"..."</span>
+  GA4_API_SECRET       = <span class="co">"..."</span>
+  TIKTOK_PIXEL_ID      = <span class="co">"..."</span>
+  TIKTOK_ACCESS_TOKEN  = <span class="co">"..."</span>
+  CLICKHOUSE_URL       = <span class="co">"..."</span>
+  CLICKHOUSE_PASSWORD  = <span class="co">"..."</span>
+
+<span class="cd"># Optional: add Attestrue proof layer
+# One line. No code changes. No redeployment.</span>
+<span class="cd"># LICENSE_KEY = "&lt;your-license-key&gt;"</span>`} />
+        </div>
+        <div class="code" style="margin-top:12px">
+          <div class="code-label">Strategy registration — add any destination</div>
+          <pre set:html={`<span class="cd">// packages/strategies/src/index.ts</span>
+<span class="cd">// Add your own — same interface</span>
+
+<span class="cb">export const</span> <span class="co">BUNDLED_STRATEGIES</span> = [
+  <span class="cg">new MetaStrategy</span>(),
+  <span class="cg">new GoogleStrategy</span>(),
+  <span class="cg">new TikTokStrategy</span>(),
+  <span class="cg">new MicrosoftStrategy</span>(),
+  <span class="cg">new ClickHouseStrategy</span>(),
+  <span class="cg">new TinybirdStrategy</span>(),
+  <span class="cd">// Community strategies:</span>
+  <span class="cd">// new SnowflakeStrategy()</span>
+  <span class="cd">// new BigQueryStrategy()</span>
+  <span class="cd">// new AmplitudeStrategy()</span>
+  <span class="cd">// new MixpanelStrategy()</span>
+];
+
+<span class="cd">// Implement Strategy interface:
+// execute(event, config, env): Promise&lt;Result&gt;
+// shouldExecute(event, consentState): boolean
+// category(): StrategyCategory</span>`} />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .arch-wrap { border-bottom: 1px solid var(--rule) }
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr }
+  .arch-l { padding: 72px 64px 72px 48px; border-right: 1px solid var(--rule) }
+  .arch-r { padding: 72px 48px; background: var(--paper-2) }
+  .arch-h { font-family: var(--serif); font-size: clamp(32px, 3.5vw, 50px); letter-spacing: -.03em; line-height: 1.05; margin-bottom: 28px }
+  .arch-h em { font-style: italic; color: var(--ink-3) }
+  .arch-p { font-size: 15px; font-weight: 300; color: var(--ink-3); line-height: 1.75; max-width: 460px }
+  .arch-p + .arch-p { margin-top: 16px }
+  .arch-p strong { font-weight: 500; color: var(--ink) }
+  .flow { list-style: none; margin-top: 36px }
+  .flow-item { display: grid; grid-template-columns: 28px 1fr; gap: 14px; padding: 18px 0; border-top: 1px solid var(--rule) }
+  .flow-n { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--ink-5); padding-top: 2px }
+  .flow-body { font-size: 14px; font-weight: 300; color: var(--ink-3); line-height: 1.65 }
+  .flow-body strong { font-weight: 500; color: var(--ink) }
+  .flow-body code { font-family: var(--mono); font-size: 12px; background: var(--paper-2); padding: 1px 6px; border: 1px solid var(--rule) }
+
+  @media (max-width: 1024px) {
+    .arch-grid { grid-template-columns: 1fr }
+    .arch-l { border-right: none }
+  }
+</style>

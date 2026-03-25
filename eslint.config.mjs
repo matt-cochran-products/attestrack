@@ -14,7 +14,6 @@ export default tseslint.config(
       'pnpm-lock.yaml',
       '**/rollup.config.js',
       'tooling/vitest/setup.ts',
-      'site/**',
       'e2e/scripts/**',
       'e2e/node_modules/**',
       'e2e/playwright-report/**',

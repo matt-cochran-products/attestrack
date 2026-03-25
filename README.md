@@ -47,7 +47,7 @@ pnpm boundary-check
 
 **Run locally**
 
-- Marketing site: `pnpm --filter @attestrue/site dev`
+- Marketing site (separate repo): clone [attestrue-site](https://github.com/attestrue/attestrue-site), then `npm install` and `npm run dev` (or `pnpm` equivalents).
 - Community portal: `pnpm --filter @attestrue/portal-community dev`
 
 ---
@@ -75,7 +75,6 @@ pnpm boundary-check
 ```
 attestrue/
 ├── docs/
-├── site/
 ├── packages/
 │   ├── deploy/
 │   ├── portal-community/   # Operator UI — analytics-first (extensions handoff)
@@ -105,7 +104,7 @@ From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV see
 
 | Package | Role |
 |---------|------|
-| `@attestrue/site` | Attestrack marketing site |
+| [`attestrue-site`](https://github.com/attestrue/attestrue-site) (separate repo) | Attestrack marketing site (attestrack.dev) |
 | `@attestrue/deploy` | Deployment tooling |
 | `@attestrue/worker-core` | Worker fetch handler + strategy pipeline (uses `HostRuntime` only) |
 | `@attestrue/host-contracts` | Portable host port types |

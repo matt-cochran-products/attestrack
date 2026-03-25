@@ -1,4 +1,5 @@
-import type { ConsentCommitRequest } from '@attestrue/types'
+import type { ConsentCommitRequest, TrackingEventV1 } from '@attestrue/types'
+import { TRACKING_EVENT_PATH } from './paths.js'
 
 /** Worker route handled by `createAttestrackFetchHandler` in `@attestrue/worker-core`. */
 export const CONSENT_COMMIT_PATH = '/__attestrack__/consent/commit'
@@ -30,4 +31,19 @@ export function persistConsentCookie(token: string, maxAgeSec = 31536000): void 
   if (typeof document === 'undefined') return
   const v = encodeURIComponent(token)
   document.cookie = `at_consent=${v}; Path=/; Max-Age=${maxAgeSec}; Secure; SameSite=Lax`
+}
+
+/** POST a canonical tracking event to the first-party worker (non-blocking friendly). */
+export async function sendTrackingEvent(
+  workerOrigin: string,
+  event: TrackingEventV1,
+  init?: RequestInit
+): Promise<void> {
+  const base = workerOrigin.replace(/\/$/u, '')
+  await fetch(`${base}${TRACKING_EVENT_PATH}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(init?.headers as HeadersInit) },
+    body: JSON.stringify(event),
+    ...init
+  })
 }

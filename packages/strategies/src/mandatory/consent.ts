@@ -1,5 +1,5 @@
 import { verifyPrivacyConsentToken, type Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import type { StrategyManifest, VerifiedPrivacyConsentToken } from '@attestrue/types'
 import { communityJurisdictionStrategy } from './jurisdiction.js'
 import { evidenceUnsignedStrategy } from './consent-log.js'
 import { communityTrollShieldStrategy } from './troll-shield.js'
@@ -19,13 +19,29 @@ function readCookie(header: string | null, name: string): string | null {
   return null
 }
 
+function gpcActive(request: Request): boolean {
+  return request.headers.get('Sec-GPC') === '1'
+}
+
 export async function verifyCommunityConsentToken(secret: string, token: string) {
   return verifyPrivacyConsentToken(secret, token)
 }
 
+function applyGpcOverride(v: VerifiedPrivacyConsentToken, honor: boolean): VerifiedPrivacyConsentToken {
+  if (!honor || v.payload.decision !== 'granted') {
+    return v
+  }
+  return {
+    raw: v.raw,
+    payload: {
+      ...v.payload,
+      decision: 'declined'
+    }
+  }
+}
+
 /**
- * Community consent gate: verify HMAC token from first-party cookie, honor GPC and IOA
- * per active `ConsentConfig` row (full behavior stubbed in Worker until wired to KV).
+ * Community consent gate: verify HMAC token from first-party cookie; honor GPC when configured.
  */
 export const communityConsentStrategyManifest: StrategyManifest = {
   id: 'consent',
@@ -41,10 +57,23 @@ export function createConsentCookieStrategy(consentSecretEnvName: string): Strat
     async run(ctx) {
       const raw = readCookie(ctx.request.headers.get('cookie'), CONSENT_COOKIE_NAME)
       const secret = ctx.host.getSecret(consentSecretEnvName) ?? ''
-      if (!raw || !secret) return { continuePipeline: true, consent: null }
+      const gpc = gpcActive(ctx.request)
+      const row = ctx.jurisdictionRow
+
+      if (!raw || !secret) {
+        return { continuePipeline: true, consent: null }
+      }
       const v = await verifyPrivacyConsentToken(secret, raw)
-      if (!v.ok) return { continuePipeline: true, consent: null }
-      return { continuePipeline: true, consent: { payload: v.payload, raw: v.raw } }
+      if (!v.ok) {
+        return { continuePipeline: true, consent: null }
+      }
+
+      let consent: VerifiedPrivacyConsentToken | null = v
+      if (gpc && row?.gpc_honor) {
+        consent = applyGpcOverride(v, true)
+      }
+
+      return { continuePipeline: true, consent }
     }
   }
 }

@@ -1,5 +1,6 @@
 import { apiPost, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 
 /** Curated analytics chart payload (Worker + ClickHouse proxy). */
 export interface AnalyticsChartSeries {
@@ -45,7 +46,7 @@ export async function getCuratedAnalyticsCharts(params: {
   dateTo: string;
 }): Promise<AnalyticsChartSeries[]> {
   if (isLiveApi()) {
-    return apiPost<AnalyticsChartSeries[]>('/api/portal/analytics/curated', params);
+    return apiPost<AnalyticsChartSeries[]>(`${PORTAL_WORKER_PREFIX}/analytics/curated`, params);
   }
   return stubCuratedCharts();
 }
@@ -57,7 +58,7 @@ export interface WarehouseStatus {
 
 export async function getAnalyticsWarehouseStatus(): Promise<WarehouseStatus> {
   if (isLiveApi()) {
-    return apiPost<WarehouseStatus>('/api/portal/analytics/warehouse-status', {});
+    return apiPost<WarehouseStatus>(`${PORTAL_WORKER_PREFIX}/analytics/warehouse-status`, {});
   }
   await stubDelay();
   return {

@@ -15,7 +15,7 @@ If your adapter ships with `manifest.replaces` listing community strategy ids, `
 
 - Types: `@attestrue/types` (tracking events, consent commit body, strategy manifests).
 - Validation: `@attestrue/schema` (Zod).
-- Do not introduce Merkle fields; evidence shape follows **CONSENT-EVIDENCE-TOKEN-STANDARD** (v9.2).
+- Do not introduce Merkle or Proof fields in OSS packages. Community consent uses **unsigned** operational records; licensed token semantics are documented outside this repo (see root `CONSENT-EVIDENCE-TOKEN-STANDARD.md` pointer).
 
 ## Testing
 

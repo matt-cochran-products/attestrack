@@ -1,5 +1,6 @@
 import { apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { AlertRule, DestinationRow } from './types';
 
 async function stubListDestinations(): Promise<DestinationRow[]> {
@@ -24,14 +25,14 @@ async function stubGetAlertRules(): Promise<AlertRule[]> {
 
 export async function listDestinations(): Promise<DestinationRow[]> {
   if (isLiveApi()) {
-    return apiGet<DestinationRow[]>('/api/portal/destinations');
+    return apiGet<DestinationRow[]>(`${PORTAL_WORKER_PREFIX}/destinations`);
   }
   return stubListDestinations();
 }
 
 export async function getAlertRules(): Promise<AlertRule[]> {
   if (isLiveApi()) {
-    return apiGet<AlertRule[]>('/api/portal/destinations/alert-rules');
+    return apiGet<AlertRule[]>(`${PORTAL_WORKER_PREFIX}/alert-rules`);
   }
   return stubGetAlertRules();
 }

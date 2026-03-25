@@ -38,7 +38,7 @@ export function useCuratedAnalytics() {
     return () => {
       cancelled = true;
     };
-  }, [analyticsRange.dateFrom, analyticsRange.dateTo]);
+  }, [analyticsRange]);
 
   return { loading, charts, warehouse, error };
 }

@@ -1,5 +1,6 @@
 import { apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { DashboardMetrics } from './types';
 
 async function stubDashboardMetrics(): Promise<DashboardMetrics> {
@@ -15,7 +16,7 @@ async function stubDashboardMetrics(): Promise<DashboardMetrics> {
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   if (isLiveApi()) {
-    return apiGet<DashboardMetrics>('/api/portal/dashboard');
+    return apiGet<DashboardMetrics>(`${PORTAL_WORKER_PREFIX}/dashboard`);
   }
   return stubDashboardMetrics();
 }

@@ -18,6 +18,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm route-contract-check
       - run: pnpm build
       - run: pnpm size-check
       - run: pnpm boundary-check

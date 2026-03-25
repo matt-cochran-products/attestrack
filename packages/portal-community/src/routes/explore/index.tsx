@@ -1,6 +1,22 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { runExploreQuery, validateExploreSql } from '../../lib/api/explore';
+import {
+  listSavedQueries,
+  removeSavedQuery,
+  runExploreQuery,
+  saveSavedQuery,
+  validateExploreSql,
+} from '../../lib/api/explore';
+import { ApiError, isLiveApi } from '../../lib/api/http';
+import type { SavedQueryEntry } from '../../lib/api/types';
+
+function formatExploreError(e: unknown): string {
+  if (e instanceof ApiError && e.details && typeof e.details === 'object') {
+    const body = e.details as { details?: { reason?: string }; reason?: string };
+    return body.details?.reason ?? body.reason ?? e.message;
+  }
+  return e instanceof Error ? e.message : 'Query failed';
+}
 
 function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
   const esc = (v: unknown) => {
@@ -17,10 +33,25 @@ function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
 
 export default function ExplorePage() {
   const [sql, setSql] = useState('SELECT event_name, count() AS count FROM events GROUP BY event_name LIMIT 100');
+  const [saveName, setSaveName] = useState('');
   const [loading, setLoading] = useState(false);
   const [columns, setColumns] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [truncated, setTruncated] = useState(false);
+  const [saved, setSaved] = useState<SavedQueryEntry[]>([]);
+
+  const refreshSaved = useCallback(async () => {
+    try {
+      const list = await listSavedQueries();
+      setSaved(list);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSaved();
+  }, [refreshSaved]);
 
   const run = async () => {
     const v = validateExploreSql(sql);
@@ -36,9 +67,40 @@ export default function ExplorePage() {
       setTruncated(res.truncated);
       toast.success('Query completed');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Query failed');
+      toast.error(formatExploreError(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const save = async () => {
+    const v = validateExploreSql(sql);
+    if (!v.ok) {
+      toast.error(v.reason);
+      return;
+    }
+    try {
+      await saveSavedQuery(saveName.trim() || 'Saved query', sql);
+      setSaveName('');
+      toast.success('Saved to KV');
+      void refreshSaved();
+    } catch (e) {
+      toast.error(formatExploreError(e));
+    }
+  };
+
+  const loadSaved = (entry: SavedQueryEntry) => {
+    setSql(entry.sql);
+    toast.message(`Loaded: ${entry.name}`);
+  };
+
+  const delSaved = async (id: string) => {
+    try {
+      await removeSavedQuery(id);
+      void refreshSaved();
+      toast.success('Removed');
+    } catch (e) {
+      toast.error(formatExploreError(e));
     }
   };
 
@@ -60,10 +122,41 @@ export default function ExplorePage() {
       <div>
         <div className="font-mono text-[13px] text-[var(--text-active)] font-medium">Explore</div>
         <p className="font-sans text-[12px] text-[var(--text-muted)] mt-2 max-w-3xl">
-          SELECT-only against your warehouse via the Worker query proxy (EXP.1). Client-side validation is not a
-          substitute for server allowlists and row caps. Query text and results are not sent to Attestrue when the proxy
-          is correctly deployed (INV-B-14–INV-B-17).
+          SELECT-only against your warehouse via the Worker query proxy (EXP.1). Allowlisted tables:{' '}
+          <span className="text-[var(--text-label)]">events, attestrack_events, default</span>. Server injects or clamps
+          LIMIT (max 500). Saved queries live in your KV (INV-B-17).
         </p>
+      </div>
+
+      <div className="card-surface p-4">
+        <div className="label mb-2">Saved queries</div>
+        {saved.length === 0 ? (
+          <div className="font-mono text-[10px] text-[var(--text-muted)]">No saved queries yet.</div>
+        ) : (
+          <ul className="space-y-2 mb-4">
+            {saved.map((q) => (
+              <li key={q.id} className="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+                <button type="button" className="text-[var(--accent-green)] underline" onClick={() => loadSaved(q)}>
+                  {q.name}
+                </button>
+                <button type="button" className="text-[var(--text-muted)]" onClick={() => delSaved(q.id)}>
+                  remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2 flex-wrap items-center">
+          <input
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            placeholder="Label"
+            className="bg-[rgba(0,0,0,0.35)] border border-[rgba(255,255,255,0.12)] px-2 py-1 font-mono text-[10px] text-[var(--text-active)] min-w-[140px]"
+          />
+          <button type="button" className="btn-secondary text-[10px]" onClick={save}>
+            Save current SQL
+          </button>
+        </div>
       </div>
 
       <div className="card-surface p-4">
@@ -86,7 +179,9 @@ export default function ExplorePage() {
       </div>
 
       {truncated && (
-        <div className="font-mono text-[10px] text-[var(--accent-amber)]">Results truncated to row cap (stub).</div>
+        <div className="font-mono text-[10px] text-[var(--accent-amber)]">
+          Results may be capped at the Worker row limit ({isLiveApi() ? 'live' : 'stub'}).
+        </div>
       )}
 
       {columns.length > 0 && (

@@ -36,6 +36,10 @@ coverage/
 .dev.vars
 .mf/
 
+# --- Playwright ---
+playwright-report/
+test-results/
+
 # --- IDE & editors ---
 .idea/
 *.swp

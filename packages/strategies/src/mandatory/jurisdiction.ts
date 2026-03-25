@@ -1,5 +1,46 @@
 import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import { consentConfigSchema } from '@attestrue/schema'
+import type { ConsentConfig, StrategyManifest } from '@attestrue/types'
+import { COMMUNITY_DEFAULT_CONSENT_CONFIG, KV_KEY_CONSENT_CONFIG } from '@attestrue/types'
+
+/** EU member states (ISO 3166-1 alpha-2) for coarse `EU` row resolution. */
+const EU_MEMBER_STATES = new Set([
+  'AT',
+  'BE',
+  'BG',
+  'HR',
+  'CY',
+  'CZ',
+  'DK',
+  'EE',
+  'FI',
+  'FR',
+  'DE',
+  'GR',
+  'HU',
+  'IE',
+  'IT',
+  'LV',
+  'LT',
+  'LU',
+  'MT',
+  'NL',
+  'PL',
+  'PT',
+  'RO',
+  'SK',
+  'SI',
+  'ES',
+  'SE'
+])
+
+function resolveJurisdictionKey(geo: string | null, config: ConsentConfig): string {
+  if (!geo) return 'DEFAULT'
+  const cc = geo.toUpperCase()
+  if (config.jurisdictions[cc]) return cc
+  if (EU_MEMBER_STATES.has(cc) && config.jurisdictions.EU) return 'EU'
+  return 'DEFAULT'
+}
 
 /**
  * **JurisdictionStrategy** (community): resolves the active row from operator KV
@@ -16,7 +57,29 @@ export const communityJurisdictionStrategy: Strategy = {
   id: 'jurisdiction',
   stage: 'mandatory',
   manifest: communityJurisdictionStrategyManifest,
-  async run(_ctx: StrategyPipelineContext): Promise<StrategyResult> {
+  async run(ctx: StrategyPipelineContext): Promise<StrategyResult> {
+    let config: ConsentConfig = COMMUNITY_DEFAULT_CONSENT_CONFIG
+    const raw = await ctx.host.kv.get(KV_KEY_CONSENT_CONFIG)
+    if (raw) {
+      try {
+        const parsedJson: unknown = JSON.parse(raw)
+        const parsed = consentConfigSchema.safeParse(parsedJson)
+        if (parsed.success) {
+          config = parsed.data as ConsentConfig
+        }
+      } catch {
+        /* keep default */
+      }
+    }
+    const key = resolveJurisdictionKey(ctx.host.geoCountry(ctx.request), config)
+    const row = config.jurisdictions[key] ?? config.jurisdictions.DEFAULT
+    if (!row) {
+      ctx.jurisdictionKey = 'DEFAULT'
+      ctx.jurisdictionRow = COMMUNITY_DEFAULT_CONSENT_CONFIG.jurisdictions.DEFAULT
+      return { continuePipeline: true }
+    }
+    ctx.jurisdictionKey = key
+    ctx.jurisdictionRow = row
     return { continuePipeline: true }
   }
 }

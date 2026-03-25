@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { getSiteConfig } from '../lib/api/configuration';
+import { isLiveApi } from '../lib/api/http';
 import type { SiteConfig } from '../lib/api/types';
 
 export interface AnalyticsDateRange {
@@ -35,6 +36,10 @@ export interface PortalShellValue {
   /** PORTAL.3 — human-readable mode for shell */
   modeShellLabel: string;
   modeTone: 'shadow' | 'enforcement' | 'amber';
+  /** True when VITE_ATTESTRACK_API_BASE_URL is set — portal calls the Worker. */
+  isLiveWorker: boolean;
+  /** Operator-visible data source (REPO-SPEC-OSS stub vs live). */
+  dataSourceShellLabel: string;
 }
 
 const PortalShellContext = createContext<PortalShellValue | null>(null);
@@ -78,6 +83,9 @@ export function PortalShellProvider({ children }: { children: ReactNode }) {
     };
   }, [siteConfig]);
 
+  const isLiveWorker = isLiveApi();
+  const dataSourceShellLabel = isLiveWorker ? 'Live worker' : 'Local stub data';
+
   const value: PortalShellValue = {
     siteConfig,
     loading,
@@ -87,6 +95,8 @@ export function PortalShellProvider({ children }: { children: ReactNode }) {
     setAnalyticsRange,
     modeShellLabel,
     modeTone,
+    isLiveWorker,
+    dataSourceShellLabel,
   };
 
   return <PortalShellContext.Provider value={value}>{children}</PortalShellContext.Provider>;

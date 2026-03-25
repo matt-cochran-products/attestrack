@@ -45,7 +45,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { siteConfig, modeShellLabel, modeTone } = usePortalShell();
+  const { siteConfig, modeShellLabel, modeTone, isLiveWorker, dataSourceShellLabel } = usePortalShell();
   const [driftAlertDismissed, setDriftAlertDismissed] = useState(false);
 
   const isDriftAlertActive = true;
@@ -125,6 +125,17 @@ export function Layout({ children }: LayoutProps) {
               <span className={`font-mono text-[10px] uppercase tracking-wide ${modeTextClass}`}>
                 {modeShellLabel}
               </span>
+            </div>
+
+            <div
+              className={`px-3 py-1.5 rounded-full border font-mono text-[10px] uppercase tracking-wide ${
+                isLiveWorker
+                  ? 'border-[rgba(76,175,125,0.35)] bg-[rgba(76,175,125,0.12)] text-[var(--accent-green)]'
+                  : 'border-[rgba(224,192,96,0.35)] bg-[rgba(224,192,96,0.1)] text-[var(--accent-amber)]'
+              }`}
+              title="Set VITE_ATTESTRACK_API_BASE_URL in .env for live Worker data (see packages/portal-community/.env.example)."
+            >
+              {dataSourceShellLabel}
             </div>
 
             <div className="font-mono text-[10px] text-[var(--text-label)]">{siteConfig?.siteId ?? '…'}</div>

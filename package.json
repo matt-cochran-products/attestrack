@@ -4,16 +4,23 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint",
+    "lint": "eslint .",
     "typecheck": "turbo run typecheck",
     "size-check": "turbo run size-check",
-    "boundary-check": "node scripts/boundary-check.mjs"
+    "boundary-check": "node scripts/boundary-check.mjs",
+    "route-contract-check": "node scripts/check-oss-routes.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.0.0",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0",
-    "eslint": "^9.0.0"
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

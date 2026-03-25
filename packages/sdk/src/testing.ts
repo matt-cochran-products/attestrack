@@ -18,18 +18,35 @@ export interface MockHostOptions {
   geoCountry?: string | null
 }
 
+const mockBackgroundQueues = new WeakMap<HostRuntime, Array<() => void | Promise<void>>>()
+
 export function createMockHostRuntime(options: MockHostOptions = {}): HostRuntime {
   const kv = new MemoryKv()
   const secrets = options.secrets ?? {}
-  const backgrounds: (() => void | Promise<void>)[] = []
-  return {
+  const queue: Array<() => void | Promise<void>> = []
+  const host: HostRuntime = {
     kv,
-    geoCountry: () => options.geoCountry ?? null,
+    geoCountry: (request: Request) => {
+      void request
+      return options.geoCountry ?? null
+    },
     scheduleBackground(task) {
-      backgrounds.push(task)
+      queue.push(task)
     },
     getSecret(name) {
       return secrets[name]
     }
+  }
+  mockBackgroundQueues.set(host, queue)
+  return host
+}
+
+/** Runs all tasks scheduled via `scheduleBackground` on a mock host (for tests). */
+export async function flushMockBackgroundTasks(host: HostRuntime): Promise<void> {
+  const queue = mockBackgroundQueues.get(host)
+  if (!queue?.length) return
+  const pending = queue.splice(0, queue.length)
+  for (const task of pending) {
+    await task()
   }
 }

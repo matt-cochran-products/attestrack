@@ -1,25 +1,20 @@
-import { apiPost, isLiveApi } from './http';
+import { validateAndNormalizeExploreSql } from '@attestrue/schema';
+import { apiPost, apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
-import type { ExploreQueryResult } from './types';
+import { PORTAL_WORKER_PREFIX } from './constants';
+import type { ExploreQueryResult, SavedQueryEntry } from './types';
 
-const SELECT_ONLY = /^\s*select\b/i;
-const FORBIDDEN = /\b(insert|update|delete|drop|alter|truncate|grant|revoke)\b/i;
+const stubSavedQueries: SavedQueryEntry[] = [];
 
 export function validateExploreSql(sql: string): { ok: true } | { ok: false; reason: string } {
-  const trimmed = sql.trim();
-  if (!trimmed) {
-    return { ok: false, reason: 'Query is empty.' };
-  }
-  if (!SELECT_ONLY.test(trimmed)) {
-    return { ok: false, reason: 'Only SELECT queries are allowed.' };
-  }
-  if (FORBIDDEN.test(trimmed)) {
-    return { ok: false, reason: 'Statement contains forbidden keywords.' };
+  const r = validateAndNormalizeExploreSql(sql);
+  if (!r.ok) {
+    return { ok: false, reason: r.reason };
   }
   return { ok: true };
 }
 
-async function stubRunExploreQuery(sql: string): Promise<ExploreQueryResult> {
+async function stubRunExploreQuery(_sql: string): Promise<ExploreQueryResult> {
   await stubDelay();
   return {
     columns: ['event_name', 'count'],
@@ -38,7 +33,52 @@ export async function runExploreQuery(sql: string): Promise<ExploreQueryResult> 
     throw new Error(v.reason);
   }
   if (isLiveApi()) {
-    return apiPost<ExploreQueryResult>('/api/portal/explore/query', { sql });
+    return apiPost<ExploreQueryResult>(`${PORTAL_WORKER_PREFIX}/explore/query`, { sql });
   }
   return stubRunExploreQuery(sql);
+}
+
+async function stubListSavedQueries(): Promise<SavedQueryEntry[]> {
+  await stubDelay();
+  return [...stubSavedQueries];
+}
+
+export async function listSavedQueries(): Promise<SavedQueryEntry[]> {
+  if (isLiveApi()) {
+    return apiGet<SavedQueryEntry[]>(`${PORTAL_WORKER_PREFIX}/explore/saved-queries`);
+  }
+  return stubListSavedQueries();
+}
+
+export async function saveSavedQuery(name: string, sql: string): Promise<SavedQueryEntry> {
+  const v = validateExploreSql(sql);
+  if (!v.ok) {
+    throw new Error(v.reason);
+  }
+  if (isLiveApi()) {
+    const res = await apiPost<{ success: boolean; query: SavedQueryEntry }>(
+      `${PORTAL_WORKER_PREFIX}/explore/saved-queries`,
+      { name, sql },
+    );
+    return res.query;
+  }
+  await stubDelay();
+  const entry: SavedQueryEntry = {
+    id: `stub-${stubSavedQueries.length + 1}`,
+    name,
+    sql,
+    updatedAt: new Date().toISOString(),
+  };
+  stubSavedQueries.push(entry);
+  return entry;
+}
+
+export async function removeSavedQuery(id: string): Promise<void> {
+  if (isLiveApi()) {
+    await apiPost(`${PORTAL_WORKER_PREFIX}/explore/saved-queries/remove`, { id });
+    return;
+  }
+  await stubDelay();
+  const i = stubSavedQueries.findIndex((q) => q.id === id);
+  if (i >= 0) stubSavedQueries.splice(i, 1);
 }

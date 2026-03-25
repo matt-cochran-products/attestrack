@@ -51,7 +51,12 @@ pnpm boundary-check
 
 | Location | Purpose |
 |----------|---------|
+| [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification |
 | [`docs/BEHAVORIAL-SPEC.md`](docs/BEHAVORIAL-SPEC.md) | Behavioural spec (CLI, portal, worker observability, analytics + Explore) |
+| [`docs/OSS-SCOPE-MATRIX.md`](docs/OSS-SCOPE-MATRIX.md) | OSS vs licensed traceability (Tier 1) + ADR-010 precedence |
+| [`docs/REPO-SPEC-OSS.md`](docs/REPO-SPEC-OSS.md) | Binding OSS Worker HTTP, KV, and JSON error contract |
+| [`docs/TEST-STRATEGY.md`](docs/TEST-STRATEGY.md) | Test layers, contract tests, scaffolding exit criteria |
+| [`docs/CONOPS-OSS-SNAPSHOT.md`](docs/CONOPS-OSS-SNAPSHOT.md) | Observable Worker pipeline (no proprietary ConOps) |
 | [`docs/COMMUNITY-CONSENT.md`](docs/COMMUNITY-CONSENT.md) | Community consent vs Privacy Consent extension (`replaces`, KV contract) |
 | [`docs/USER-JOURNEY.SPEC.md`](docs/USER-JOURNEY.SPEC.md) | User journey |
 | [`packages/portal-community/docs/`](packages/portal-community/docs/) | Portal-scoped notes |
@@ -82,6 +87,12 @@ attestrue/
 ├── pnpm-workspace.yaml
 └── package.json
 ```
+
+---
+
+## Deploy to Cloudflare
+
+From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV seed, secrets, optional Pages portal). See [docs/PILOT-OSS.md](docs/PILOT-OSS.md).
 
 ---
 

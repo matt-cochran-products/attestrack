@@ -1,5 +1,6 @@
 import { apiGet, apiPost, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { SiteConfig, SiteMode } from './types';
 
 async function stubGetSiteConfig(): Promise<SiteConfig> {
@@ -25,14 +26,14 @@ async function stubGetSiteConfig(): Promise<SiteConfig> {
 
 export async function getSiteConfig(): Promise<SiteConfig> {
   if (isLiveApi()) {
-    return apiGet<SiteConfig>('/api/portal/site-config');
+    return apiGet<SiteConfig>(`${PORTAL_WORKER_PREFIX}/site-config`);
   }
   return stubGetSiteConfig();
 }
 
 export async function updateMode(mode: SiteMode): Promise<{ success: boolean }> {
   if (isLiveApi()) {
-    return apiPost<{ success: boolean }>('/api/portal/site-config/mode', { mode });
+    return apiPost<{ success: boolean }>(`${PORTAL_WORKER_PREFIX}/site-config/mode`, { mode });
   }
   await stubDelay();
   return { success: true };
@@ -40,7 +41,7 @@ export async function updateMode(mode: SiteMode): Promise<{ success: boolean }> 
 
 export async function updateTrustedDomains(domains: string[]): Promise<{ success: boolean }> {
   if (isLiveApi()) {
-    return apiPost<{ success: boolean }>('/api/portal/site-config/trusted-domains', { domains });
+    return apiPost<{ success: boolean }>(`${PORTAL_WORKER_PREFIX}/site-config/trusted-domains`, { domains });
   }
   await stubDelay();
   return { success: true };

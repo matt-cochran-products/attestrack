@@ -4,14 +4,20 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "attestrue-deploy": "dist/index.js"
+    "attestrue-deploy": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/types": "workspace:*"
+    "@attestrue/types": "workspace:*",
+    "wrangler": "^3.99.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "vitest": "^2.0.0"
   },
   "files": ["dist"]
 }

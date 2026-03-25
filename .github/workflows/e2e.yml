@@ -16,5 +16,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm exec playwright install --with-deps
-      # TODO: configure Miniflare-based e2e tests
+      - run: pnpm --filter @attestrue/e2e exec playwright install --with-deps
+      - run: pnpm --filter @attestrue/e2e test

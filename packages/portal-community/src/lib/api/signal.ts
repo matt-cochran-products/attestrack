@@ -1,5 +1,6 @@
 import { apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { SignalRecoveryMetrics } from './types';
 
 async function stubGetSignalRecovery(): Promise<SignalRecoveryMetrics> {
@@ -16,7 +17,7 @@ async function stubGetSignalRecovery(): Promise<SignalRecoveryMetrics> {
 
 export async function getSignalRecovery(): Promise<SignalRecoveryMetrics> {
   if (isLiveApi()) {
-    return apiGet<SignalRecoveryMetrics>('/api/portal/signal-recovery');
+    return apiGet<SignalRecoveryMetrics>(`${PORTAL_WORKER_PREFIX}/signal-recovery`);
   }
   return stubGetSignalRecovery();
 }
@@ -29,7 +30,7 @@ export interface RecoveryTimelinePoint {
 
 export async function getRecoveryTimeline(days: 7 | 30 | 90): Promise<RecoveryTimelinePoint[]> {
   if (isLiveApi()) {
-    return apiGet<RecoveryTimelinePoint[]>(`/api/portal/signal-recovery/timeline?days=${days}`);
+    return apiGet<RecoveryTimelinePoint[]>(`${PORTAL_WORKER_PREFIX}/signal-recovery/timeline?days=${days}`);
   }
   await stubDelay();
   return [

@@ -18,9 +18,18 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+}
+
+function parseJsonBody(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return undefined
   }
 }
 
@@ -37,7 +46,15 @@ export async function apiGet<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new ApiError(text || res.statusText, res.status);
+    const parsed = parseJsonBody(text);
+    const msg =
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'error' in parsed &&
+      typeof (parsed as { error: unknown }).error === 'string'
+        ? (parsed as { error: string }).error
+        : text || res.statusText;
+    throw new ApiError(msg, res.status, parsed);
   }
   return (await res.json()) as T;
 }
@@ -59,7 +76,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new ApiError(text || res.statusText, res.status);
+    const parsed = parseJsonBody(text);
+    const msg =
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'error' in parsed &&
+      typeof (parsed as { error: unknown }).error === 'string'
+        ? (parsed as { error: string }).error
+        : text || res.statusText;
+    throw new ApiError(msg, res.status, parsed);
   }
   return (await res.json()) as T;
 }

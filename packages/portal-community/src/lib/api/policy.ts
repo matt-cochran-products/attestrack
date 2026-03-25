@@ -1,5 +1,6 @@
 import { apiGet, apiPost, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { PolicyVersionLists } from './types';
 
 async function stubListPolicyVersions(): Promise<PolicyVersionLists> {
@@ -16,7 +17,7 @@ export async function listPolicyVersions(): Promise<PolicyVersionLists> {
 
 export async function publishPolicyVersion(data: Record<string, unknown>): Promise<{ success: boolean; hash: string }> {
   if (isLiveApi()) {
-    return apiPost<{ success: boolean; hash: string }>('/api/portal/policy-versions', data);
+    return apiPost<{ success: boolean; hash: string }>(`${PORTAL_WORKER_PREFIX}/policy-versions`, data);
   }
   await stubDelay();
   const hash =

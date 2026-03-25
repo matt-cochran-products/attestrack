@@ -1,5 +1,6 @@
 import { apiGet, apiPost, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { StrategiesResponse } from './types';
 
 async function stubListStrategies(): Promise<StrategiesResponse> {
@@ -27,14 +28,14 @@ async function stubListStrategies(): Promise<StrategiesResponse> {
 
 export async function listStrategies(): Promise<StrategiesResponse> {
   if (isLiveApi()) {
-    return apiGet<StrategiesResponse>('/api/portal/strategies');
+    return apiGet<StrategiesResponse>(`${PORTAL_WORKER_PREFIX}/strategies`);
   }
   return stubListStrategies();
 }
 
 export async function toggleStrategy(id: string, enabled: boolean): Promise<{ success: boolean }> {
   if (isLiveApi()) {
-    return apiPost<{ success: boolean }>('/api/portal/strategies/toggle', { id, enabled });
+    return apiPost<{ success: boolean }>(`${PORTAL_WORKER_PREFIX}/strategies/toggle`, { id, enabled });
   }
   await stubDelay();
   return { success: true };

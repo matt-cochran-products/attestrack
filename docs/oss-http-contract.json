@@ -1,0 +1,42 @@
+{
+  "description": "Machine-readable OSS HTTP surface for drift checks. Keep in sync with packages/worker-core and docs/REPO-SPEC-OSS.md.",
+  "portalApiPrefix": "/__attestrack__/portal/v1",
+  "trackingPostPath": "/t/event",
+  "topLevel": {
+    "GET": ["/health", "/privacy", "/terms"],
+    "POST": ["/__attestrack__/consent/commit"]
+  },
+  "portalSubpaths": {
+    "GET": [
+      "/site-config",
+      "/configuration",
+      "/strategies",
+      "/dashboard",
+      "/destinations",
+      "/alert-rules",
+      "/logs",
+      "/logs/incoming",
+      "/signal",
+      "/signal-recovery",
+      "/signal-recovery/timeline",
+      "/analytics/curated",
+      "/policy",
+      "/policy-versions",
+      "/banner",
+      "/banner/history",
+      "/explore/saved-queries"
+    ],
+    "POST": [
+      "/explore/query",
+      "/explore/saved-queries",
+      "/explore/saved-queries/remove",
+      "/site-config/mode",
+      "/site-config/trusted-domains",
+      "/analytics/curated",
+      "/analytics/warehouse-status",
+      "/policy-versions",
+      "/banner",
+      "/strategies/toggle"
+    ]
+  }
+}

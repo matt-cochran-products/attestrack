@@ -99,7 +99,7 @@ attestrue/
 |   |   |-- src/
 |   |   |   |-- strategy.ts          # StrategyManifest, StrategyCategory
 |   |   |   |-- tracking.ts          # TrackingEvent (ClickHouse/Tinybird schema)
-|   |   |   '-- index.ts             # Public surface: tracking + strategy only (ADR-010)
+|   |   |   '-- index.ts             # Public surface: tracking + strategy + community consent (ADR-010 OSS scope)
 |   |   |   # consent / evidence / jurisdiction / policy / counsel → @attestrue/types-extensions (licensed)
 |   |   |-- package.json
 |   |   '-- tsconfig.json

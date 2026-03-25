@@ -102,3 +102,10 @@ export interface ExploreQueryResult {
   rowCount: number;
   truncated: boolean;
 }
+
+export interface SavedQueryEntry {
+  id: string;
+  name: string;
+  sql: string;
+  updatedAt: string;
+}

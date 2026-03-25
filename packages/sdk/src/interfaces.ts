@@ -1,5 +1,6 @@
 import type { HostRuntime } from '@attestrue/host-contracts'
 import type {
+  JurisdictionConsentRow,
   TrackingEventV1,
   StrategyManifest,
   StrategyStage,
@@ -12,6 +13,9 @@ export interface StrategyPipelineContext {
   request: Request
   tracking?: TrackingEventV1
   consent?: VerifiedPrivacyConsentToken | null
+  /** Set by jurisdiction strategy from `ConsentConfig` + geo signals. */
+  jurisdictionKey?: string
+  jurisdictionRow?: JurisdictionConsentRow
 }
 
 export interface StrategyResult {

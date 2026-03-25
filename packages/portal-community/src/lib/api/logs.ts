@@ -1,5 +1,6 @@
 import { apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
+import { PORTAL_WORKER_PREFIX } from './constants';
 import type { RequestLogRow } from './types';
 
 async function stubIncomingLogs(): Promise<RequestLogRow[]> {
@@ -20,7 +21,7 @@ async function stubIncomingLogs(): Promise<RequestLogRow[]> {
 
 export async function getIncomingLogs(): Promise<RequestLogRow[]> {
   if (isLiveApi()) {
-    return apiGet<RequestLogRow[]>('/api/portal/logs/incoming');
+    return apiGet<RequestLogRow[]>(`${PORTAL_WORKER_PREFIX}/logs/incoming`);
   }
   return stubIncomingLogs();
 }

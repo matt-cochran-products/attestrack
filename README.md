@@ -1,5 +1,10 @@
 # Attestrack
 
+[![CI](https://github.com/matt-cochran/attestrue/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/ci.yml)
+[![E2E](https://github.com/matt-cochran/attestrue/actions/workflows/e2e.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/e2e.yml)
+[![Release Please](https://github.com/matt-cochran/attestrue/actions/workflows/release-please.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/release-please.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **First-party, server-side analytics and measurement on your Cloudflare account — MIT licensed.**  
 This repository is the open-source **Attestrack** implementation, including **community consent** you configure in your own KV. **[Attestrue](https://attestrue.com)** sells optional **licensed extensions** (attorney-maintained regulation configuration, enhanced consent runtime packs, independently witnessed records, counsel portals). Core analytics and event delivery run in **your** infrastructure; there are no Attestrack-hosted servers in that path.
 

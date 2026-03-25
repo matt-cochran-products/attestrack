@@ -31,14 +31,14 @@
 | **Part II — Portal general** (PORTAL.1–10) | Analytics-first shell; CF Access assumed external; stub vs live API visibility | Evidence labeling, upgrade copy beyond static CTA | — | Mode chrome, confirmations where spec exceeds stub | ADR-010 regulation-led UX / extensions | `portal-community` + worker portal API | |
 | **Part III — Dashboard** (DASH.*) | Stub + KV-backed JSON via Worker | — | — | Real metrics wiring | ADR-010 | worker `portal` `/dashboard` | |
 | **Part IV — Consent events UI** (CE.*) | Community consent **contracts** (KV, strategies, token) | Full event history / regulation presentation | Much of CE.* presentation | — | ADR-010 § Summary + Decisions | `sdk` / `strategies` consent tests | |
-| **Part V — Evidence chain** (EC.*) | Unsigned / honest framing hooks only | Proof, witnessed records, D1 chain | Merkle / Proof (ADR-002) | — | ADR-010 + ADR-002 | — | Y (wording vs product) |
+| **Part V — Evidence chain** (EC.*) | Unsigned / honest framing hooks only | Proof, witnessed records, D1 chain | **Trust chain / Proof** (ADR-002; CETS v1.1 licensed spec) | — | ADR-010 + ADR-002 | — | Y (wording vs product) |
 | **Part VI — Strategies** (STR.*) | Bundled strategies + portal list/toggle API | Credential gates, premium strategy packs | — | STR.2–4 depth | ADR-010 CDN bundles | `strategies`, worker composite tests | |
-| **Part VII — Banner** (BAN.*) | `consent-js` + portal banner KV API | IOA/regulation-specific packs | — | Banner UX completeness | ADR-010 `consent-js` | `consent-js` tests | |
-| **Part VIII — Policy** (POL.*) | `/privacy`, `/terms`, portal policy JSON | Hashing/legal workflow depth | — | POL.2–6 depth | ADR-010 | worker policy + portal policy API | |
-| **Part IX — Site config** (CFG.*) | Site config in KV; mode + trusted domains API | — | — | Ceremony (CFG.1) | ADR-010 | worker portal POSTs | |
+| **Part VII — Banner** (BAN.*) | `consent-js` (first-party script) | Portal **banner** GET/POST (`requires_attestrue`); IOA/regulation packs | — | Banner UX completeness | ADR-010 | `consent-js` tests, [REPO-SPEC-OSS](REPO-SPEC-OSS.md) | |
+| **Part VIII — Policy** (POL.*) | `/privacy`, `/terms` static text from KV | Portal **policy-versions** API (`requires_attestrue`); hashing/legal workflow | — | POL.2–6 depth | ADR-010 | worker top-level policy routes | |
+| **Part IX — Site config** (CFG.*) | Site config **GET**; **trusted-domains** POST | **Enforcement / shadow mode** POST (`requires_attestrue`); ceremony (CFG.1) | — | — | ADR-010 | worker `portal.ts`, [oss-http-contract.json](oss-http-contract.json) | |
 | **Part IX — Analytics** (ANA.*) | Curated JSON + warehouse status stub | — | — | Real ClickHouse/Tinybird proxy | ADR-010 | portal + worker | |
 | **Part X — Explore** (EXP.*) | Worker gate + allowlist + LIMIT; optional CH/Tinybird execute; saved queries KV | — | — | Deeper charting / multi-warehouse UX | ADR-010 | [explore-proxy.contract.test.ts](../packages/worker-core/__tests__/contract/explore-proxy.contract.test.ts), [`explore-sql`](../packages/schema/src/explore-sql.ts) | |
-| **Migration / Upgrade** (MIG, UPG) | Static upgrade CTA / deploy docs | Licensed checkout | — | — | USER-JOURNEY v1.3 | — | |
+| **Migration / Upgrade** (MIG, UPG) | Upgrade / extensions **handoff** (`attestrue.com/upgrade?site_id=`); `/migration` static handoff only | Licensed checkout, CMP cutover wizard | — | — | [USER-JOURNEY.SPEC.md](USER-JOURNEY.SPEC.md) v2.0 | `portal-community` | |
 | **Behavioral invariants INV-B-01–17** | See table below | | | | ADR-010 | | |
 
 ---
@@ -64,11 +64,10 @@
 
 ## USER-JOURNEY stages (Tier 1)
 
-| Stage | OSS | Licensed / reference |
+| Stage | OSS ([USER-JOURNEY.SPEC.md](USER-JOURNEY.SPEC.md) v2.0) | Licensed / extension |
 |-------|-----|----------------------|
-| 1–4, 5 (analytics shell), 5a, 8a | Core narrative + OSS portal + Worker | Consent/regulation stages as reference (v1.3) |
-| 6–8 (consent-heavy) | Partial (community consent only) | Extension UX |
-| 9 | Static upgrade / handoff | Commercial flows |
+| 1–5a, 6 (tracking), 7, 7a | Core narrative + analytics-first portal + Worker (measurement path) | — |
+| Commercial narrative (banner, policy publish, jurisdiction, enforcement, upgrade) | **Handoff only** in OSS UI | [attestrue-premium `USER-JOURNEY-SPEC.md` Part VI](../../attestrue-premium/docs/USER-JOURNEY-SPEC.md) |
 
 ---
 

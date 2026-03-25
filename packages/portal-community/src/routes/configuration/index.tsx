@@ -1,40 +1,14 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
 import { paths } from '../paths';
-import { ConfirmPhraseDialog } from '../../components/ConfirmPhraseDialog';
 import { usePortalShell } from '../../context/PortalShellContext';
-import { updateMode } from '../../lib/api/configuration';
-import type { SiteMode } from '../../lib/api/types';
+
+const UPGRADE_ORIGIN = 'https://attestrue.com';
 
 export default function SiteConfigurationPage() {
-  const { siteConfig, refresh } = usePortalShell();
-  const [phraseOpen, setPhraseOpen] = useState(false);
-  const [targetMode, setTargetMode] = useState<SiteMode | null>(null);
+  const { siteConfig } = usePortalShell();
 
-  const startToggle = (mode: SiteMode) => {
-    setTargetMode(mode);
-    setPhraseOpen(true);
-  };
-
-  const phrase =
-    targetMode === 'ENFORCEMENT' ? 'ENABLE ENFORCEMENT' : targetMode === 'SHADOW' ? 'RETURN TO SHADOW' : '';
-
-  const applyMode = async () => {
-    if (!targetMode) {
-      return;
-    }
-    try {
-      await updateMode(targetMode);
-      toast.success('Mode updated (stub)');
-      await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Update failed');
-    } finally {
-      setPhraseOpen(false);
-      setTargetMode(null);
-    }
-  };
+  const siteId = siteConfig?.siteId ?? '';
+  const upgradeHref = `${UPGRADE_ORIGIN}/upgrade?site_id=${encodeURIComponent(siteId)}`;
 
   if (!siteConfig) {
     return (
@@ -44,78 +18,40 @@ export default function SiteConfigurationPage() {
     );
   }
 
-  const consentBlocked = !siteConfig.consentConfigured;
-
   return (
     <div className="p-6 space-y-6">
-      <ConfirmPhraseDialog
-        open={phraseOpen}
-        title={targetMode === 'ENFORCEMENT' ? 'Enable enforcement' : 'Return to shadow mode'}
-        description={
-          targetMode === 'ENFORCEMENT'
-            ? 'Enforcement means visitors who decline consent will not have tracking scripts activated. Your reported consent rate will reflect actual signal sent to ad networks (CFG.1).'
-            : 'Returning to shadow mode restores observation-only behaviour. Typed confirmation is still required (CFG.2).'
-        }
-        phrase={phrase}
-        confirmLabel="Confirm"
-        onConfirm={applyMode}
-        onCancel={() => {
-          setPhraseOpen(false);
-          setTargetMode(null);
-        }}
-      />
-
       <div className="card-surface p-6">
         <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-4">
-          DEPLOYMENT MODE
+          Attestrue extensions
         </div>
-
-        {consentBlocked ? (
-          <div className="p-6 border-l-4 border-l-[var(--accent-amber)] bg-[rgba(224,192,96,0.05)]">
-            <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-3">
-              ⊘ ENFORCEMENT UNAVAILABLE — no consent configuration published
-            </div>
-            <div className="font-sans font-light text-[13px] text-[var(--text-active)] leading-relaxed space-y-3 mb-4">
-              <p>
-                Enforcement cannot be activated until a consent configuration has been published. You cannot gate traffic
-                on consent decisions that don&apos;t exist.
-              </p>
-              <div>
-                <strong className="font-medium">Complete these steps first:</strong>
-                <ol className="list-decimal ml-6 mt-2 space-y-1">
-                  <li>Activate Attestrue extensions for policy, banner, and regulation configuration → {paths.extensions}</li>
-                  <li>Publish versions and consent configuration in the licensed portal</li>
-                  <li>Return here to activate enforcement</li>
-                </ol>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <Link to={paths.extensions} className="btn-primary text-[10px]">
-                Extensions handoff →
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="font-sans text-[13px] text-[var(--text-muted)]">
-              Current mode: <span className="text-[var(--text-active)]">{siteConfig.mode}</span>
-            </p>
-            {siteConfig.mode !== 'ENFORCEMENT' && (
-              <button type="button" className="btn-primary text-[10px]" onClick={() => startToggle('ENFORCEMENT')}>
-                Enable enforcement…
-              </button>
-            )}
-            {siteConfig.mode === 'ENFORCEMENT' && (
-              <button type="button" className="btn-secondary text-[10px]" onClick={() => startToggle('SHADOW')}>
-                Return to shadow mode…
-              </button>
-            )}
-          </div>
-        )}
+        <p className="font-sans text-[13px] text-[var(--text-muted)] leading-relaxed mb-4 max-w-2xl">
+          Open-source Attestrack covers measurement, transport, analytics, and destination delivery.{' '}
+          <strong className="text-[var(--text-active)] font-medium">
+            Banner configuration, policy versions, jurisdiction rules, consent enforcement, evidence, and witnessing
+          </strong>{' '}
+          are activated through Attestrue — one click opens checkout with your site id.
+        </p>
+        <a
+          href={upgradeHref}
+          className="btn-primary text-[10px] inline-block"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open attestrue.com upgrade →
+        </a>
+        <p className="font-mono text-[10px] text-[var(--text-muted)] mt-3">
+          <Link to={paths.extensions} className="underline hover:text-[var(--text-active)]">
+            Extensions overview
+          </Link>
+          {' · '}
+          <Link to={paths.upgrade} className="underline hover:text-[var(--text-active)]">
+            In-portal upgrade copy
+          </Link>
+        </p>
       </div>
 
       <div className="card-surface p-6">
-        <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-4">GENERAL</div>
+        <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-4">Deployment</div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="label mb-1">Site ID</div>
@@ -130,7 +66,7 @@ export default function SiteConfigurationPage() {
             <div className="value-lg">{siteConfig.workerVersion}</div>
           </div>
           <div>
-            <div className="label mb-1">Shadow start</div>
+            <div className="label mb-1">Validation period started</div>
             <div className="value-lg">{siteConfig.shadowStart}</div>
           </div>
         </div>
@@ -138,14 +74,17 @@ export default function SiteConfigurationPage() {
 
       <div className="card-surface p-6">
         <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-4">
-          TRUSTED DOMAINS (egress allowlist)
+          Trusted domains (egress allowlist)
         </div>
         <ul className="font-mono text-[11px] text-[var(--text-muted)] space-y-1 mb-4">
           {siteConfig.trustedDomains.map((d) => (
             <li key={d}>{d}</li>
           ))}
         </ul>
-        <p className="font-sans text-[11px] text-[var(--text-muted)]">Add/remove with confirmation in the Worker-backed milestone (CFG.3).</p>
+        <p className="font-sans text-[11px] text-[var(--text-muted)]">
+          Editing the allowlist via the portal uses the Worker when implemented (CFG.3). For enforcement and consent
+          configuration, use Attestrue after upgrade.
+        </p>
       </div>
     </div>
   );

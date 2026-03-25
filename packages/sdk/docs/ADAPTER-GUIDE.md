@@ -15,7 +15,7 @@ If your adapter ships with `manifest.replaces` listing community strategy ids, `
 
 - Types: `@attestrue/types` (tracking events, consent commit body, strategy manifests).
 - Validation: `@attestrue/schema` (Zod).
-- Do not introduce Merkle or Proof fields in OSS packages. Community consent uses **unsigned** operational records; licensed token semantics are documented outside this repo (see root `CONSENT-EVIDENCE-TOKEN-STANDARD.md` pointer).
+- Do not introduce licensed **Proof / trust-chain** fields (witnessed `record_id`, proof blobs, anchor semantics) in OSS packages. Community consent uses **unsigned** operational records; CETS v1.1 is documented outside this repo (see root `CONSENT-EVIDENCE-TOKEN-STANDARD.md` pointer).
 
 ## Testing
 

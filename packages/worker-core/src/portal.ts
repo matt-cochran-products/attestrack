@@ -2,11 +2,9 @@ import type { HostRuntime } from '@attestrue/host-contracts'
 import {
   KV_KEY_PORTAL_ANALYTICS,
   KV_KEY_PORTAL_ALERT_RULES,
-  KV_KEY_PORTAL_BANNER,
   KV_KEY_PORTAL_DASHBOARD,
   KV_KEY_PORTAL_DESTINATIONS,
   KV_KEY_PORTAL_LOGS,
-  KV_KEY_PORTAL_POLICY,
   KV_KEY_PORTAL_SAVED_QUERIES,
   KV_KEY_PORTAL_SIGNAL,
   KV_KEY_PORTAL_SITE_CONFIG,
@@ -15,6 +13,21 @@ import {
 import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrue/schema'
 import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
 export const PORTAL_API_PREFIX = '/__attestrack__/portal/v1'
+
+const ATTESTRUE_UPGRADE_ORIGIN = 'https://attestrue.com'
+
+/** Policy/banner/enforcement mutations are Attestrue (worker-extension + licensed portal), not OSS. */
+export function requiresAttestruePortalResponse(): Response {
+  return Response.json(
+    {
+      error: 'requires_attestrue',
+      message:
+        'This portal API is provided by Attestrue extensions after upgrade. Use Upgrade in the community portal.',
+      handoff: `${ATTESTRUE_UPGRADE_ORIGIN}/upgrade`
+    },
+    { status: 403, headers: { 'cache-control': 'no-store' } }
+  )
+}
 
 type SiteMode = 'SHADOW' | 'ENFORCEMENT' | 'NOT_CONFIGURED'
 
@@ -52,12 +65,6 @@ async function readSavedQueries(host: HostRuntime): Promise<SavedQueryEntry[]> {
 
 async function writeSavedQueries(host: HostRuntime, list: SavedQueryEntry[]): Promise<void> {
   await host.kv.put(KV_KEY_PORTAL_SAVED_QUERIES, JSON.stringify(list))
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const enc = new TextEncoder().encode(text)
-  const buf = await crypto.subtle.digest('SHA-256', enc)
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 async function jsonFromKv(host: HostRuntime, key: string, fallback: unknown): Promise<Response> {
@@ -126,7 +133,7 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
         driftAlertCount: 0,
         strategyStatus: 'all_healthy',
         strategySummary: '',
-        shadowModeLabel: 'Shadow mode'
+        shadowModeLabel: 'Validation — measurement & destinations'
       })
     }
     if (sub === '/destinations') {
@@ -154,18 +161,17 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     if (sub === '/analytics/curated') {
       return jsonFromKv(host, KV_KEY_PORTAL_ANALYTICS, [])
     }
-    if (sub === '/policy' || sub === '/policy-versions') {
-      return jsonFromKv(host, KV_KEY_PORTAL_POLICY, { privacyPolicy: [], termsOfUse: [] })
+    if (sub === '/policy') {
+      return requiresAttestruePortalResponse()
+    }
+    if (sub === '/policy-versions') {
+      return requiresAttestruePortalResponse()
     }
     if (sub === '/banner') {
-      return jsonFromKv(host, KV_KEY_PORTAL_BANNER, {
-        configured: false,
-        status: 'not_configured',
-        jurisdictions: []
-      })
+      return requiresAttestruePortalResponse()
     }
     if (sub === '/banner/history') {
-      return Response.json([], { headers: { 'cache-control': 'no-store' } })
+      return requiresAttestruePortalResponse()
     }
     if (sub === '/explore/saved-queries') {
       const list = await readSavedQueries(host)
@@ -248,14 +254,7 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     }
 
     if (sub === '/site-config/mode') {
-      const mode = (body as { mode?: SiteMode }).mode
-      if (mode !== 'SHADOW' && mode !== 'ENFORCEMENT' && mode !== 'NOT_CONFIGURED') {
-        return Response.json({ error: 'invalid_mode' }, { status: 400 })
-      }
-      const cfg = await readSiteConfig(host)
-      cfg.mode = mode
-      await writeSiteConfig(host, cfg)
-      return Response.json({ success: true })
+      return requiresAttestruePortalResponse()
     }
 
     if (sub === '/site-config/trusted-domains') {
@@ -287,13 +286,10 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     }
 
     if (sub === '/policy-versions') {
-      const hash = `sha256:${await sha256Hex(JSON.stringify(body))}`
-      return Response.json({ success: true, hash }, { headers: { 'cache-control': 'no-store' } })
+      return requiresAttestruePortalResponse()
     }
-
     if (sub === '/banner') {
-      await host.kv.put(KV_KEY_PORTAL_BANNER, JSON.stringify(body))
-      return Response.json({ success: true })
+      return requiresAttestruePortalResponse()
     }
 
     if (sub === '/strategies/toggle') {

@@ -7,7 +7,7 @@
 
 ## Context
 
-Architecture Assessment Q2 asks what the community-mode evidence shape is. **v9.2** resolved: no Merkle tree; **RFC 8785** canonical JSON, **`record_id` = SHA-256**, signing input **`{ site_id, record_id, timestamp }`** only for **Proof**.
+Architecture Assessment Q2 asks what the community-mode evidence shape is. **v9.2** resolved: no Merkle tree; **RFC 8785** canonical JSON, **`record_id` = SHA-256**, signing input **`{ site_id, record_id, timestamp }`** only for **Proof**. Full cryptographic contract (Ed25519 witness, proof blob, **`POST /verify`**, dual **`proof-anchors`**, `daily_root`): licensed **Consent Evidence Trust Chain Specification** v1.1 (`attestrue-premium/docs/CONSENT-EVIDENCE-TRUST-CHAIN-SPEC.md`).
 
 **Community consent** (this repository) ships **operator-managed** `ConsentConfig`, mandatory strategies (**jurisdiction**, **consent**, **evidence-unsigned**), HMAC privacy consent tokens, and **`@attestrue/consent-js`**. **Flat** `ConsentEventRecordV1` is **self-attested operational** evidence — not the **Proof** / witnessed canonical record.
 

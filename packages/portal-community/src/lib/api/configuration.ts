@@ -1,7 +1,7 @@
 import { apiGet, apiPost, isLiveApi } from './http';
 import { stubDelay } from './delay';
 import { PORTAL_WORKER_PREFIX } from './constants';
-import type { SiteConfig, SiteMode } from './types';
+import type { SiteConfig } from './types';
 
 async function stubGetSiteConfig(): Promise<SiteConfig> {
   await stubDelay();
@@ -29,14 +29,6 @@ export async function getSiteConfig(): Promise<SiteConfig> {
     return apiGet<SiteConfig>(`${PORTAL_WORKER_PREFIX}/site-config`);
   }
   return stubGetSiteConfig();
-}
-
-export async function updateMode(mode: SiteMode): Promise<{ success: boolean }> {
-  if (isLiveApi()) {
-    return apiPost<{ success: boolean }>(`${PORTAL_WORKER_PREFIX}/site-config/mode`, { mode });
-  }
-  await stubDelay();
-  return { success: true };
 }
 
 export async function updateTrustedDomains(domains: string[]): Promise<{ success: boolean }> {

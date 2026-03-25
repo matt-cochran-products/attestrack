@@ -67,18 +67,13 @@ export function PortalShellProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  /** OSS portal: measurement / validation framing only — not enforcement UX (Attestrue after upgrade). */
   const { modeShellLabel, modeTone } = useMemo(() => {
     if (!siteConfig) {
       return { modeShellLabel: '…', modeTone: 'amber' as const };
     }
-    if (siteConfig.mode === 'ENFORCEMENT') {
-      return { modeShellLabel: 'ENFORCEMENT ACTIVE', modeTone: 'enforcement' as const };
-    }
-    if (siteConfig.mode === 'SHADOW') {
-      return { modeShellLabel: 'SHADOW MODE', modeTone: 'shadow' as const };
-    }
     return {
-      modeShellLabel: 'SHADOW MODE — CONSENT NOT CONFIGURED',
+      modeShellLabel: 'VALIDATION MODE — measurement & delivery',
       modeTone: 'amber' as const,
     };
   }, [siteConfig]);

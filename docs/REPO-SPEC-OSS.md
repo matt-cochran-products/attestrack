@@ -26,7 +26,7 @@ Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../p
 
 **Prefix:** `/__attestrack__/portal/v1` (`PORTAL_API_PREFIX` in [packages/worker-core/src/portal.ts](../packages/worker-core/src/portal.ts)).
 
-Subpaths are listed in `oss-http-contract.json`. The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
+Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade ([`EXTENSION-PORTAL-API.md` in premium repo](../../attestrue-premium/docs/EXTENSION-PORTAL-API.md)). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
 
 ---
 
@@ -45,8 +45,9 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | `explore_warehouse_fetch_failed` | 502 | Network failure calling warehouse |
 | `explore_warehouse_rejected` | 400 | ClickHouse returned `exception` in JSON body |
 | `explore_warehouse_bad_response` | 502 | Non-JSON warehouse response |
-| `invalid_mode` | 400 | Site mode enum |
+| `invalid_mode` | 400 | Site mode enum (reserved; OSS does not accept mode POST — see `requires_attestrue`) |
 | `invalid_domains` | 400 | Trusted domains payload |
+| `requires_attestrue` | 403 | Banner, policy, enforcement mode, and related portal mutations are **Attestrue**; response includes `handoff` URL |
 | `not_found` | 404 | Unknown portal subpath |
 | `method_not_allowed` | 405 | Wrong method for portal |
 
@@ -79,6 +80,7 @@ When `VITE_ATTESTRACK_API_BASE_URL` is unset, the portal **must** use local stub
 
 ## Explicit non-goals (OSS)
 
-- Full **D1 evidence chain**, **Proof / Merkle** artifacts, attorney-maintained **regulation packs** (see [ADR-010](../ADR/ADR-010-attestrack-core-extension-cache.md), [ADR-002](../ADR/ADR-002-merkle-withdrawal.md) / boundary-check).
+- **Portal API** for **banner config**, **policy version publish**, **enforcement mode toggle** — OSS Worker returns **`requires_attestrue`**; licensed extension owns mutations ([ADR-010](../ADR/ADR-010-attestrack-core-extension-cache.md)).
+- Full **D1 evidence chain**, **Proof** (CETS v1.1 **trust chain**: `record_id`, Ed25519 witness, dual **`proof-anchors`** — see licensed **Consent Evidence Trust Chain Specification**), attorney-maintained **regulation packs** (see [ADR-010](../ADR/ADR-010-attestrack-core-extension-cache.md), [ADR-002](../ADR/ADR-002-evidence-licensed-only.md), `pnpm boundary-check`).
 - **Explore** parity with full enterprise SQL consoles (arbitrary joins, all schemas, saved-query sharing across sites) — community tier stays allowlisted and single-statement.
 - Duplicating proprietary **Core ConOps** text — use [CONOPS-OSS-SNAPSHOT.md](CONOPS-OSS-SNAPSHOT.md) for observable pipeline behavior only.

@@ -32,7 +32,6 @@ const navSections = [
     items: [
       { path: paths.strategies, label: 'Strategies' },
       { path: paths.configuration, label: 'Site Config' },
-      { path: paths.migration, label: 'Migration' },
     ],
   },
 ];
@@ -45,17 +44,14 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { siteConfig, modeShellLabel, modeTone, isLiveWorker, dataSourceShellLabel } = usePortalShell();
+  const { siteConfig, modeShellLabel, isLiveWorker, dataSourceShellLabel } = usePortalShell();
   const [driftAlertDismissed, setDriftAlertDismissed] = useState(false);
 
   const isDriftAlertActive = true;
 
-  const modeChipClass =
-    modeTone === 'enforcement'
-      ? 'bg-[rgba(76,175,125,0.15)] border-[rgba(76,175,125,0.35)]'
-      : 'bg-[rgba(224,192,96,0.15)] border-[rgba(224,192,96,0.3)]';
+  const modeChipClass = 'bg-[rgba(224,192,96,0.15)] border-[rgba(224,192,96,0.3)]';
 
-  const modeTextClass = modeTone === 'enforcement' ? 'text-[var(--accent-green)]' : 'text-[var(--accent-amber)]';
+  const modeTextClass = 'text-[var(--accent-amber)]';
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-shell)]">

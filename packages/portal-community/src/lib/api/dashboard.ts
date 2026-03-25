@@ -10,7 +10,7 @@ async function stubDashboardMetrics(): Promise<DashboardMetrics> {
     driftAlertCount: 1,
     strategyStatus: 'degraded',
     strategySummary: 'TikTok Events API degraded',
-    shadowModeLabel: 'Shadow mode — displayed rate is what would be enforced',
+    shadowModeLabel: 'Validation — volume and destination health (enforcement is Attestrue)',
   };
 }
 

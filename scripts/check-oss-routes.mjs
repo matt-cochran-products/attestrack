@@ -84,4 +84,25 @@ for (const p of contract.portalSubpaths.POST) {
   }
 }
 
+const ext = contract.portalSubpathsRequiresAttestrue
+if (ext) {
+  for (const p of ext.GET ?? []) {
+    if (!portalSrc.includes(`sub === '${p}'`)) {
+      fail(
+        `portal.ts must reference GET "${p}" (requires_attestrue) — update portal.ts or oss-http-contract.json portalSubpathsRequiresAttestrue.`
+      )
+    }
+  }
+  for (const p of ext.POST ?? []) {
+    if (!portalSrc.includes(`sub === '${p}'`)) {
+      fail(
+        `portal POST route "${p}" missing for requires_attestrue — update portal.ts or oss-http-contract.json.`
+      )
+    }
+  }
+  if (!portalSrc.includes('requiresAttestruePortalResponse')) {
+    fail('portal.ts must export or call requiresAttestruePortalResponse for extension-only routes.')
+  }
+}
+
 console.log('[route-contract-check] docs/oss-http-contract.json matches worker-core sources.')

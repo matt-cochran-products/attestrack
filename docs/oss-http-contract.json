@@ -20,23 +20,21 @@
       "/signal-recovery",
       "/signal-recovery/timeline",
       "/analytics/curated",
-      "/policy",
-      "/policy-versions",
-      "/banner",
-      "/banner/history",
       "/explore/saved-queries"
     ],
     "POST": [
       "/explore/query",
       "/explore/saved-queries",
       "/explore/saved-queries/remove",
-      "/site-config/mode",
       "/site-config/trusted-domains",
       "/analytics/curated",
       "/analytics/warehouse-status",
-      "/policy-versions",
-      "/banner",
       "/strategies/toggle"
     ]
+  },
+  "portalSubpathsRequiresAttestrue": {
+    "description": "Returned 403 JSON { error: requires_attestrue, handoff } — implemented in Attestrue worker-extension + licensed portal after upgrade.",
+    "GET": ["/policy", "/policy-versions", "/banner", "/banner/history"],
+    "POST": ["/site-config/mode", "/policy-versions", "/banner"]
   }
 }

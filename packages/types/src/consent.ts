@@ -1,6 +1,6 @@
 /**
  * Community-tier privacy consent token (HMAC envelope).
- * Independent Proof / record_id / anchors are specified in CONSENT-EVIDENCE-TOKEN-STANDARD (v9.2, no Merkle).
+ * Independent Proof / record_id / anchors: licensed **Trust Chain Spec** (CETS v1.1); see root CONSENT-EVIDENCE-TOKEN-STANDARD.md pointer.
  */
 
 export type ConsentDecision = 'granted' | 'declined' | 'withdrawn'

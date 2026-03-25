@@ -12,7 +12,7 @@ This guide is the entry point for authors of **worker-side strategies** and host
 ## OSS scope
 
 - Published contracts: **`@attestrue/types`**, **`@attestrue/schema`**, **`@attestrue/sdk`**. Community consent types and KV/event shapes are part of the public graph for Attestrack.
-- Do **not** add Merkle trees, signing DLQ, or Proof-specific fields to the **public** packages. The open-source **consent log** is an **unsigned** operational record (`ConsentEventRecordV1`). Normative wording for licensed evidence tokens stays outside this repo; see [`CONSENT-EVIDENCE-TOKEN-STANDARD.md`](CONSENT-EVIDENCE-TOKEN-STANDARD.md) (pointer only).
+- Do **not** add **trust-chain / Proof** constructs (per-event witness trees, signing DLQ, proof-blob fields) to the **public** packages. The open-source **consent log** is an **unsigned** operational record (`ConsentEventRecordV1`). Normative wording for licensed evidence stays outside this repo; see [`CONSENT-EVIDENCE-TOKEN-STANDARD.md`](CONSENT-EVIDENCE-TOKEN-STANDARD.md) (pointer to CETS v1.1 / Trust Chain Spec).
 
 ## Packages
 

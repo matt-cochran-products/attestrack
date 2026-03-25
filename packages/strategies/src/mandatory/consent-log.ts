@@ -8,7 +8,7 @@ function gpcActive(request: Request): boolean {
 
 /**
  * **EvidenceUnsignedStrategy**: writes a flat `ConsentEventRecordV1` (self-attested).
- * Not a placeholder for Merkle/Proof — those remain out of the public core per v9.2.
+ * Licensed **Proof** (witnessed trust chain, CETS v1.1) remains out of the public core per ADR-002.
  */
 export const evidenceUnsignedStrategyManifest: StrategyManifest = {
   id: 'evidence-unsigned',

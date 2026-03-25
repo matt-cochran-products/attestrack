@@ -156,6 +156,43 @@ describe('createAttestrackFetchHandler (contract)', () => {
     expect(ran).toBe(true)
   })
 
+  it('returns 403 requires_attestrue for GET portal policy-versions', async () => {
+    const host = createMockHostRuntime()
+    const handler = createAttestrackFetchHandler({
+      host,
+      consentSecretName: 'CONSENT_TOKEN_SECRET',
+      bundledStrategies: [],
+      strategyLoader: noopStrategyLoader
+    })
+    const res = await handler(
+      new Request('https://x/__attestrack__/portal/v1/policy-versions', { method: 'GET' })
+    )
+    expect(res.status).toBe(403)
+    const json = (await res.json()) as { error: string; handoff?: string }
+    expect(json.error).toBe('requires_attestrue')
+    expect(json.handoff).toContain('attestrue.com')
+  })
+
+  it('returns 403 requires_attestrue for POST portal site-config/mode', async () => {
+    const host = createMockHostRuntime()
+    const handler = createAttestrackFetchHandler({
+      host,
+      consentSecretName: 'CONSENT_TOKEN_SECRET',
+      bundledStrategies: [],
+      strategyLoader: noopStrategyLoader
+    })
+    const res = await handler(
+      new Request('https://x/__attestrack__/portal/v1/site-config/mode', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'ENFORCEMENT' })
+      })
+    )
+    expect(res.status).toBe(403)
+    const json = (await res.json()) as { error: string }
+    expect(json.error).toBe('requires_attestrue')
+  })
+
   it('returns portal site-config from KV', async () => {
     const host = createMockHostRuntime()
     await host.kv.put(

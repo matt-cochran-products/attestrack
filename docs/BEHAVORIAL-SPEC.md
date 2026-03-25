@@ -179,7 +179,7 @@ Where the portal surfaces consent or agreement records, filters and explanatory 
 
 ### EC.1 — Honest framing at all times
 
-The Evidence Chain view always displays the unsigned record disclaimer at the top of the view. The disclaimer is present on every load of the view. It explains what is absent (independent signing, Merkle commitment, blockchain anchor) and why it matters.
+The Evidence Chain view always displays the unsigned record disclaimer at the top of the view. The disclaimer is present on every load of the view. It explains what is absent for the **community** tier: **independent Attestrue witness** (Ed25519 proof / **`/verify`** path), **CTaaS ledger** row, and **daily `proof-anchors`** commitment that ties the event’s **`record_id`** into the public anchor files — i.e. Steps 2–3 of the licensed **trust chain** (CETS v1.1). It does **not** use Merkle-tree or blockchain wording. **Step 1** (RFC 8785 content integrity on a canonical document) may still apply where a self-attested canonical file exists; the disclaimer makes clear there is no **paid Proof** witness bundle in OSS-only deployments.
 
 ### EC.2 — Local integrity check on every record
 

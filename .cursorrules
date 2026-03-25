@@ -109,7 +109,7 @@ attestrue/
 |   |   |   |-- strategy.schema.ts
 |   |   |   |-- tracking.schema.ts
 |   |   |   '-- index.ts             # Public: tracking + strategy only
-|   |   |   # consent / jurisdiction / evidence / policy / merkle schemas → @attestrue/schema-extensions (licensed)
+|   |   |   # consent / jurisdiction / evidence / policy / proof schemas → @attestrue/schema-extensions (licensed)
 |   |   |-- package.json
 |   |   '-- tsconfig.json
 |   |

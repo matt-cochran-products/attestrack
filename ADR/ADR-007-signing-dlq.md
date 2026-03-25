@@ -51,10 +51,12 @@ Key design points:
 
 ## Spec Changes Required
 
-- **`specs/consent-runtime/STRUCTURE.md`:** Add `dlq.ts` component, DLQ assertions (~6 assertions), note bundle budget impact (licensed repo)
+*(Paths below are in the **attestrue-premium** licensed documentation / EARS tree unless noted.)*
+
+- **`specs/consent-runtime/STRUCTURE.md`:** Add `dlq.ts` component, DLQ assertions (~6 assertions), note bundle budget impact
 - **`specs/worker-core/STRUCTURE.md`:** Update signing timeout to 500ms, HTTP 202
 - **`specs/strategies/STRUCTURE.md`:** Add `signing_dlq_delivered` event_type
-- **`specs/evidence-merkle/STRUCTURE.md`:** Add `delayed_signing`, `signing_failed_permanent` fields
+- **`specs/evidence-merkle/STRUCTURE.md`** (module EM-, historical directory name): Add `delayed_signing`, `signing_failed_permanent` fields; remain aligned with **`attestrue-premium/docs/CONSENT-EVIDENCE-TRUST-CHAIN-SPEC.md`** (CETS v1.1) for the witnessed path
 - **`specs/consent-lifecycle/STRUCTURE.md`:** Cross-reference DLQ retry interaction with denial permanence (Invariant 4)
 - **`specs/invariants/STRUCTURE.md`:** Clarify Invariant 2 with DLQ behavior
 - **`specs/ARCHITECTURE-ASSESSMENT.md`:** Close Q7

@@ -2,7 +2,7 @@ import { validateAndNormalizeExploreSql } from '@attestrack/schema';
 import { apiPost, apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
 import { PORTAL_WORKER_PREFIX } from './constants';
-import type { ExploreQueryResult, SavedQueryEntry } from './types';
+import type { ExploreQueryResult, SavedQueryChartConfig, SavedQueryEntry } from './types';
 
 const stubSavedQueries: SavedQueryEntry[] = [];
 
@@ -81,4 +81,35 @@ export async function removeSavedQuery(id: string): Promise<void> {
   await stubDelay();
   const i = stubSavedQueries.findIndex((q) => q.id === id);
   if (i >= 0) stubSavedQueries.splice(i, 1);
+}
+
+/**
+ * EXP.10 — pin/unpin a saved query to the Analytics dashboard with the
+ * user-directed chart config. Live mode is per-user (the Worker keys pins on
+ * the CF Access identity header); stub mode is a single local user.
+ */
+export async function pinSavedQuery(
+  id: string,
+  pinned: boolean,
+  chart?: SavedQueryChartConfig,
+): Promise<SavedQueryEntry> {
+  if (isLiveApi()) {
+    const res = await apiPost<{ success: boolean; query: SavedQueryEntry }>(
+      `${PORTAL_WORKER_PREFIX}/explore/saved-queries/pin`,
+      { id, pinned, ...(pinned ? { chart: chart ?? { chartType: 'table' } } : {}) },
+    );
+    return res.query;
+  }
+  await stubDelay();
+  const entry = stubSavedQueries.find((q) => q.id === id);
+  if (!entry) {
+    throw new Error('Saved query not found');
+  }
+  entry.pinned = pinned;
+  if (pinned) {
+    entry.pinnedChart = chart ?? { chartType: 'table' };
+  } else {
+    delete entry.pinnedChart;
+  }
+  return { ...entry };
 }

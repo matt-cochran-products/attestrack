@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { maskSecrets } from './mask.js'
 
 export type RunCmdOptions = {
   cwd: string
@@ -35,18 +36,20 @@ export const defaultRunCommand: RunCommandFn = (cmd, args, opts) =>
 
     let stdout = ''
     let stderr = ''
+    // Echoed child output is masked (CLI.5 / INV-B-10): even if a subprocess
+    // misbehaves and echoes a credential back, it never reaches the terminal.
     if (!opts.inheritStdio && child.stdout) {
       child.stdout.on('data', (c: Buffer) => {
         const s = c.toString('utf8')
         stdout += s
-        process.stdout.write(s)
+        process.stdout.write(maskSecrets(s))
       })
     }
     if (!opts.inheritStdio && child.stderr) {
       child.stderr.on('data', (c: Buffer) => {
         const s = c.toString('utf8')
         stderr += s
-        process.stderr.write(s)
+        process.stderr.write(maskSecrets(s))
       })
     }
 

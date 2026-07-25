@@ -5,6 +5,15 @@ import { describe, expect, it } from 'vitest'
 import { KV_KEY_ENABLED_STRATEGIES } from '@attestrack/types'
 import { runInteractiveDeploy, type RunCommandFn } from '../src/index.js'
 
+/** No live network in tests: the CLI.8 post-deploy poll gets an offline stub. */
+const offlineVerify = {
+  attempts: 1,
+  sleep: async () => {},
+  fetchFn: async () => {
+    throw new Error('offline test stub')
+  }
+} as const
+
 function seedMinimalMonorepo(root: string) {
   const pkgs: { dir: string; name: string }[] = [
     { dir: 'worker-core', name: '@attestrack/worker-core' },
@@ -83,7 +92,8 @@ describe('runInteractiveDeploy (CLI contract)', () => {
           consentSecretForPut: '01234567890123456789012345678901'
         },
         skipPortal: true,
-        runCommand: run
+        runCommand: run,
+        verifyOverrides: offlineVerify
       })
       const joined = calls.join('\n')
       expect(joined).toMatch(/wrangler whoami/)
@@ -146,7 +156,8 @@ id = "existing-kv-reuse-99"
           reuseExistingScaffold: true
         },
         skipPortal: true,
-        runCommand: run
+        runCommand: run,
+        verifyOverrides: offlineVerify
       })
       const joined = calls.join('\n')
       expect(joined).not.toMatch(/kv namespace create/)

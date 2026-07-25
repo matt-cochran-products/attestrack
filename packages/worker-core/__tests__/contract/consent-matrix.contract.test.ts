@@ -14,6 +14,10 @@
  * - GPC honored per row (gpc_honor) server-side, as an opt-out signal.
  * - Invalid tokens (expired/tampered) are treated exactly like absent tokens.
  * - SHADOW records the would-be ENFORCEMENT decision for analytics honesty (DASH.3).
+ * - P7.1 (threat model): a consent-event record is written ONLY when an actual
+ *   consent signal exists (valid token, or honored GPC). Absent/expired/
+ *   tampered tokens without GPC write NOTHING — anonymous traffic must not
+ *   grow KV (write-amplification mitigation).
  */
 import { describe, expect, it, vi } from 'vitest'
 import { createAttestrackFetchHandler } from '../../src/create-fetch-handler.js'
@@ -48,6 +52,8 @@ interface MatrixCase {
   token: TokenState
   /** The decision ENFORCEMENT would make — the literal expectation. */
   expectedWouldAllow: boolean
+  /** P7.1: is a consent-event record written? true iff valid token or honored GPC. */
+  expectedRecord: boolean
   invariant: string
 }
 
@@ -57,33 +63,33 @@ interface MatrixCase {
  */
 const MATRIX: MatrixCase[] = [
   // ── opt-in, GPC off: only an affirmative grant allows destinations ──
-  { mechanism: 'opt-in', gpc: false, token: 'none', expectedWouldAllow: false, invariant: 'opt-in requires affirmative grant' },
-  { mechanism: 'opt-in', gpc: false, token: 'granted', expectedWouldAllow: true, invariant: 'opt-in affirmative grant allows' },
-  { mechanism: 'opt-in', gpc: false, token: 'declined', expectedWouldAllow: false, invariant: 'opt-in declined blocks' },
-  { mechanism: 'opt-in', gpc: false, token: 'withdrawn', expectedWouldAllow: false, invariant: 'withdrawal blocks like decline' },
-  { mechanism: 'opt-in', gpc: false, token: 'expired', expectedWouldAllow: false, invariant: 'expired token == absent token' },
-  { mechanism: 'opt-in', gpc: false, token: 'tampered', expectedWouldAllow: false, invariant: 'tampered token == absent token' },
+  { mechanism: 'opt-in', gpc: false, token: 'none', expectedRecord: false, expectedWouldAllow: false, invariant: 'opt-in requires affirmative grant' },
+  { mechanism: 'opt-in', gpc: false, token: 'granted', expectedRecord: true, expectedWouldAllow: true, invariant: 'opt-in affirmative grant allows' },
+  { mechanism: 'opt-in', gpc: false, token: 'declined', expectedRecord: true, expectedWouldAllow: false, invariant: 'opt-in declined blocks' },
+  { mechanism: 'opt-in', gpc: false, token: 'withdrawn', expectedRecord: true, expectedWouldAllow: false, invariant: 'withdrawal blocks like decline' },
+  { mechanism: 'opt-in', gpc: false, token: 'expired', expectedRecord: false, expectedWouldAllow: false, invariant: 'expired token == absent token' },
+  { mechanism: 'opt-in', gpc: false, token: 'tampered', expectedRecord: false, expectedWouldAllow: false, invariant: 'tampered token == absent token' },
   // ── opt-in, GPC on (row honors GPC): GPC declines everything ──
-  { mechanism: 'opt-in', gpc: true, token: 'none', expectedWouldAllow: false, invariant: 'GPC honored per row (gpc_honor)' },
-  { mechanism: 'opt-in', gpc: true, token: 'granted', expectedWouldAllow: false, invariant: 'GPC overrides stale grant' },
-  { mechanism: 'opt-in', gpc: true, token: 'declined', expectedWouldAllow: false, invariant: 'GPC + declined blocks' },
-  { mechanism: 'opt-in', gpc: true, token: 'withdrawn', expectedWouldAllow: false, invariant: 'GPC + withdrawn blocks' },
-  { mechanism: 'opt-in', gpc: true, token: 'expired', expectedWouldAllow: false, invariant: 'GPC + expired blocks' },
-  { mechanism: 'opt-in', gpc: true, token: 'tampered', expectedWouldAllow: false, invariant: 'GPC + tampered blocks' },
+  { mechanism: 'opt-in', gpc: true, token: 'none', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC honored per row (gpc_honor)' },
+  { mechanism: 'opt-in', gpc: true, token: 'granted', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC overrides stale grant' },
+  { mechanism: 'opt-in', gpc: true, token: 'declined', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + declined blocks' },
+  { mechanism: 'opt-in', gpc: true, token: 'withdrawn', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + withdrawn blocks' },
+  { mechanism: 'opt-in', gpc: true, token: 'expired', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + expired blocks' },
+  { mechanism: 'opt-in', gpc: true, token: 'tampered', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + tampered blocks' },
   // ── opt-out, GPC off: destinations flow absent a declined/withdrawn decision ──
-  { mechanism: 'opt-out', gpc: false, token: 'none', expectedWouldAllow: true, invariant: 'opt-out flows without a declined token' },
-  { mechanism: 'opt-out', gpc: false, token: 'granted', expectedWouldAllow: true, invariant: 'opt-out grant allows' },
-  { mechanism: 'opt-out', gpc: false, token: 'declined', expectedWouldAllow: false, invariant: 'opt-out declined blocks' },
-  { mechanism: 'opt-out', gpc: false, token: 'withdrawn', expectedWouldAllow: false, invariant: 'opt-out withdrawal blocks' },
-  { mechanism: 'opt-out', gpc: false, token: 'expired', expectedWouldAllow: true, invariant: 'opt-out + expired token == absent (flows)' },
-  { mechanism: 'opt-out', gpc: false, token: 'tampered', expectedWouldAllow: true, invariant: 'opt-out + tampered token == absent (flows)' },
+  { mechanism: 'opt-out', gpc: false, token: 'none', expectedRecord: false, expectedWouldAllow: true, invariant: 'opt-out flows without a declined token' },
+  { mechanism: 'opt-out', gpc: false, token: 'granted', expectedRecord: true, expectedWouldAllow: true, invariant: 'opt-out grant allows' },
+  { mechanism: 'opt-out', gpc: false, token: 'declined', expectedRecord: true, expectedWouldAllow: false, invariant: 'opt-out declined blocks' },
+  { mechanism: 'opt-out', gpc: false, token: 'withdrawn', expectedRecord: true, expectedWouldAllow: false, invariant: 'opt-out withdrawal blocks' },
+  { mechanism: 'opt-out', gpc: false, token: 'expired', expectedRecord: false, expectedWouldAllow: true, invariant: 'opt-out + expired token == absent (flows)' },
+  { mechanism: 'opt-out', gpc: false, token: 'tampered', expectedRecord: false, expectedWouldAllow: true, invariant: 'opt-out + tampered token == absent (flows)' },
   // ── opt-out, GPC on (row honors GPC): GPC is an opt-out signal ──
-  { mechanism: 'opt-out', gpc: true, token: 'none', expectedWouldAllow: false, invariant: 'GPC opts out even without a token' },
-  { mechanism: 'opt-out', gpc: true, token: 'granted', expectedWouldAllow: false, invariant: 'GPC overrides stale grant (opt-out row)' },
-  { mechanism: 'opt-out', gpc: true, token: 'declined', expectedWouldAllow: false, invariant: 'GPC + declined blocks (opt-out row)' },
-  { mechanism: 'opt-out', gpc: true, token: 'withdrawn', expectedWouldAllow: false, invariant: 'GPC + withdrawn blocks (opt-out row)' },
-  { mechanism: 'opt-out', gpc: true, token: 'expired', expectedWouldAllow: false, invariant: 'GPC + expired blocks (opt-out row)' },
-  { mechanism: 'opt-out', gpc: true, token: 'tampered', expectedWouldAllow: false, invariant: 'GPC + tampered blocks (opt-out row)' }
+  { mechanism: 'opt-out', gpc: true, token: 'none', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC opts out even without a token' },
+  { mechanism: 'opt-out', gpc: true, token: 'granted', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC overrides stale grant (opt-out row)' },
+  { mechanism: 'opt-out', gpc: true, token: 'declined', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + declined blocks (opt-out row)' },
+  { mechanism: 'opt-out', gpc: true, token: 'withdrawn', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + withdrawn blocks (opt-out row)' },
+  { mechanism: 'opt-out', gpc: true, token: 'expired', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + expired blocks (opt-out row)' },
+  { mechanism: 'opt-out', gpc: true, token: 'tampered', expectedRecord: true, expectedWouldAllow: false, invariant: 'GPC + tampered blocks (opt-out row)' }
 ]
 
 async function mintToken(state: Exclude<TokenState, 'none'>): Promise<string> {
@@ -215,9 +221,14 @@ describe('consent matrix (P2.6) — {mechanism} × {GPC} × {mode} × {token sta
       expect(r.tracking?.consentWouldAllow).toBe(c.expectedWouldAllow)
       expect(r.tracking?.consentMode).toBe('ENFORCEMENT')
       expect(r.tracking?.consentMechanism).toBe(c.mechanism)
-      expect(r.records.length).toBeGreaterThan(0)
-      expect(r.records[0]?.mechanism).toBe(c.mechanism)
-      expect(r.records[0]?.mode).toBe('ENFORCEMENT')
+      if (c.expectedRecord) {
+        expect(r.records.length).toBeGreaterThan(0)
+        expect(r.records[0]?.mechanism).toBe(c.mechanism)
+        expect(r.records[0]?.mode).toBe('ENFORCEMENT')
+      } else {
+        // P7.1: no consent signal → no KV consent-event write.
+        expect(r.records).toHaveLength(0)
+      }
     })
 
     it(`${label} | SHADOW → destination fires, would-be decision ${c.expectedWouldAllow} recorded (INV-B-03)`, async () => {
@@ -227,7 +238,11 @@ describe('consent matrix (P2.6) — {mechanism} × {GPC} × {mode} × {token sta
       // …but the enforcement decision is recorded for analytics honesty.
       expect(r.tracking?.consentWouldAllow).toBe(c.expectedWouldAllow)
       expect(r.tracking?.consentMode).toBe('SHADOW')
-      expect(r.records[0]?.mode).toBe('SHADOW')
+      if (c.expectedRecord) {
+        expect(r.records[0]?.mode).toBe('SHADOW')
+      } else {
+        expect(r.records).toHaveLength(0)
+      }
     })
   }
 

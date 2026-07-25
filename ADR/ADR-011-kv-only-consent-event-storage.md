@@ -20,6 +20,7 @@ Shipping a public repo whose specs promise D1/R2 while the code never touches th
 
 1. Delete `packages/deploy/src/d1-schema.sql` (done in this change).
 2. Consent event records stay in KV under `attestrack:consent_event:<id>` (`KV_KEY_CONSENT_EVENT_PREFIX`, `packages/types/src/kv-keys.ts`) with an **operator-configurable TTL** (site config `consentEventTtlSeconds`; default 90 days).
+   > **Amended (P7.1, `docs/THREAT-MODEL.md`):** `<id>` is deterministic, not a UUID — `tok:<token-signature>:<decision>` for token-backed decisions, `gpc:<siteId>:<jurisdiction>:<utc-day>` for token-less honored-GPC signals — and a record is written **only when an actual consent signal is present** (verified token or honored GPC), with a read-before-write dedup. Anonymous requests without a signal write nothing (KV write-amplification mitigation).
 3. CLI.6 scope is amended: the CLI creates **Worker, KV, and Pages** resources in the user's own Cloudflare account. D1/R2 are not created (see the amendment note in BEHAVORIAL-SPEC CLI.6).
 4. R2 remains an *optional, licensed-extension-era* concern; the deploy scaffold keeps the informational `R2-OPTIONAL.md` note only.
 

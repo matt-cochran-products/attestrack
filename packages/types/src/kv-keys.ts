@@ -54,7 +54,12 @@ export const KV_KEY_OBS_DELIVERY_PREFIX = 'attestrack:obs:delivery:'
 /** Observability: per-UTC-day bot-filtered request counter (`${prefix}YYYY-MM-DD`, TTL'd). */
 export const KV_KEY_OBS_BOTS_PREFIX = 'attestrack:obs:bots:'
 
-/** Prefix for individual consent event records (`${prefix}${uuid}`). */
+/**
+ * Prefix for individual consent event records. Keys are deterministic for
+ * dedup (P7.1 write-amplification mitigation): `${prefix}tok:<sig>:<decision>`
+ * for token-backed decisions, `${prefix}gpc:<siteId>:<jurisdiction>:<day>` for
+ * token-less honored-GPC signals.
+ */
 export const KV_KEY_CONSENT_EVENT_PREFIX = 'attestrack:consent_event:'
 
 /** Enabled destination / analytics strategy ids (JSON string array). */

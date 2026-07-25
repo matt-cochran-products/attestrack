@@ -5,9 +5,10 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "embed-consent-bundle": "node scripts/embed-consent-bundle.mjs",
+    "build": "node scripts/embed-consent-bundle.mjs && tsc",
+    "typecheck": "node scripts/embed-consent-bundle.mjs && tsc --noEmit",
+    "test": "node scripts/embed-consent-bundle.mjs && vitest run"
   },
   "dependencies": {
     "@attestrack/host-contracts": "workspace:*",
@@ -16,6 +17,7 @@
     "@attestrack/types": "workspace:*"
   },
   "devDependencies": {
+    "@attestrack/consent-js": "workspace:*",
     "@attestrack/strategies": "workspace:*",
     "vitest": "^2.0.0"
   }

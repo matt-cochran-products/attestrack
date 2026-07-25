@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/.turbo/**',
       'pnpm-lock.yaml',
+      '**/*.generated.ts',
       '**/rollup.config.js',
       'tooling/vitest/setup.ts',
       'e2e/scripts/**',
@@ -89,7 +90,7 @@ export default tseslint.config(
     rules: { 'no-console': 'off' }
   },
   {
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'packages/*/scripts/**/*.mjs'],
     languageOptions: { globals: { ...globals.node } },
     rules: { 'no-console': 'off' }
   },

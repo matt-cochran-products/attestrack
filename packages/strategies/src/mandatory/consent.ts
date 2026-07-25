@@ -1,10 +1,11 @@
 import { verifyPrivacyConsentToken, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest, VerifiedPrivacyConsentToken } from '@attestrack/types'
+import { CONSENT_COOKIE_NAME } from '@attestrack/types'
 import { communityJurisdictionStrategy } from './jurisdiction.js'
 import { evidenceUnsignedStrategy } from './consent-log.js'
 import { communityTrollShieldStrategy } from './troll-shield.js'
 
-export const CONSENT_COOKIE_NAME = 'at_consent'
+export { CONSENT_COOKIE_NAME }
 
 function readCookie(header: string | null, name: string): string | null {
   if (!header) return null

@@ -31,6 +31,9 @@ out/
 *.tsbuildinfo
 coverage/
 
+# --- Generated sources (rebuilt by package build scripts) ---
+*.generated.ts
+
 # --- Cloudflare Wrangler (local + generated state) ---
 .wrangler/
 .dev.vars

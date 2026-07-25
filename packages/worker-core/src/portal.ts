@@ -7,11 +7,11 @@ import {
   KV_KEY_PORTAL_LOGS,
   KV_KEY_PORTAL_SAVED_QUERIES,
   KV_KEY_PORTAL_SIGNAL,
-  KV_KEY_PORTAL_SITE_CONFIG,
   KV_KEY_PORTAL_STRATEGIES
 } from '@attestrack/types'
 import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrack/schema'
 import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
+import { readSiteConfig, writeSiteConfig } from './config.js'
 export const PORTAL_API_PREFIX = '/__attestrack__/portal/v1'
 
 const ATTESTRUE_UPGRADE_ORIGIN = 'https://attestrue.com'
@@ -27,22 +27,6 @@ export function requiresAttestruePortalResponse(): Response {
     },
     { status: 403, headers: { 'cache-control': 'no-store' } }
   )
-}
-
-type SiteMode = 'SHADOW' | 'ENFORCEMENT' | 'NOT_CONFIGURED'
-
-interface SiteConfigKv {
-  siteId: string
-  domain: string
-  workerVersion: string
-  shadowStart: string
-  enforcementStart: string | null
-  mode: SiteMode
-  consentConfigured: boolean
-  state1TokenTTL: number
-  ipHandling: string
-  trustedDomains: string[]
-  driftDetection: { enabled: boolean; quarantineNew: boolean; alertThreshold: number }
 }
 
 interface SavedQueryEntry {
@@ -79,38 +63,9 @@ async function jsonFromKv(host: HostRuntime, key: string, fallback: unknown): Pr
   }
 }
 
-const defaultSiteConfig: SiteConfigKv = {
-  siteId: 'local',
-  domain: 'example.com',
-  workerVersion: '0.0.0',
-  shadowStart: new Date().toISOString(),
-  enforcementStart: null,
-  mode: 'SHADOW',
-  consentConfigured: true,
-  state1TokenTTL: 86400,
-  ipHandling: 'hash_salt',
-  trustedDomains: [],
-  driftDetection: { enabled: true, quarantineNew: false, alertThreshold: 0.05 }
-}
-
 const defaultStrategies = {
   builtin: [],
   proofLayer: []
-}
-
-async function readSiteConfig(host: HostRuntime): Promise<SiteConfigKv> {
-  const raw = await host.kv.get(KV_KEY_PORTAL_SITE_CONFIG)
-  if (!raw) return defaultSiteConfig
-  try {
-    const v = JSON.parse(raw) as Partial<SiteConfigKv>
-    return { ...defaultSiteConfig, ...v }
-  } catch {
-    return defaultSiteConfig
-  }
-}
-
-async function writeSiteConfig(host: HostRuntime, config: SiteConfigKv): Promise<void> {
-  await host.kv.put(KV_KEY_PORTAL_SITE_CONFIG, JSON.stringify(config))
 }
 
 export async function handlePortalRequest(request: Request, host: HostRuntime): Promise<Response | null> {

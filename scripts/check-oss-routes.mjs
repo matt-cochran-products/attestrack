@@ -52,6 +52,20 @@ for (const p of contract.topLevel.GET) {
   }
 }
 
+// OPTIONS preflight routes: handler must branch on OPTIONS and reference each
+// path (as a literal, or via the tracking-path constant).
+for (const p of contract.topLevel.OPTIONS ?? []) {
+  if (!handlerSrc.includes("request.method === 'OPTIONS'")) {
+    fail('create-fetch-handler.ts must handle OPTIONS preflight per oss-http-contract.json topLevel.OPTIONS.')
+  }
+  const isConstantBacked = p === contract.trackingPostPath
+  if (!isConstantBacked && !handlerSrc.includes(`'${p}'`) && !handlerSrc.includes(`"${p}"`)) {
+    fail(
+      `topLevel OPTIONS "${p}" not found as literal in create-fetch-handler.ts — update handler or oss-http-contract.json.`
+    )
+  }
+}
+
 const consentPathLiteral = '/__attestrack__/consent/commit'
 if (!contract.topLevel.POST.includes(consentPathLiteral)) {
   fail(`oss-http-contract.json topLevel.POST must include "${consentPathLiteral}"`)

@@ -3,8 +3,13 @@
   "portalApiPrefix": "/__attestrack__/portal/v1",
   "trackingPostPath": "/t/event",
   "topLevel": {
-    "GET": ["/health", "/privacy", "/terms"],
-    "POST": ["/__attestrack__/consent/commit"]
+    "GET": ["/health", "/privacy", "/terms", "/consent.js"],
+    "POST": ["/__attestrack__/consent/commit"],
+    "OPTIONS": ["/__attestrack__/consent/commit", "/t/event"]
+  },
+  "cors": {
+    "description": "Credentialed CORS (allow-credentials) for browser routes; allowlist derived from site config domain + trustedDomains. /consent.js is served with a public wildcard origin (no credentials).",
+    "credentialedRoutes": ["/__attestrack__/consent/commit", "/t/event"]
   },
   "portalSubpaths": {
     "GET": [

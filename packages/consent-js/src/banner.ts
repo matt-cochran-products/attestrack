@@ -1,5 +1,5 @@
 import type { ConsentDecision } from '@attestrack/types'
-import { commitPrivacyConsent, persistConsentCookie } from './commit.js'
+import { commitPrivacyConsent, isSameOriginWorker, persistConsentCookie } from './commit.js'
 import { readGlobalPrivacyControl } from './gpc.js'
 import { initAttestrackClient, markConsentGranted } from './init.js'
 
@@ -25,7 +25,11 @@ async function finalizeDecision(
     decision,
     policyHash
   })
-  persistConsentCookie(token)
+  // The Worker sets the cross-subdomain cookie via Set-Cookie on the commit
+  // response; document.cookie is only a same-origin fallback (host-only cookie).
+  if (isSameOriginWorker(workerOrigin)) {
+    persistConsentCookie(token)
+  }
   markConsentGranted(decision === 'granted')
   bannerEl.remove()
 }

@@ -13,6 +13,28 @@ import { KV_KEY_ENABLED_STRATEGIES, KV_KEY_PORTAL_SITE_CONFIG } from '@attestrac
 import { TRACKING_EVENT_PATH } from '../../src/constants.js'
 
 describe('createAttestrackFetchHandler (contract)', () => {
+  it('P7.2: consent commit returns 503 consent_secret_too_weak for a sub-16-byte secret', async () => {
+    const host = createMockHostRuntime({
+      secrets: { CONSENT_TOKEN_SECRET: 'too-short' }
+    })
+    const fetch = createAttestrackFetchHandler({
+      host,
+      consentSecretName: 'CONSENT_TOKEN_SECRET',
+      bundledStrategies: [],
+      strategyLoader: noopStrategyLoader
+    })
+    const res = await fetch(
+      new Request('https://example.com/__attestrack__/consent/commit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId: 's1', decision: 'granted', policyHash: 'sha256:x' })
+      })
+    )
+    expect(res.status).toBe(503)
+    const json = (await res.json()) as { error: string }
+    expect(json.error).toBe('consent_secret_too_weak')
+  })
+
   it('mints consent token on commit path', async () => {
     const host = createMockHostRuntime({
       secrets: { CONSENT_TOKEN_SECRET: 'test-secret-32-chars-minimum!!' }

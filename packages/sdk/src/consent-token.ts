@@ -10,6 +10,26 @@ const KEY_ID_PATTERN = /^k\d+$/u
 export const DEFAULT_CONSENT_KEY_ID = 'k1'
 
 /**
+ * Minimum HMAC signing-secret length in BYTES, enforced at mint time (P7.2).
+ * 16 bytes = 128 bits — the NIST SP 800-107 floor for HMAC keys; below this,
+ * brute-forcing the secret (and forging consent evidence) becomes feasible.
+ * Deploy guidance asks for 32+ characters; this is the hard floor.
+ */
+export const MIN_CONSENT_SECRET_BYTES = 16
+
+/**
+ * Maximum accepted token length at verify time (P7.2). Real tokens are
+ * ~300 bytes; browsers cap cookies near 4 KB. Rejecting oversized strings
+ * before any base64/HMAC work bounds attacker-controlled CPU cost.
+ */
+export const MAX_CONSENT_TOKEN_LENGTH = 4096
+
+/** True when `secret` meets the {@link MIN_CONSENT_SECRET_BYTES} floor. */
+export function isConsentSecretStrongEnough(secret: string): boolean {
+  return te.encode(secret).length >= MIN_CONSENT_SECRET_BYTES
+}
+
+/**
  * Named signing keys for consent tokens. `currentKeyId` signs new tokens;
  * every entry in `keys` remains valid for verification (rotation window).
  */
@@ -135,6 +155,12 @@ export async function createPrivacyConsentToken(
   if (!KEY_ID_PATTERN.test(keyId)) throw new Error(`invalid consent key id: ${keyId}`)
   const signingSecret = keyring.keys[keyId]
   if (!signingSecret) throw new Error(`consent keyring missing current key: ${keyId}`)
+  if (!isConsentSecretStrongEnough(signingSecret)) {
+    // P7.2: refuse to mint evidence tokens under a brute-forceable key.
+    throw new Error(
+      `consent signing secret for ${keyId} is shorter than ${MIN_CONSENT_SECRET_BYTES} bytes`
+    )
+  }
 
   const now = options.now ?? new Date()
   const issuedAt = input.issuedAt ?? now.toISOString()
@@ -178,6 +204,8 @@ export async function verifyPrivacyConsentToken(
   { ok: true; payload: PrivacyConsentTokenPayloadV1; raw: string; keyId: string } | { ok: false; reason: string }
 > {
   const keyring = normalizeKeyring(secret)
+  // P7.2: bound attacker-controlled input before any base64/HMAC work.
+  if (token.length > MAX_CONSENT_TOKEN_LENGTH) return { ok: false, reason: 'malformed' }
   const parts = token.split('.')
   if (parts.length !== 3) return { ok: false, reason: 'malformed' }
   const [keyId, payloadPart, sigPart] = parts as [string, string, string]

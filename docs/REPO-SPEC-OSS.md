@@ -31,6 +31,8 @@ Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../p
 
 **Prefix:** `/__attestrack__/portal/v1` (`PORTAL_API_PREFIX` in [packages/worker-core/src/portal.ts](../packages/worker-core/src/portal.ts)).
 
+> **Authentication (PORTAL.1 / P7.3) — read this before deploying.** Every route under the portal prefix is **unauthenticated by design**: Cloudflare Access is assumed in front of the Worker. **Without Access, this is a world-readable and world-writable operator config API** — anyone who finds the Worker hostname can read site config/logs and mutate `/strategies/toggle`, `/site-config/trusted-domains` (which feeds the CORS allowlist), and saved queries, and run `/explore/query` against your warehouse. Defense-in-depth option: set the Worker secret `PORTAL_API_SHARED_SECRET`; the Worker then requires the `x-attestrack-portal-secret` header (constant-time compare) on **every** portal request and answers `401 portal_unauthorized` otherwise. The check is a no-op when the secret is unset. Do **not** embed the secret in the public portal SPA bundle — it is for API clients or a header-injecting proxy. See `docs/THREAT-MODEL.md`.
+
 Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade (licensed repo, `docs/EXTENSION-PORTAL-API.md` — plain-text citation; not linkable from this repository). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
 
 ### Portal observability data sources (P3)
@@ -68,6 +70,7 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | `explore_warehouse_bad_response` | 502 | Non-JSON warehouse response |
 | `invalid_mode` | 400 | Site mode enum (reserved; OSS does not accept mode POST — see `requires_attestrue`) |
 | `invalid_domains` | 400 | Trusted domains payload |
+| `portal_unauthorized` | 401 | `PORTAL_API_SHARED_SECRET` is configured and the `x-attestrack-portal-secret` header is missing/wrong (P7.3) |
 | `requires_attestrue` | 403 | Banner, policy, enforcement mode, and related portal mutations are **Attestrue**; response includes `handoff` URL |
 | `not_found` | 404 | Unknown portal subpath |
 | `method_not_allowed` | 405 | Wrong method for portal |

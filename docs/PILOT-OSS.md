@@ -48,6 +48,14 @@ A second run from the same repo directory will see the existing `attestrack-depl
 
 The Pages URL is **public** until you protect it. In Cloudflare Zero Trust, create an **Access application** for your portal hostname and restrict it to your IdP or email allowlist. Do not treat the operator portal as safe without authentication.
 
+**Protect the Worker's portal API too.** The portal API (`/__attestrack__/portal/v1/*` on the **Worker** hostname) has no built-in authentication (PORTAL.1): without protection it is a world-readable and world-writable config API — strategy toggles, trusted domains (the CORS allowlist), saved queries, and warehouse queries via Explore. Put Access in front of those Worker paths, or (defense-in-depth, e.g. when you cannot use Access) set the Worker secret `PORTAL_API_SHARED_SECRET`:
+
+```bash
+wrangler secret put PORTAL_API_SHARED_SECRET   # any long random value
+```
+
+With the secret set, every portal API request must send it in the `x-attestrack-portal-secret` header or receives `401 portal_unauthorized`; the public consent/tracking routes are unaffected. Note the community portal SPA does not send this header — never embed the secret in the public SPA bundle; use it from API clients or a proxy that injects the header. Full analysis: [THREAT-MODEL.md](THREAT-MODEL.md).
+
 The deploy completion banner repeats this reminder.
 
 ## Verify the Worker

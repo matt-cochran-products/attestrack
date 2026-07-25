@@ -2,6 +2,8 @@
 
 Attestrack is the MIT-licensed analytics and server-side measurement stack in this repository. Thank you for helping improve it.
 
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues go through [SECURITY.md](SECURITY.md) (private advisories), never public issues.
+
 ## Prerequisites
 
 - Node.js 20+

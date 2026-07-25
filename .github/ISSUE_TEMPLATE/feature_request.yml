@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose an improvement or new capability for Attestrack
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: check `docs/OSS-SCOPE-MATRIX.md` — some capabilities
+        (attorney-maintained regulation config, witnessed evidence/Proof, banner/policy
+        portal editors) are licensed Attestrue extensions by design (ADR-010) and will
+        not be implemented in this repository.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that Attestrack does not support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Sketch the UX/API if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Worker runtime (worker-core / strategies)
+        - Consent path (consent-js / sdk tokens)
+        - Analytics / warehouse (schema / Explore)
+        - Portal (portal-community)
+        - Deploy CLI (deploy)
+        - Docs
+        - Other
+    validations:
+      required: false

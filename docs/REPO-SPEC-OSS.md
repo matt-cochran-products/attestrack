@@ -16,11 +16,16 @@
 | GET | `/health` | `200` plain `ok` |
 | GET | `/privacy` | Plain text from KV `attestrack:policy:privacy` or default placeholder |
 | GET | `/terms` | Plain text from KV `attestrack:policy:terms` or default placeholder |
-| POST | `/__attestrack__/consent/commit` | JSON body validated with `consentCommitRequestSchema`; returns `{ token }` or JSON error |
-| POST | `/t/event` | `trackingEventV1Schema`; accepts immediately; pipeline runs in `scheduleBackground` |
+| GET | `/consent.js` | Embedded `@attestrack/consent-js` IIFE bundle (built-in at Worker build time); `ETag` = content hash, `304` on `If-None-Match`, public cache headers |
+| GET | `/__attestrack__/consent/context` | Resolved jurisdiction context for the banner: `{ siteId, mode, jurisdictionKey, row, policyRefs }`; credentialed CORS |
+| POST | `/__attestrack__/consent/commit` | JSON body validated with `consentCommitRequestSchema` (incl. optional `ioaAccepted`); returns `{ token }` (token carries `expiresAt` from site config `state1TokenTTL`) **and** `Set-Cookie: at_consent=…; Domain=<site config cookieDomain ?? domain>; Path=/; Max-Age=<TTL>; Secure; SameSite=Lax` (Domain omitted when the Worker host is outside that domain) |
+| POST | `/t/event` | `trackingEventV1Schema`; accepts immediately; pipeline runs in `scheduleBackground`; credentialed CORS |
+| OPTIONS | commit / context / `/t/event` | CORS preflight; allowlist derived from site config `domain` + `trustedDomains` (https-only; loopback origins only when explicitly listed; no wildcard reflection) |
 | GET | *other* | Runs mandatory + destination + analytics pipeline; JSON `{ ok, consentDecision }` |
 
 Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../packages/worker-core/src/constants.ts), consent path literals in [create-fetch-handler.ts](../packages/worker-core/src/create-fetch-handler.ts).
+
+**Consent pipeline semantics (P2.3):** site config `mode` is read once per request; `SHADOW` (and any unconfigured/unknown mode — INV-B-03) never blocks destinations but records the would-be ENFORCEMENT decision (`consentWouldAllow` on the tracking row); `ENFORCEMENT` applies the gate. Jurisdiction rows with `mechanism: 'opt-out'` allow destinations absent a declined/withdrawn token; GPC (`Sec-GPC: 1`) is honored per row (`gpc_honor`) as an opt-out signal. Tokens are `k<N>.<payload>.<sig>` HMAC envelopes with verify-time expiry + `siteId` binding; rotation via `CONSENT_TOKEN_SECRET_PREVIOUS` (values may carry a `k<N>.` key-id prefix).
 
 ### Portal API
 

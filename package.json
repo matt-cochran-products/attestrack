@@ -9,7 +9,8 @@
     "typecheck": "turbo run typecheck",
     "size-check": "turbo run size-check",
     "boundary-check": "node scripts/boundary-check.mjs",
-    "route-contract-check": "node scripts/check-oss-routes.mjs"
+    "route-contract-check": "node scripts/check-oss-routes.mjs",
+    "audit-gate": "node scripts/audit-gate.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

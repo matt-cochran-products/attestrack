@@ -1,5 +1,9 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
-import { consentCommitRequestSchema, trackingEventV1Schema } from '@attestrack/schema'
+import {
+  consentCommitRequestSchema,
+  parseConsentConfigJson,
+  trackingEventV1Schema
+} from '@attestrack/schema'
 import {
   createPrivacyConsentToken,
   keyringFromSecretValues,
@@ -9,17 +13,22 @@ import {
   type StrategyPipelineContext
 } from '@attestrack/sdk'
 import {
+  COMMUNITY_DEFAULT_CONSENT_CONFIG,
   CONSENT_COOKIE_NAME,
+  KV_KEY_CONSENT_CONFIG,
   KV_KEY_ENABLED_STRATEGIES,
   KV_KEY_POLICY_PRIVACY,
-  KV_KEY_POLICY_TERMS
+  KV_KEY_POLICY_TERMS,
+  resolveJurisdictionKey,
+  type ConsentConfig,
+  type PipelineSiteInfo
 } from '@attestrack/types'
 import {
   runDestinationStrategiesParallel,
   runMandatoryStrategies,
   runStrategiesForStage
 } from './composite.js'
-import { readSiteConfig, type SiteConfigKv } from './config.js'
+import { effectiveSiteMode, readSiteConfig, type SiteConfigKv } from './config.js'
 import { preflightResponse, resolveCorsOrigin, withCors } from './cors.js'
 import { filterStrategiesByEnabledKv, parseEnabledStrategiesKv } from './enabled-strategies.js'
 import { CONSENT_JS_HASH, CONSENT_JS_SOURCE } from './consent-bundle.generated.js'
@@ -36,9 +45,22 @@ export interface AttestrackWorkerOptions {
   strategyLoader: StrategyLoader
 }
 
+/** Site config snapshot for the pipeline — resolved ONCE per request (P2.3). */
+function pipelineSiteInfo(config: SiteConfigKv): PipelineSiteInfo {
+  return {
+    mode: effectiveSiteMode(config),
+    siteId: config.siteId,
+    domain: config.domain,
+    ...(config.consentEventTtlSeconds !== undefined
+      ? { consentEventTtlSeconds: config.consentEventTtlSeconds }
+      : {})
+  }
+}
+
 async function runPipeline(
   options: AttestrackWorkerOptions,
   request: Request,
+  site: PipelineSiteInfo,
   seed: Pick<StrategyPipelineContext, 'tracking' | 'consent'> = {}
 ): Promise<StrategyPipelineContext> {
   const extensions = await options.strategyLoader.loadForRequest(request)
@@ -49,6 +71,7 @@ async function runPipeline(
   const ctx: StrategyPipelineContext = {
     host: options.host,
     request,
+    site,
     ...seed
   }
   await runMandatoryStrategies(ctx, effectiveStrategies)
@@ -85,6 +108,14 @@ export function buildConsentCookie(
 
 const CONSENT_JS_PATH = '/consent.js'
 const CONSENT_COMMIT_PATH = '/__attestrack__/consent/commit'
+const CONSENT_CONTEXT_PATH = '/__attestrack__/consent/context'
+
+/** Known policy document keys → Worker routes (row.documents refs resolve here). */
+const POLICY_REFS: Readonly<Record<string, string>> = {
+  privacy_policy: '/privacy',
+  terms: '/terms',
+  cookie_notice: '/privacy'
+}
 
 export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
   return async (request: Request): Promise<Response> => {
@@ -94,9 +125,11 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
 
     if (
       request.method === 'OPTIONS' &&
-      (url.pathname === CONSENT_COMMIT_PATH || url.pathname === TRACKING_EVENT_PATH)
+      (url.pathname === CONSENT_COMMIT_PATH ||
+        url.pathname === TRACKING_EVENT_PATH ||
+        url.pathname === CONSENT_CONTEXT_PATH)
     ) {
-      return preflightResponse(request, siteConfig, 'POST, OPTIONS')
+      return preflightResponse(request, siteConfig, 'GET, POST, OPTIONS')
     }
 
     const portalRes = await handlePortalRequest(request, options.host)
@@ -148,6 +181,38 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
             'set-cookie': buildConsentCookie(token, siteConfig, url.hostname)
           }
         }
+      )
+      return withCors(res, corsOrigin)
+    }
+
+    if (request.method === 'GET' && url.pathname === CONSENT_CONTEXT_PATH) {
+      const rawConfig = await options.host.kv.get(KV_KEY_CONSENT_CONFIG)
+      const consentConfig = parseConsentConfigJson<ConsentConfig>(
+        rawConfig,
+        COMMUNITY_DEFAULT_CONSENT_CONFIG
+      )
+      const jurisdictionKey = resolveJurisdictionKey(
+        options.host.geoCountry(request),
+        consentConfig
+      )
+      const row =
+        consentConfig.jurisdictions[jurisdictionKey] ??
+        consentConfig.jurisdictions.DEFAULT ??
+        COMMUNITY_DEFAULT_CONSENT_CONFIG.jurisdictions.DEFAULT!
+      const policyRefs: Record<string, string> = {}
+      for (const doc of row.documents) {
+        const ref = POLICY_REFS[doc]
+        if (ref) policyRefs[doc] = ref
+      }
+      const res = Response.json(
+        {
+          siteId: siteConfig.siteId,
+          mode: effectiveSiteMode(siteConfig),
+          jurisdictionKey,
+          row,
+          policyRefs
+        },
+        { headers: { 'cache-control': 'no-store' } }
       )
       return withCors(res, corsOrigin)
     }
@@ -205,8 +270,9 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
         )
       }
 
+      const site = pipelineSiteInfo(siteConfig)
       options.host.scheduleBackground(async () => {
-        await runPipeline(options, request, { tracking: parsed.data })
+        await runPipeline(options, request, site, { tracking: parsed.data })
       })
 
       return withCors(
@@ -215,7 +281,7 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
       )
     }
 
-    const ctx = await runPipeline(options, request)
+    const ctx = await runPipeline(options, request, pipelineSiteInfo(siteConfig))
 
     return Response.json(
       { ok: true, consentDecision: ctx.consent?.payload.decision ?? null },

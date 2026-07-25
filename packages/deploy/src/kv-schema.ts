@@ -23,7 +23,10 @@ export function initialKvSeed(siteId: string, domain: string): Record<string, st
     state1TokenTTL: 86400,
     ipHandling: 'hash_salt',
     trustedDomains: [] as string[],
-    driftDetection: { enabled: true, quarantineNew: false, alertThreshold: 0.05 }
+    driftDetection: { enabled: true, quarantineNew: false, alertThreshold: 0.05 },
+    // P2: consent cookie Domain (cross-subdomain topology) + consent-event record TTL.
+    cookieDomain: domain,
+    consentEventTtlSeconds: 60 * 60 * 24 * 90
   }
   return {
     [KV_KEY_PORTAL_SITE_CONFIG]: JSON.stringify(siteConfig),

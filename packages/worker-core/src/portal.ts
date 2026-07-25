@@ -1,13 +1,26 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
 import {
   KV_KEY_ENABLED_STRATEGIES,
-  KV_KEY_PORTAL_ANALYTICS,
   KV_KEY_PORTAL_ALERT_RULES,
   KV_KEY_PORTAL_SAVED_QUERIES,
   KV_KEY_PORTAL_STRATEGIES
 } from '@attestrack/types'
-import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrack/schema'
+import {
+  SAVED_QUERIES_MAX_ENTRIES,
+  exploreGateErrorPayload,
+  parseSavedQueriesKv,
+  savedQueryChartConfigSchema,
+  validateAndNormalizeExploreSql,
+  type SavedQueryChartConfig,
+  type SavedQueryEntryV1
+} from '@attestrack/schema'
 import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
+import {
+  computeCuratedChart,
+  isCuratedChartId,
+  isValidCuratedDate,
+  listCuratedChartDescriptors
+} from './curated-analytics.js'
 import { readSiteConfig, writeSiteConfig } from './config.js'
 import { parseEnabledStrategiesKv } from './enabled-strategies.js'
 import {
@@ -34,26 +47,46 @@ export function requiresAttestruePortalResponse(): Response {
   )
 }
 
-interface SavedQueryEntry {
+/** KV shape is Zod-validated (P4.4): corrupt entries are dropped, never served. */
+async function readSavedQueries(host: HostRuntime): Promise<SavedQueryEntryV1[]> {
+  return parseSavedQueriesKv(await host.kv.get(KV_KEY_PORTAL_SAVED_QUERIES))
+}
+
+async function writeSavedQueries(host: HostRuntime, list: SavedQueryEntryV1[]): Promise<void> {
+  await host.kv.put(KV_KEY_PORTAL_SAVED_QUERIES, JSON.stringify(list))
+}
+
+/**
+ * Per-user identity for saved-query pinning (EXP.10): the CF Access header.
+ * Without Access (the header is absent) pins fall back to one shared anonymous
+ * identity (`''`) — documented in REPO-SPEC-OSS; Access is assumed (PORTAL.1).
+ */
+export const CF_ACCESS_EMAIL_HEADER = 'Cf-Access-Authenticated-User-Email'
+
+function requestUserEmail(request: Request): string {
+  return request.headers.get(CF_ACCESS_EMAIL_HEADER)?.trim().toLowerCase() ?? ''
+}
+
+/** Client view: the requester's own pin only — pins are personal (EXP.10). */
+interface SavedQueryClientView {
   id: string
   name: string
   sql: string
   updatedAt: string
+  pinned: boolean
+  pinnedChart?: SavedQueryChartConfig
 }
 
-async function readSavedQueries(host: HostRuntime): Promise<SavedQueryEntry[]> {
-  const raw = await host.kv.get(KV_KEY_PORTAL_SAVED_QUERIES)
-  if (!raw) return []
-  try {
-    const v = JSON.parse(raw) as unknown
-    return Array.isArray(v) ? (v as SavedQueryEntry[]) : []
-  } catch {
-    return []
+function savedQueryClientView(entry: SavedQueryEntryV1, user: string): SavedQueryClientView {
+  const pin = entry.pins?.find((p) => p.user === user)
+  return {
+    id: entry.id,
+    name: entry.name,
+    sql: entry.sql,
+    updatedAt: entry.updatedAt,
+    pinned: pin !== undefined,
+    ...(pin ? { pinnedChart: pin.chart } : {})
   }
-}
-
-async function writeSavedQueries(host: HostRuntime, list: SavedQueryEntry[]): Promise<void> {
-  await host.kv.put(KV_KEY_PORTAL_SAVED_QUERIES, JSON.stringify(list))
 }
 
 async function jsonFromKv(host: HostRuntime, key: string, fallback: unknown): Promise<Response> {
@@ -146,7 +179,15 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
       return Response.json([], { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/analytics/curated') {
-      return jsonFromKv(host, KV_KEY_PORTAL_ANALYTICS, [])
+      // P4.3: metadata only — chart numbers come from POST (computed per chart,
+      // canned SQL through the Explore gate). Never operator-seeded series.
+      return Response.json(
+        {
+          charts: listCuratedChartDescriptors(),
+          warehouseConfigured: isExploreWarehouseConfigured(host)
+        },
+        { headers: { 'cache-control': 'no-store' } }
+      )
     }
     if (sub === '/policy') {
       return requiresAttestruePortalResponse()
@@ -161,7 +202,8 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
       return requiresAttestruePortalResponse()
     }
     if (sub === '/explore/saved-queries') {
-      const list = await readSavedQueries(host)
+      const user = requestUserEmail(request)
+      const list = (await readSavedQueries(host)).map((q) => savedQueryClientView(q, user))
       return Response.json(list, { headers: { 'cache-control': 'no-store' } })
     }
     return Response.json({ error: 'not_found' }, { status: 404 })
@@ -216,15 +258,27 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
       }
       void gated.sqlNormalized
       const list = await readSavedQueries(host)
-      const entry: SavedQueryEntry = {
+      if (list.length >= SAVED_QUERIES_MAX_ENTRIES) {
+        return Response.json(
+          {
+            error: 'saved_queries_limit',
+            details: { code: 'saved_queries_limit', max: SAVED_QUERIES_MAX_ENTRIES }
+          },
+          { status: 400 }
+        )
+      }
+      const entry: SavedQueryEntryV1 = {
         id: crypto.randomUUID(),
-        name: name.trim() || 'Untitled',
+        name: name.trim().slice(0, 120) || 'Untitled',
         sql: sql.trim(),
         updatedAt: new Date().toISOString()
       }
       list.push(entry)
       await writeSavedQueries(host, list)
-      return Response.json({ success: true, query: entry }, { headers: { 'cache-control': 'no-store' } })
+      return Response.json(
+        { success: true, query: savedQueryClientView(entry, requestUserEmail(request)) },
+        { headers: { 'cache-control': 'no-store' } }
+      )
     }
 
     if (sub === '/explore/saved-queries/remove') {
@@ -238,6 +292,48 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
       const list = (await readSavedQueries(host)).filter((q) => q.id !== id)
       await writeSavedQueries(host, list)
       return Response.json({ success: true }, { headers: { 'cache-control': 'no-store' } })
+    }
+
+    if (sub === '/explore/saved-queries/pin') {
+      // EXP.10 — per-user pin/unpin with a user-directed chart config (EXP.8).
+      const id = (body as { id?: unknown }).id
+      const pinned = (body as { pinned?: unknown }).pinned
+      if (typeof id !== 'string' || typeof pinned !== 'boolean') {
+        return Response.json(
+          { error: 'invalid_body', details: { code: 'saved_query_pin_body_invalid' } },
+          { status: 400 }
+        )
+      }
+      const list = await readSavedQueries(host)
+      const entry = list.find((q) => q.id === id)
+      if (!entry) {
+        return Response.json(
+          { error: 'not_found', details: { code: 'saved_query_not_found' } },
+          { status: 404 }
+        )
+      }
+      const user = requestUserEmail(request)
+      const pins = (entry.pins ?? []).filter((p) => p.user !== user)
+      if (pinned) {
+        const chartRaw = (body as { chart?: unknown }).chart ?? { chartType: 'table' }
+        const chart = savedQueryChartConfigSchema.safeParse(chartRaw)
+        if (!chart.success) {
+          return Response.json(
+            {
+              error: 'invalid_body',
+              details: { code: 'saved_query_chart_invalid', issues: chart.error.flatten() }
+            },
+            { status: 400 }
+          )
+        }
+        pins.push({ user, pinnedAt: new Date().toISOString(), chart: chart.data })
+      }
+      entry.pins = pins
+      await writeSavedQueries(host, list)
+      return Response.json(
+        { success: true, query: savedQueryClientView(entry, user) },
+        { headers: { 'cache-control': 'no-store' } }
+      )
     }
 
     if (sub === '/site-config/mode') {
@@ -256,7 +352,25 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     }
 
     if (sub === '/analytics/curated') {
-      return jsonFromKv(host, KV_KEY_PORTAL_ANALYTICS, [])
+      // P4.3 — one curated chart per request (ANA.6: charts load independently).
+      // Warehouse charts are canned SQL through the SAME Explore gate + executor.
+      const chartId = (body as { chartId?: unknown }).chartId
+      const dateFrom = (body as { dateFrom?: unknown }).dateFrom
+      const dateTo = (body as { dateTo?: unknown }).dateTo
+      if (
+        !isCuratedChartId(chartId) ||
+        !isValidCuratedDate(dateFrom) ||
+        !isValidCuratedDate(dateTo) ||
+        dateFrom > dateTo
+      ) {
+        return Response.json(
+          { error: 'invalid_body', details: { code: 'curated_chart_request_invalid' } },
+          { status: 400 }
+        )
+      }
+      const enabledIds = parseEnabledStrategiesKv(await host.kv.get(KV_KEY_ENABLED_STRATEGIES))
+      const chart = await computeCuratedChart(host, enabledIds, chartId, dateFrom, dateTo)
+      return Response.json(chart, { headers: { 'cache-control': 'no-store' } })
     }
 
     if (sub === '/analytics/warehouse-status') {

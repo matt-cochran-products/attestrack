@@ -145,6 +145,40 @@ if (contract.portalDataSources) {
   if (!handlerSrc.includes('recordIngestObservability')) {
     fail('create-fetch-handler.ts must record ingest observability on /t/event (P3.1/P3.2).')
   }
+
+  // ── P4.3 curated-analytics honesty gates ─────────────────────────────────
+  // /analytics/curated must stay COMPUTED (canned SQL through the Explore gate
+  // or recorded delivery stats) — never operator-seeded KV series, never a raw
+  // second path to the warehouse.
+  if (contract.portalDataSources.computed['/analytics/curated']) {
+    const curatedPath = join(root, 'packages', 'worker-core', 'src', 'curated-analytics.ts')
+    const curatedSrc = readFileSync(curatedPath, 'utf8')
+    if (!portalSrc.includes('computeCuratedChart')) {
+      fail('portal.ts must compute /analytics/curated via computeCuratedChart (P4.3) — seeded analytics JSON is not allowed.')
+    }
+    if (portalSrc.includes('KV_KEY_PORTAL_ANALYTICS') || portalSrc.includes('attestrack:portal:analytics')) {
+      fail('portal.ts must not read the seeded analytics KV key — /analytics/curated is computed (P4.3 honesty gate).')
+    }
+    if (!curatedSrc.includes('validateAndNormalizeExploreSql')) {
+      fail('curated-analytics.ts must run canned SQL through validateAndNormalizeExploreSql (same Explore gate — INV-B-14/15).')
+    }
+    if (!curatedSrc.includes('executeExploreSql')) {
+      fail('curated-analytics.ts must execute via executeExploreSql (single warehouse path — INV-B-16); no direct fetch to the warehouse.')
+    }
+    if (/\bfetch\s*\(/.test(curatedSrc)) {
+      fail('curated-analytics.ts must not call fetch directly — all warehouse access goes through executeExploreSql.')
+    }
+  }
+
+  // ── P4.4 saved-queries gates ─────────────────────────────────────────────
+  if (contract.portalSubpaths.POST.includes('/explore/saved-queries/pin')) {
+    if (!portalSrc.includes('parseSavedQueriesKv')) {
+      fail('portal.ts must read saved queries through the Zod-validated parseSavedQueriesKv shape (P4.4).')
+    }
+    if (!portalSrc.includes('Cf-Access-Authenticated-User-Email')) {
+      fail('portal.ts must key saved-query pins on the Cf-Access-Authenticated-User-Email header (EXP.10).')
+    }
+  }
 }
 
 console.log('[route-contract-check] docs/oss-http-contract.json matches worker-core sources.')

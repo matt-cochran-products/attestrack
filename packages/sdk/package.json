@@ -13,17 +13,21 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage.enabled"
   },
   "dependencies": {
     "@attestrack/host-contracts": "workspace:*",
-    "@attestrack/types": "workspace:*",
-    "@attestrack/schema": "workspace:*"
+    "@attestrack/schema": "workspace:*",
+    "@attestrack/types": "workspace:*"
   },
   "files": [
     "dist"
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "2.1.9"
   }
 }

@@ -39,6 +39,18 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)(happy-dom@15.11.7)(jsdom@25.0.1)
 
+  deploy/local:
+    dependencies:
+      '@attestrue/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@attestrue/strategies':
+        specifier: workspace:*
+        version: link:../../packages/strategies
+      '@attestrue/worker-core':
+        specifier: workspace:*
+        version: link:../../packages/worker-core
+
   e2e:
     dependencies:
       '@attestrue/sdk':

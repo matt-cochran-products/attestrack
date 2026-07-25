@@ -23,7 +23,11 @@ const allowedRefs = new Set([
   path.join('ADR', 'ADR-007-signing-dlq.md'),
   path.join('ADR', 'ADR-008-standards-publication-gates.md'),
   path.join('ADR', 'ADR-010-attestrack-core-extension-cache.md'),
-  'CONSENT-EVIDENCE-TOKEN-STANDARD.md'
+  'CONSENT-EVIDENCE-TOKEN-STANDARD.md',
+  // The production plan's job includes documenting the OSS/premium boundary
+  // cleanup (P0.2 de-link paths, P8.6 scrub history before go-public), so it
+  // names the licensed sibling by necessity. Scrubbed at the P8 go-public gate.
+  'ATTESTRACK-PRODUCTION-PLAN.md'
 ])
 
 const scanIgnoreDir = new Set([

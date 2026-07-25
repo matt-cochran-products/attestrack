@@ -55,7 +55,8 @@ pnpm boundary-check
 
 | Location | Purpose |
 |----------|---------|
-| [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification |
+| [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification, rollback |
+| [`docs/RELEASING.md`](docs/RELEASING.md) | Versioning, per-package release-please, npm publish with provenance |
 | [`docs/BEHAVORIAL-SPEC.md`](docs/BEHAVORIAL-SPEC.md) | Behavioural spec (CLI, portal, worker observability, analytics + Explore) |
 | [`docs/OSS-SCOPE-MATRIX.md`](docs/OSS-SCOPE-MATRIX.md) | OSS vs licensed traceability (Tier 1) + ADR-010 precedence |
 | [`docs/REPO-SPEC-OSS.md`](docs/REPO-SPEC-OSS.md) | Binding OSS Worker HTTP, KV, and JSON error contract |
@@ -100,7 +101,20 @@ attestrack/
 
 ## Deploy to Cloudflare
 
-From the repository root, use the guided `@attestrack/deploy` CLI (Worker, KV seed, secrets, optional Pages portal). See [docs/PILOT-OSS.md](docs/PILOT-OSS.md).
+Guided CLI — Worker, KV namespace + seed, secrets, optional Pages portal, all in **your** Cloudflare account:
+
+```bash
+# Standalone (published packages) — from any empty directory:
+npx @attestrack/deploy          # add --dry-run to rehearse without touching Cloudflare
+npx @attestrack/deploy verify   # post-deploy checks: /health, DNS route, portal Access, consent commit
+
+# Dev mode — from this repository (uses local file: deps):
+pnpm --filter @attestrack/deploy exec attestrack-deploy
+```
+
+> Pre-launch: standalone mode requires the `@attestrack/*` packages on npm (first publish is a maintainer step — [docs/RELEASING.md](docs/RELEASING.md)); until then use dev mode.
+
+See [docs/PILOT-OSS.md](docs/PILOT-OSS.md) for the full checklist (flags, re-run diffs, Cloudflare Access, rollback).
 
 ---
 

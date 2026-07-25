@@ -1,6 +1,12 @@
 {
   "name": "@attestrack/schema",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/schema"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,5 +25,10 @@
     "@stryker-mutator/vitest-runner": "^8.7.1",
     "vitest": "^2.0.0"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

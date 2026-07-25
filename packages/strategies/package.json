@@ -1,6 +1,12 @@
 {
   "name": "@attestrack/strategies",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/strategies"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,5 +23,10 @@
   "devDependencies": {
     "vitest": "^2.0.0"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

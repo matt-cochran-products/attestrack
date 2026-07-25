@@ -1,9 +1,15 @@
 {
   "name": "@attestrack/worker-core",
   "version": "0.0.0",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/worker-core"
+  },
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "embed-consent-bundle": "node scripts/embed-consent-bundle.mjs",
     "build": "node scripts/embed-consent-bundle.mjs && tsc",
@@ -20,5 +26,11 @@
     "@attestrack/consent-js": "workspace:*",
     "@attestrack/strategies": "workspace:*",
     "vitest": "^2.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

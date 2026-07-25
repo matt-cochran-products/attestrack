@@ -5,9 +5,11 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",
+    "test:workers": "pnpm --filter @attestrack/worker-core test:workers",
+    "coverage": "turbo run test:coverage",
     "lint": "eslint .",
     "typecheck": "turbo run typecheck",
-    "size-check": "turbo run size-check",
+    "size-check": "turbo run size-check && node scripts/worker-size-check.mjs",
     "boundary-check": "node scripts/boundary-check.mjs",
     "route-contract-check": "node scripts/check-oss-routes.mjs",
     "audit-gate": "node scripts/audit-gate.mjs",
@@ -16,6 +18,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@types/node": "^20.0.0",
+    "esbuild": "^0.25.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",

@@ -31,6 +31,17 @@ The community **operator portal** ([`packages/portal-community`](packages/portal
 
 ---
 
+## Demo
+
+<!-- DEMO-PLACEHOLDER: after recording per docs/DEMO-SCRIPT.md, embed the gif here:
+     ![Attestrack demo — deploy, consent, event, Explore](docs/assets/demo.gif)
+     followed by a link to the full screencast. -->
+
+A 5-minute **deploy → consent → event → Explore** screencast is being recorded for launch
+— storyboard and exact commands in [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
+---
+
 ## Quick start (from source)
 
 **Prerequisites:** [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+, and a [Cloudflare](https://www.cloudflare.com/) account when you deploy for real.
@@ -49,13 +60,29 @@ pnpm boundary-check
 
 - Community portal: `pnpm --filter @attestrack/portal-community dev`
 
+**Then go end-to-end** — deploy to your Cloudflare account ([below](#deploy-to-cloudflare)),
+put `<script src="https://<your-worker-domain>/consent.js" defer></script>` on a page,
+`POST /t/event`, and query your warehouse in the portal's Explore. The full path with
+expected outputs: [`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md) and
+[`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
+> Verification status: every command above is verified against this tree in CI
+> (build/test/typecheck) or by parsing the deploy CLI; the live deploy → consent → event →
+> Explore loop requires Cloudflare (and, for standalone `npx`, npm) credentials and is a
+> maintainer-executed step pre-launch — tracked in
+> [`docs/GO-PUBLIC-CHECKLIST.md`](docs/GO-PUBLIC-CHECKLIST.md).
+
 ---
 
 ## Documentation
 
 | Location | Purpose |
 |----------|---------|
+| [`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md) | Production self-host guide: warehouse DDL, secrets, CORS/cookies, Access, troubleshooting |
+| [`docs/API-REFERENCE.md`](docs/API-REFERENCE.md) | Worker HTTP routes, KV key registry, consent token format |
 | [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification, rollback |
+| [`ADAPTER-DEVELOPMENT-GUIDE.md`](ADAPTER-DEVELOPMENT-GUIDE.md) | Write, test, and submit strategies (community strategy PRs — STR.5) |
+| [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) | 5-minute demo storyboard (maintainer-recorded at launch) |
 | [`docs/RELEASING.md`](docs/RELEASING.md) | Versioning, per-package release-please, npm publish with provenance |
 | [`docs/BEHAVORIAL-SPEC.md`](docs/BEHAVORIAL-SPEC.md) | Behavioural spec (CLI, portal, worker observability, analytics + Explore) |
 | [`docs/OSS-SCOPE-MATRIX.md`](docs/OSS-SCOPE-MATRIX.md) | OSS vs licensed traceability (Tier 1) + ADR-010 precedence |

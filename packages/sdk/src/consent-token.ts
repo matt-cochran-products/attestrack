@@ -72,6 +72,21 @@ function base64UrlToBytes(s: string): Uint8Array {
   return out
 }
 
+/**
+ * True iff `s` is the *canonical* base64url encoding of its own bytes. base64url
+ * has "don't-care" trailing bits in the final character, so several distinct
+ * strings decode to identical bytes; a consent-evidence token must have exactly
+ * one string form (reproducible audit) and no malleable segment, so verification
+ * rejects any non-canonical part.
+ */
+function isCanonicalBase64Url(s: string): boolean {
+  try {
+    return bytesToBase64Url(base64UrlToBytes(s)) === s
+  } catch {
+    return false
+  }
+}
+
 function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
   let diff = 0
@@ -168,6 +183,11 @@ export async function verifyPrivacyConsentToken(
   const [keyId, payloadPart, sigPart] = parts as [string, string, string]
   if (!KEY_ID_PATTERN.test(keyId) || payloadPart.length === 0 || sigPart.length === 0) {
     return { ok: false, reason: 'malformed' }
+  }
+  // Reject non-canonical base64url in either segment (one token, one string) so
+  // no malleable trailing-bit mutation can decode to the same bytes and verify.
+  if (!isCanonicalBase64Url(payloadPart) || !isCanonicalBase64Url(sigPart)) {
+    return { ok: false, reason: 'non_canonical' }
   }
   const verifySecret = keyring.keys[keyId]
   if (!verifySecret) return { ok: false, reason: 'unknown_key' }

@@ -42,6 +42,7 @@ coverage/
 # --- Playwright ---
 playwright-report/
 test-results/
+e2e/.portal-dist/
 
 # --- IDE & editors ---
 .idea/

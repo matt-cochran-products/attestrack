@@ -1,27 +1,27 @@
 import { useEffect, useState } from 'react';
-import { getAnalyticsWarehouseStatus, getCuratedAnalyticsCharts } from '../lib/api/analytics';
-import type { AnalyticsChartSeries } from '../lib/api/analytics';
-import type { WarehouseStatus } from '../lib/api/analytics';
+import type { CuratedChartId } from '@attestrack/types';
+import { getCuratedChart } from '../lib/api/analytics';
+import type { CuratedChart } from '../lib/api/types';
 import { usePortalShell } from '../context/PortalShellContext';
 
-export function useCuratedAnalytics() {
+/**
+ * One hook instance per curated chart: each card fetches independently so a
+ * slow query on one chart never delays the others (ANA.6). The date range is
+ * session-global via PortalShellContext (ANA.5).
+ */
+export function useCuratedChart(chartId: CuratedChartId) {
   const { analyticsRange } = usePortalShell();
   const [loading, setLoading] = useState(true);
-  const [charts, setCharts] = useState<AnalyticsChartSeries[]>([]);
-  const [warehouse, setWarehouse] = useState<WarehouseStatus | null>(null);
+  const [chart, setChart] = useState<CuratedChart | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      getCuratedAnalyticsCharts(analyticsRange),
-      getAnalyticsWarehouseStatus(),
-    ])
-      .then(([c, w]) => {
+    getCuratedChart(chartId, analyticsRange)
+      .then((c) => {
         if (!cancelled) {
-          setCharts(c);
-          setWarehouse(w);
+          setChart(c);
           setError(null);
         }
       })
@@ -38,7 +38,7 @@ export function useCuratedAnalytics() {
     return () => {
       cancelled = true;
     };
-  }, [analyticsRange]);
+  }, [chartId, analyticsRange]);
 
-  return { loading, charts, warehouse, error };
+  return { loading, chart, error };
 }

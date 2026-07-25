@@ -1,5 +1,7 @@
 /** DTOs for portal API responses (stubs + Worker contract target). */
 
+import type { CuratedChartId, ExploreChartType } from '@attestrack/types';
+
 export type DestinationHealthStatus = 'healthy' | 'degraded' | 'inactive' | 'no_data';
 
 export interface DestinationRow {
@@ -116,9 +118,48 @@ export interface ExploreQueryResult {
   truncated: boolean;
 }
 
+/** User-directed chart mapping stored with a pin (EXP.8/EXP.10). */
+export interface SavedQueryChartConfig {
+  chartType: ExploreChartType;
+  xColumn?: string;
+  yColumn?: string;
+  valueColumn?: string;
+}
+
 export interface SavedQueryEntry {
   id: string;
   name: string;
   sql: string;
   updatedAt: string;
+  /** True when the REQUESTING user pinned this query (pins are personal — EXP.10). */
+  pinned?: boolean;
+  pinnedChart?: SavedQueryChartConfig;
+}
+
+/** P4.3 curated analytics (computed server-side; see oss-http-contract.json). */
+export type CuratedChartState = 'ok' | 'empty' | 'not_configured' | 'error';
+
+export interface CuratedChartPoint {
+  label: string;
+  value: number;
+}
+
+export interface CuratedChartSeries {
+  name: string;
+  points: CuratedChartPoint[];
+}
+
+export interface CuratedChartDescriptor {
+  id: CuratedChartId;
+  title: string;
+  description: string;
+  unit: 'count' | 'percent';
+  source: 'warehouse' | 'delivery_stats';
+}
+
+export interface CuratedChart extends CuratedChartDescriptor {
+  state: CuratedChartState;
+  message?: string;
+  truncated?: boolean;
+  series: CuratedChartSeries[];
 }

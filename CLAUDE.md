@@ -44,12 +44,12 @@ pnpm route-contract-check   # docs/oss-http-contract.json vs worker-core source
 | `ci.yml` | PR + push to `main`/`dev` | typecheck, lint, test, route-contract-check, build, size-check, boundary-check |
 | `e2e.yml` | PR + push to `main` | Playwright smoke against the Node dev server |
 | `mutation.yml` | nightly + manual | Stryker on `packages/schema` Explore SQL gate (INV-B-15) |
-| `publish.yml` | tags `v*` | **Stub** — per-package npm publish not yet configured (plan P5.4) |
-| `release-please.yml` | push to `main` | Release PRs; single root manifest today (per-package planned, P5.4) |
+| `publish.yml` | tags `<component>-v*` + manual dispatch | Per-package npm publish with provenance (P5.4); needs maintainer `NPM_TOKEN` — see `docs/RELEASING.md` |
+| `release-please.yml` | push to `main` | Release PRs; per-package manifest (8 publishable packages, `node-workspace` plugin) |
 
 ## npm Packages
 
-All packages are version `0.0.0`; **nothing is published to npm yet** (`publish.yml` is a stub — plan P5). Intended-publishable packages carry no `private` flag: `@attestrack/types`, `@attestrack/schema`, `@attestrack/sdk`, `@attestrack/strategies`, `@attestrack/deploy`, `@attestrack/host-contracts`. Marked `private: true` today: `consent-js`, `worker-core`, `host-cloudflare-worker`, `portal-community`, `e2e`.
+All packages are version `0.0.0`; **nothing is published to npm yet** (first publish is a maintainer step — `docs/RELEASING.md`). Publish-ready (no `private` flag, `files`/`publishConfig.access: public` set, dry-run publish verified): `@attestrack/types`, `@attestrack/schema`, `@attestrack/sdk`, `@attestrack/host-contracts`, `@attestrack/host-cloudflare-worker`, `@attestrack/strategies`, `@attestrack/worker-core`, `@attestrack/deploy`. Marked `private: true`: `consent-js` (embedded into worker-core), `portal-community` (customer-side Pages deploy — INV-B-11), `e2e`, `local-dev`.
 
 ## Package Dependency Graph
 

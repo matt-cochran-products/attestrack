@@ -46,43 +46,43 @@ export default function SignalPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="card-surface p-4">
-          <div className="label mb-2">Events recovered from ad blockers</div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)] mb-1">
-            Recovered = events delivered server-side that browser-only tagging would miss.
+      {!metrics.measured && (
+        <div className="card-surface p-6 border-l-4 border-l-[var(--accent-amber)]">
+          <div className="font-mono text-[12px] text-[var(--accent-amber)] mb-2">
+            SIGNAL RECOVERY — NOT MEASURED IN V1 (REQUIRES BEACON)
           </div>
-          <div className="font-mono text-2xl text-[var(--text-active)] mb-1">
-            {metrics.eventsFromBlockers.toLocaleString()}
-          </div>
-          <div className="font-mono text-[10px] text-[var(--accent-green)]">+{metrics.blockersPct}% vs browser-only</div>
+          <p className="font-sans font-light text-[13px] text-[var(--text-active)] leading-relaxed">
+            {metrics.message ??
+              'Measuring events recovered from ad blockers or ITP requires comparing server-side ingest against a client-side beacon. Attestrack v1 does not ship that beacon, so no recovery numbers are shown — this page will stay honest rather than estimate.'}
+          </p>
         </div>
+      )}
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card-surface p-4">
-          <div className="label mb-2">Events recovered from ITP/restrictions</div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)] mb-1">
-            Recovered = server-side persistence across ITP-style cookie windows.
-          </div>
-          <div className="font-mono text-2xl text-[var(--text-active)] mb-1">
-            {metrics.eventsFromITP.toLocaleString()}
-          </div>
-          <div className="font-mono text-[10px] text-[var(--accent-green)]">+{metrics.itpPct}% vs browser-only</div>
-        </div>
-
-        <div className="card-surface p-4">
-          <div className="label mb-2">Cookie IDs beyond 7 days</div>
-          <div className="font-mono text-2xl text-[var(--text-active)] mb-1">
-            {metrics.cookieIdsPreserved.toLocaleString()}
-          </div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)]">Attribution extended</div>
-        </div>
-
-        <div className="card-surface p-4">
-          <div className="label mb-2">Bot requests filtered</div>
+          <div className="label mb-2">Bot requests filtered (today)</div>
           <div className="font-mono text-2xl text-[var(--text-active)] mb-1">
             {metrics.botRequestsFiltered.toLocaleString()}
           </div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)]">Removed from pipeline</div>
+          <div className="font-mono text-[10px] text-[var(--text-muted)]">
+            Troll-shield heuristics (UA class, missing headers, host bot score) — ad destinations skipped, warehouse
+            rows kept and labeled.
+          </div>
+        </div>
+
+        <div className="card-surface p-4">
+          <div className="label mb-2">Server-side event volume</div>
+          <div className="font-sans text-[12px] text-[var(--text-muted)]">
+            Ingested-event counts live on the{' '}
+            <Link to={paths.dashboard} className="underline text-[var(--accent-green)]">
+              Dashboard
+            </Link>{' '}
+            and in{' '}
+            <Link to={paths.explore} className="underline text-[var(--accent-green)]">
+              Explore
+            </Link>{' '}
+            against your own warehouse.
+          </div>
         </div>
       </div>
     </div>

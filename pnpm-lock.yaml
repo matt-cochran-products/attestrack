@@ -248,6 +248,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@attestrack/consent-js':
+        specifier: workspace:*
+        version: link:../consent-js
       '@attestrack/strategies':
         specifier: workspace:*
         version: link:../strategies

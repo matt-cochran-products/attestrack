@@ -1,4 +1,18 @@
-export { createAttestrackFetchHandler, type AttestrackWorkerOptions } from './create-fetch-handler.js'
+export {
+  buildConsentCookie,
+  createAttestrackFetchHandler,
+  type AttestrackWorkerOptions
+} from './create-fetch-handler.js'
+export {
+  defaultSiteConfig,
+  effectiveSiteMode,
+  readSiteConfig,
+  writeSiteConfig,
+  DEFAULT_CONSENT_EVENT_TTL_SECONDS,
+  type SiteConfigKv,
+  type SiteMode
+} from './config.js'
+export { isOriginAllowed, preflightResponse, resolveCorsOrigin, withCors } from './cors.js'
 export {
   runDestinationStrategiesParallel,
   runMandatoryStrategies,

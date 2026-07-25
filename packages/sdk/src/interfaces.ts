@@ -1,6 +1,8 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
 import type {
+  ConsentGateResult,
   JurisdictionConsentRow,
+  PipelineSiteInfo,
   TrackingEventV1,
   StrategyManifest,
   StrategyStage,
@@ -16,6 +18,10 @@ export interface StrategyPipelineContext {
   /** Set by jurisdiction strategy from `ConsentConfig` + geo signals. */
   jurisdictionKey?: string
   jurisdictionRow?: JurisdictionConsentRow
+  /** Site config snapshot resolved ONCE per request by the Worker (mode, TTLs). */
+  site?: PipelineSiteInfo
+  /** Set by the mandatory consent strategy — the gate destinations must consult. */
+  consentGate?: ConsentGateResult
 }
 
 export interface StrategyResult {

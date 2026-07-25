@@ -1,4 +1,6 @@
 import type { ConsentDecision } from './consent.js'
+import type { SitePipelineMode } from './consent-gate.js'
+import type { ConsentMechanism } from './jurisdiction.js'
 
 /** Coarse user-agent bucket — never the raw UA string (first-party/privacy). */
 export type UserAgentClass = 'desktop' | 'mobile' | 'tablet' | 'bot' | 'other'
@@ -17,6 +19,16 @@ export interface TrackingEventV1 {
   occurredAt: string
   consentDecision?: ConsentDecision
   jurisdiction?: string | null
+
+  /**
+   * Consent-gate honesty fields (P2.3), stamped server-side by the mandatory
+   * consent strategy: the mode/mechanism in force and the decision ENFORCEMENT
+   * would have made — so SHADOW-mode analytics can report the would-be enforced
+   * rate (DASH.3) instead of inventing numbers.
+   */
+  consentMode?: SitePipelineMode
+  consentMechanism?: ConsentMechanism
+  consentWouldAllow?: boolean
 
   // Behavioral / semantic signals
   sessionId?: string

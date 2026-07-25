@@ -1,10 +1,16 @@
-import { verifyPrivacyConsentToken, type Strategy } from '@attestrack/sdk'
-import type { StrategyManifest, VerifiedPrivacyConsentToken } from '@attestrack/types'
+import {
+  evaluateConsentGate,
+  keyringFromSecretValues,
+  verifyPrivacyConsentToken,
+  type Strategy
+} from '@attestrack/sdk'
+import type { StrategyManifest, TrackingEventV1, VerifiedPrivacyConsentToken } from '@attestrack/types'
+import { CONSENT_COOKIE_NAME } from '@attestrack/types'
 import { communityJurisdictionStrategy } from './jurisdiction.js'
 import { evidenceUnsignedStrategy } from './consent-log.js'
 import { communityTrollShieldStrategy } from './troll-shield.js'
 
-export const CONSENT_COOKIE_NAME = 'at_consent'
+export { CONSENT_COOKIE_NAME }
 
 function readCookie(header: string | null, name: string): string | null {
   if (!header) return null
@@ -49,6 +55,15 @@ export const communityConsentStrategyManifest: StrategyManifest = {
   displayName: 'Privacy consent gate (community)'
 }
 
+/**
+ * Mandatory consent strategy (P2.3):
+ * 1. Verifies the `at_consent` cookie token (keyring incl. `<SECRET>_PREVIOUS`
+ *    rotation, expiry, and — when the Worker provided `ctx.site.siteId` — site binding).
+ * 2. Evaluates the consent gate from {site mode, jurisdiction-row mechanism,
+ *    per-row GPC honoring, token decision} and publishes it as `ctx.consentGate`.
+ * 3. Stamps decision + mode + mechanism + would-allow onto the tracking row so
+ *    SHADOW-mode analytics report the would-be enforced rate honestly.
+ */
 export function createConsentCookieStrategy(consentSecretEnvName: string): Strategy {
   return {
     id: 'consent',
@@ -56,24 +71,49 @@ export function createConsentCookieStrategy(consentSecretEnvName: string): Strat
     manifest: communityConsentStrategyManifest,
     async run(ctx) {
       const raw = readCookie(ctx.request.headers.get('cookie'), CONSENT_COOKIE_NAME)
-      const secret = ctx.host.getSecret(consentSecretEnvName) ?? ''
+      const secret = ctx.host.getSecret(consentSecretEnvName)
       const gpc = gpcActive(ctx.request)
       const row = ctx.jurisdictionRow
+      const mode = ctx.site?.mode ?? 'SHADOW'
 
-      if (!raw || !secret) {
-        return { continuePipeline: true, consent: null }
-      }
-      const v = await verifyPrivacyConsentToken(secret, raw)
-      if (!v.ok) {
-        return { continuePipeline: true, consent: null }
+      let verified: VerifiedPrivacyConsentToken | null = null
+      if (raw && secret) {
+        const keyring = keyringFromSecretValues(
+          secret,
+          ctx.host.getSecret(`${consentSecretEnvName}_PREVIOUS`)
+        )
+        const v = await verifyPrivacyConsentToken(keyring, raw, {
+          ...(ctx.site?.siteId !== undefined ? { expectedSiteId: ctx.site.siteId } : {})
+        })
+        if (v.ok) verified = { payload: v.payload, raw: v.raw }
       }
 
-      let consent: VerifiedPrivacyConsentToken | null = v
-      if (gpc && row?.gpc_honor) {
-        consent = applyGpcOverride(v, true)
+      const gate = evaluateConsentGate({
+        mode,
+        row,
+        tokenDecision: verified?.payload.decision ?? null,
+        gpcSignal: gpc
+      })
+      ctx.consentGate = gate
+
+      let consent: VerifiedPrivacyConsentToken | null = verified
+      if (verified && gate.gpcApplied) {
+        consent = applyGpcOverride(verified, true)
       }
 
-      return { continuePipeline: true, consent }
+      let tracking: TrackingEventV1 | undefined
+      if (ctx.tracking) {
+        tracking = {
+          ...ctx.tracking,
+          ...(gate.effectiveDecision !== null ? { consentDecision: gate.effectiveDecision } : {}),
+          ...(ctx.jurisdictionKey !== undefined ? { jurisdiction: ctx.jurisdictionKey } : {}),
+          consentMode: gate.mode,
+          consentMechanism: gate.mechanism,
+          consentWouldAllow: gate.wouldAllow
+        }
+      }
+
+      return { continuePipeline: true, consent, ...(tracking ? { tracking } : {}) }
     }
   }
 }

@@ -23,4 +23,6 @@ export interface ConsentCommitRequest {
   decision: ConsentDecision
   policyHash: string
   jurisdictionHint?: string
+  /** Ids of IOA assertions the visitor affirmatively accepted (checkbox flow). */
+  ioaAccepted?: readonly string[]
 }

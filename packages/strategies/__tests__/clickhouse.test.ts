@@ -14,6 +14,9 @@ const tracking: TrackingEventV1 = {
   occurredAt: '2026-07-25T10:00:00.000Z',
   consentDecision: 'granted',
   jurisdiction: 'us-ca',
+  consentMode: 'ENFORCEMENT',
+  consentMechanism: 'opt-in',
+  consentWouldAllow: true,
   visitorId: 'vh_abc',
   sessionId: 's1',
   eventId: 'evt_1',
@@ -62,9 +65,14 @@ describe('toClickHouseRow', () => {
     expect(row.userAgentClass).toBe('desktop')
     expect(row.consentDecision).toBe('granted')
     expect(row.jurisdiction).toBe('us-ca')
+    // Consent-honesty fields forward; the boolean would-allow maps to UInt8.
+    expect(row.consentMode).toBe('ENFORCEMENT')
+    expect(row.consentMechanism).toBe('opt-in')
+    expect(row.consentWouldAllow).toBe(1)
     // A blind spread would have leaked nothing extra, but assert the key set is closed.
     const expectedKeys = new Set([
       'v', 'eventName', 'siteId', 'occurredAt', 'consentDecision', 'jurisdiction',
+      'consentMode', 'consentMechanism', 'consentWouldAllow',
       'visitorId', 'sessionId', 'eventId', 'pagePath', 'referrer',
       'utmSource', 'utmMedium', 'utmCampaign', 'utmTerm', 'utmContent', 'userAgentClass',
       'ctaType', 'scrollDepthPct', 'section', 'dwellMs', 'webVitalName', 'webVitalValue', 'params'

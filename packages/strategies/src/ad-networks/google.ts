@@ -1,4 +1,4 @@
-import type { Strategy } from '@attestrack/sdk'
+import { destinationsAllowed, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -15,7 +15,8 @@ export function createGoogleMpStrategy(): Strategy {
     manifest,
     async run(ctx) {
       if (!ctx.tracking) return { continuePipeline: true }
-      if (ctx.consent?.payload.decision !== 'granted') return { continuePipeline: true }
+      // P2.3: the consent gate (mode + mechanism + GPC) decides, not raw token state.
+      if (!destinationsAllowed(ctx)) return { continuePipeline: true }
       const secret = ctx.host.getSecret('GOOGLE_MP_API_SECRET')
       const id = ctx.host.getSecret('GOOGLE_MEASUREMENT_ID')
       if (!secret || !id) return { continuePipeline: true }

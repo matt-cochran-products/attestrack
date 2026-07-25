@@ -1,6 +1,6 @@
 import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
 import type { ConsentEventRecordV1, StrategyManifest } from '@attestrack/types'
-import { KV_KEY_CONSENT_EVENT_PREFIX } from '@attestrack/types'
+import { DEFAULT_CONSENT_EVENT_TTL_SECONDS, KV_KEY_CONSENT_EVENT_PREFIX } from '@attestrack/types'
 
 function gpcActive(request: Request): boolean {
   return request.headers.get('Sec-GPC') === '1'
@@ -9,6 +9,12 @@ function gpcActive(request: Request): boolean {
 /**
  * **EvidenceUnsignedStrategy**: writes a flat `ConsentEventRecordV1` (self-attested).
  * Licensed **Proof** (witnessed trust chain, CETS v1.1) remains out of the public core per ADR-002.
+ *
+ * P2.5 correctness:
+ * - `ioaAttested` reflects ACTUAL IOA acceptance (token `payload.ioa` non-empty),
+ *   never mere token presence.
+ * - `mechanism` and `mode` from the consent gate are recorded for auditability.
+ * - The KV TTL is operator-configurable (site config `consentEventTtlSeconds`).
  */
 export const evidenceUnsignedStrategyManifest: StrategyManifest = {
   id: 'evidence-unsigned',
@@ -23,11 +29,14 @@ export const evidenceUnsignedStrategy: Strategy = {
   async run(ctx: StrategyPipelineContext): Promise<StrategyResult> {
     const gpc = gpcActive(ctx.request)
     const honor = ctx.jurisdictionRow?.gpc_honor ?? false
-    const siteId =
-      ctx.tracking?.siteId ?? ctx.consent?.payload.siteId ?? 'unknown'
+    const siteId = ctx.tracking?.siteId ?? ctx.consent?.payload.siteId ?? 'unknown'
     const decision =
-      ctx.consent?.payload.decision ?? ctx.tracking?.consentDecision ?? 'declined'
+      ctx.consentGate?.effectiveDecision ??
+      ctx.consent?.payload.decision ??
+      ctx.tracking?.consentDecision ??
+      'declined'
     const policyHash = ctx.consent?.payload.policyHash ?? ''
+    const acceptedIoa = ctx.consent?.payload.ioa ?? []
 
     const record: ConsentEventRecordV1 = {
       v: 1,
@@ -36,8 +45,13 @@ export const evidenceUnsignedStrategy: Strategy = {
       decision,
       jurisdictionKey: ctx.jurisdictionKey ?? 'DEFAULT',
       policyHash,
-      ioaAttested: ctx.consent != null,
+      ioaAttested: acceptedIoa.length > 0,
       gpcSignalHonored: gpc && honor,
+      ...(ctx.consentGate
+        ? { mechanism: ctx.consentGate.mechanism, mode: ctx.consentGate.mode }
+        : ctx.jurisdictionRow
+          ? { mechanism: ctx.jurisdictionRow.mechanism }
+          : {}),
       configFingerprint: ctx.jurisdictionKey
     }
 
@@ -47,7 +61,7 @@ export const evidenceUnsignedStrategy: Strategy = {
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
     await ctx.host.kv.put(`${KV_KEY_CONSENT_EVENT_PREFIX}${id}`, JSON.stringify(record), {
-      expirationTtl: 60 * 60 * 24 * 90
+      expirationTtl: ctx.site?.consentEventTtlSeconds ?? DEFAULT_CONSENT_EVENT_TTL_SECONDS
     })
 
     return { continuePipeline: true }

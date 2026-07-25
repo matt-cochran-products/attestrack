@@ -28,8 +28,9 @@ CREATE TABLE IF NOT EXISTS events
     -- consent (resolved by the pipeline)
     consentDecision   Nullable(String),
     jurisdiction      Nullable(String),
-    consentMode       Nullable(String),   -- shadow | enforcement (recorded, P2)
+    consentMode       Nullable(String),   -- SHADOW | ENFORCEMENT (recorded, P2)
     consentMechanism  Nullable(String),   -- opt-in | opt-out (recorded, P2)
+    consentWouldAllow Nullable(UInt8),    -- decision ENFORCEMENT would make (DASH.3, P2)
 
     -- identity / attribution (first-party only; no raw UA/IP)
     visitorId         Nullable(String),

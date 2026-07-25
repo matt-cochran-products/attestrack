@@ -45,8 +45,9 @@ describe('createAttestrackFetchHandler (contract)', () => {
     const host = createMockHostRuntime({
       secrets: { CONSENT_TOKEN_SECRET: secret }
     })
+    // siteId must match site config (default 'local') — tokens are site-bound (P2.2).
     const token = await createPrivacyConsentToken(secret, {
-      siteId: 's',
+      siteId: 'local',
       decision: 'granted',
       policyHash: 'h'
     })

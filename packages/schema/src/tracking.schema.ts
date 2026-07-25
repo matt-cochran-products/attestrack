@@ -9,6 +9,12 @@ export const trackingEventV1Schema = z.object({
   consentDecision: consentDecisionSchema.optional(),
   jurisdiction: z.string().nullable().optional(),
 
+  // Consent-gate honesty fields (P2.3) — stamped server-side by the mandatory
+  // consent strategy; harmless when clients send them, but the gate overwrites.
+  consentMode: z.enum(['SHADOW', 'ENFORCEMENT']).optional(),
+  consentMechanism: z.enum(['opt-in', 'opt-out']).optional(),
+  consentWouldAllow: z.boolean().optional(),
+
   // High-level semantic-signal fields (optional). A tflo-captured event carries
   // the fields relevant to its signal — one rich record per real event, rather
   // than raw noise reverse-engineered later. These map 1:1 onto the ClickHouse

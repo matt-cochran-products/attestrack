@@ -18,20 +18,8 @@ export const KV_KEY_PORTAL_SITE_CONFIG = 'attestrack:portal:site_config'
 /** Operator portal: strategies list JSON. */
 export const KV_KEY_PORTAL_STRATEGIES = 'attestrack:portal:strategies'
 
-/** Operator portal: dashboard metrics JSON. */
-export const KV_KEY_PORTAL_DASHBOARD = 'attestrack:portal:dashboard'
-
-/** Operator portal: destinations JSON. */
-export const KV_KEY_PORTAL_DESTINATIONS = 'attestrack:portal:destinations'
-
-/** Operator portal: alert rules JSON. */
+/** Operator portal: alert rules JSON (operator-defined config, not metrics). */
 export const KV_KEY_PORTAL_ALERT_RULES = 'attestrack:portal:alert_rules'
-
-/** Operator portal: request logs JSON array. */
-export const KV_KEY_PORTAL_LOGS = 'attestrack:portal:logs'
-
-/** Operator portal: signal recovery metrics JSON. */
-export const KV_KEY_PORTAL_SIGNAL = 'attestrack:portal:signal'
 
 /** Operator portal: curated analytics charts JSON. */
 export const KV_KEY_PORTAL_ANALYTICS = 'attestrack:portal:analytics'

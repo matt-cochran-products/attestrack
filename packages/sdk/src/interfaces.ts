@@ -22,6 +22,12 @@ export interface StrategyPipelineContext {
   site?: PipelineSiteInfo
   /** Set by the mandatory consent strategy — the gate destinations must consult. */
   consentGate?: ConsentGateResult
+  /**
+   * Set by the troll-shield strategy (P3.4) from honest heuristics (UA class,
+   * missing headers, optional host bot score). When `isBot`, destination
+   * strategies do not fire; analytics rows keep the request labeled instead.
+   */
+  botDetection?: { isBot: boolean; reasons: string[] }
 }
 
 export interface StrategyResult {

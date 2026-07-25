@@ -1,17 +1,22 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
 import {
+  KV_KEY_ENABLED_STRATEGIES,
   KV_KEY_PORTAL_ANALYTICS,
   KV_KEY_PORTAL_ALERT_RULES,
-  KV_KEY_PORTAL_DASHBOARD,
-  KV_KEY_PORTAL_DESTINATIONS,
-  KV_KEY_PORTAL_LOGS,
   KV_KEY_PORTAL_SAVED_QUERIES,
-  KV_KEY_PORTAL_SIGNAL,
   KV_KEY_PORTAL_STRATEGIES
 } from '@attestrack/types'
 import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrack/schema'
 import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
 import { readSiteConfig, writeSiteConfig } from './config.js'
+import { parseEnabledStrategiesKv } from './enabled-strategies.js'
+import {
+  buildDestinationRows,
+  computeDashboardMetrics,
+  computeSignalRecovery,
+  readDriftMismatch,
+  readRecentLogs
+} from './observability.js'
 export const PORTAL_API_PREFIX = '/__attestrack__/portal/v1'
 
 const ATTESTRUE_UPGRADE_ORIGIN = 'https://attestrue.com'
@@ -83,34 +88,61 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
       return jsonFromKv(host, KV_KEY_PORTAL_STRATEGIES, defaultStrategies)
     }
     if (sub === '/dashboard') {
-      return jsonFromKv(host, KV_KEY_PORTAL_DASHBOARD, {
-        eventsToday: 0,
-        driftAlertCount: 0,
-        strategyStatus: 'all_healthy',
-        strategySummary: '',
-        shadowModeLabel: 'Validation — measurement & destinations'
-      })
+      // P3.2: computed from real KV counters + delivery stats + drift state —
+      // any operator-seeded attestrack:portal:dashboard JSON is intentionally ignored.
+      const cfg = await readSiteConfig(host)
+      const enabledIds = parseEnabledStrategiesKv(await host.kv.get(KV_KEY_ENABLED_STRATEGIES))
+      const metrics = await computeDashboardMetrics(host, cfg, enabledIds)
+      return Response.json(metrics, { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/destinations') {
-      return jsonFromKv(host, KV_KEY_PORTAL_DESTINATIONS, [])
+      // P3.1: real per-strategy delivery outcomes (STR.4), not seeded JSON.
+      const enabledIds = parseEnabledStrategiesKv(await host.kv.get(KV_KEY_ENABLED_STRATEGIES))
+      const rows = await buildDestinationRows(host, enabledIds)
+      return Response.json(rows, { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/alert-rules') {
-      return jsonFromKv(host, KV_KEY_PORTAL_ALERT_RULES, [])
+      // Operator-defined rules from KV (config, not metrics) + a synthetic row
+      // when config drift is currently detected (P3.5).
+      const cfg = await readSiteConfig(host)
+      const rulesRaw = await host.kv.get(KV_KEY_PORTAL_ALERT_RULES)
+      let rules: unknown[] = []
+      if (rulesRaw) {
+        try {
+          const parsed = JSON.parse(rulesRaw) as unknown
+          rules = Array.isArray(parsed) ? parsed : []
+        } catch {
+          rules = []
+        }
+      }
+      const mismatch = cfg.driftDetection.enabled ? await readDriftMismatch(host.kv) : null
+      const withDrift =
+        mismatch === null
+          ? rules
+          : [
+              {
+                destination: 'consent-config',
+                condition: `Drift detected at ${mismatch.at}: consent config fingerprint no longer matches the deploy-time expected value`,
+                email: '',
+                active: true
+              },
+              ...rules
+            ]
+      return Response.json(withDrift, { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/logs' || sub === '/logs/incoming') {
-      return jsonFromKv(host, KV_KEY_PORTAL_LOGS, [])
+      // P3.1: bounded per-hour KV log ring written on real ingest traffic.
+      const logs = await readRecentLogs(host.kv)
+      return Response.json(logs, { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/signal' || sub === '/signal-recovery') {
-      return jsonFromKv(host, KV_KEY_PORTAL_SIGNAL, {
-        eventsFromBlockers: 0,
-        blockersPct: 0,
-        eventsFromITP: 0,
-        itpPct: 0,
-        cookieIdsPreserved: 0,
-        botRequestsFiltered: 0
-      })
+      // P3.3 decision: recovery is NOT measured in v1 (requires a client
+      // beacon); only the real bot-filter counter is reported.
+      const payload = await computeSignalRecovery(host)
+      return Response.json(payload, { headers: { 'cache-control': 'no-store' } })
     }
     if (sub.startsWith('/signal-recovery/timeline')) {
+      // De-scoped with /signal (P3.3): empty until a beacon exists — never invented points.
       return Response.json([], { headers: { 'cache-control': 'no-store' } })
     }
     if (sub === '/analytics/curated') {

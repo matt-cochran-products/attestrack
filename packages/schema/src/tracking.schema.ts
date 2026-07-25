@@ -23,5 +23,20 @@ export const trackingEventV1Schema = z.object({
   dwellMs: z.number().int().nonnegative().optional(),
   webVitalName: z.string().optional(),
   webVitalValue: z.number().optional(),
-  params: z.string().optional()
+  params: z.string().optional(),
+
+  // Analytics / attribution / identity spine (P1). First-party only — no raw UA
+  // or IP: `visitorId` is a salted first-party hash the operator controls,
+  // `userAgentClass` is a coarse bucket (never the UA string). `eventId` is a
+  // client-supplied idempotency key. All optional so v1 clients stay valid; they
+  // map 1:1 onto the `events` warehouse table (schema/warehouse/clickhouse.sql).
+  visitorId: z.string().optional(),
+  eventId: z.string().optional(),
+  referrer: z.string().optional(),
+  utmSource: z.string().optional(),
+  utmMedium: z.string().optional(),
+  utmCampaign: z.string().optional(),
+  utmTerm: z.string().optional(),
+  utmContent: z.string().optional(),
+  userAgentClass: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'other']).optional()
 })

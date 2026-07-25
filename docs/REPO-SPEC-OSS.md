@@ -57,6 +57,7 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | Code | Typical status | Meaning |
 |------|----------------|---------|
 | `consent_secret_not_configured` | 503 | Secret binding missing |
+| `consent_secret_too_weak` | 503 | `CONSENT_TOKEN_SECRET` shorter than 16 bytes — the Worker refuses to mint tokens under a brute-forceable key (P7.2) |
 | `invalid_json` | 400 | Body not JSON |
 | `invalid_body` | 400 | Schema validation failed; `details` present |
 | `invalid_sql` | 400 | Explore proxy rejected SQL; top-level `reason` + `details.code` / `details.reason` (triage) |

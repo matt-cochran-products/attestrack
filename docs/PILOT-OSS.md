@@ -158,6 +158,8 @@ If you use `--scaffold-only` or work offline, follow `attestrack-deploy/README.m
 
 ## Further reading
 
+- [SELF-HOSTING.md](SELF-HOSTING.md) — production guide: warehouse DDL, full secret list, CORS/cookie topology, troubleshooting
+- [API-REFERENCE.md](API-REFERENCE.md) — Worker routes, KV registry, consent token format
 - [BEHAVORIAL-SPEC.md](BEHAVORIAL-SPEC.md) — product behaviour spec
 - [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md) — OSS vs licensed scope
 - [REPO-SPEC-OSS.md](REPO-SPEC-OSS.md) — HTTP, KV, and error contracts

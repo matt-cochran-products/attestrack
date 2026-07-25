@@ -12,7 +12,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.examples.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage.enabled"
   },

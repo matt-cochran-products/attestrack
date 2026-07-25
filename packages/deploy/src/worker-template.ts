@@ -37,14 +37,25 @@ interface Env {
   SITE_ID: string
 }
 
+/**
+ * Every string binding (wrangler secrets + vars) is handed to the host so
+ * strategies can read their credentials via host.getSecret() — e.g.
+ * CLICKHOUSE_*, TINYBIRD_*, GOOGLE_MP_*, META_*, TIKTOK_*, MICROSOFT_UET_*.
+ */
+function stringBindings(env: Env): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string') out[key] = value
+  }
+  return out
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const host = createCloudflareHostRuntime({
       bindings: { kv: env.ATTESTRACK_KV },
       executionCtx: ctx,
-      secretValues: {
-        CONSENT_TOKEN_SECRET: env.CONSENT_TOKEN_SECRET
-      }
+      secretValues: stringBindings(env)
     })
     const handler = createAttestrackFetchHandler({
       host,

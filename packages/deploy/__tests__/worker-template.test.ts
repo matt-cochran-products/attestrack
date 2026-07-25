@@ -11,6 +11,14 @@ describe('worker-template', () => {
     expect(src).toContain('allBundledStrategies')
   })
 
+  it('hands ALL string bindings to the host (P6 regression: warehouse/destination secrets must reach host.getSecret)', () => {
+    const src = buildWorkerEntry()
+    // A scaffold that only forwards CONSENT_TOKEN_SECRET silently disables
+    // every credentialed strategy (ClickHouse, Tinybird, ad networks).
+    expect(src).toContain('secretValues: stringBindings(env)')
+    expect(src).not.toMatch(/secretValues:\s*\{\s*CONSENT_TOKEN_SECRET/)
+  })
+
   it('writes site id into wrangler toml', () => {
     const toml = buildWranglerToml({ siteId: 'acme', kvNamespaceBinding: 'abc' })
     expect(toml).toContain('acme')

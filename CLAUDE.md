@@ -13,7 +13,9 @@ pnpm build                  # Build all packages (Turborepo)
 pnpm test                   # Run all tests
 pnpm typecheck              # TypeScript checking across all packages
 pnpm lint                   # ESLint (flat config, repo root)
-pnpm size-check             # consent-js bundle budget (12 kB, size-limit)
+pnpm size-check             # consent-js budget (12 kB) + scaffold worker bundle budget (700 KiB gzip)
+pnpm test:workers           # worker-core runtime contracts inside real workerd
+pnpm coverage               # P6.4: 85% line thresholds on consent/explore paths
 pnpm boundary-check         # ADR-009: forbidden paths + licensed-sibling references
 pnpm route-contract-check   # docs/oss-http-contract.json vs worker-core source
 pnpm egress-check           # P7.5: no sibling-origin egress; zero telemetry SDKs
@@ -28,7 +30,8 @@ pnpm audit-gate             # P7.4: high/critical npm advisories (documented all
 - **Build orchestration:** Turborepo — tasks `typecheck`, `lint`, `test`, `build`, `size-check`, `boundary-check`; `lint` runs at the repo root (`eslint .`)
 - **Language:** TypeScript 5.5+ (strict mode, ES2022 target — `tooling/tsconfig/base.json`)
 - **Test framework:** Vitest (unit + contract tests in `packages/*/__tests__` and co-located `*.test.ts`)
-- **E2E:** Playwright smoke tests (`e2e/smoke.spec.ts`) against a **Node `http` dev server** (`e2e/scripts/dev-server.mjs`) that wraps `createAttestrackFetchHandler` with a mock host — **not** Miniflare/workerd yet (planned: Phase 6 of `ATTESTRACK-PRODUCTION-PLAN.md`)
+- **Worker runtime tests:** `@cloudflare/vitest-pool-workers` (`packages/worker-core/__tests__/workers`, `pnpm test:workers`) — real workerd, real KV binding, real `ExecutionContext` via the production `createCloudflareHostRuntime`
+- **E2E:** Playwright against **real workerd** (`wrangler dev` on `e2e/worker/worker.ts` — the deploy-scaffold composition, seeded local KV). `api-smoke` project (request-only, part of default `pnpm test`) + `browser-journeys` project (Chromium: cross-origin consent grant/decline/GPC, Explore round-trip, portal live-mode, axe/keyboard a11y) — see `docs/TEST-STRATEGY.md`
 - **Mutation testing:** Stryker, scoped to the Explore SQL gate (`packages/schema`, nightly `mutation.yml`)
 - **Consent script:** `packages/consent-js` builds a Rollup IIFE (`dist/consent.js`); `packages/worker-core/scripts/embed-consent-bundle.mjs` embeds it so the Worker serves `GET /consent.js` first-party
 
@@ -43,8 +46,8 @@ pnpm audit-gate             # P7.4: high/critical npm advisories (documented all
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci.yml` | PR + push to `main`/`dev` | audit-gate, typecheck, lint, test, route-contract-check, build, size-check, boundary-check, egress-check |
-| `e2e.yml` | PR + push to `main` | Playwright smoke against the Node dev server |
+| `ci.yml` | PR + push to `main`/`dev` | audit-gate, typecheck, lint, test (incl. workerd api-smoke + a11y suites), test:workers (workerd runtime contracts), coverage (≥85% consent/explore paths), route-contract-check, build, size-check (consent + worker bundles), boundary-check, egress-check |
+| `e2e.yml` | PR + push to `main`/`dev` | Playwright against workerd (`wrangler dev`): api-smoke + Chromium browser journeys (consent/GPC, Explore, portal, a11y) |
 | `mutation.yml` | nightly + manual | Stryker on `packages/schema` Explore SQL gate (INV-B-15) |
 | `publish.yml` | tags `<component>-v*` + manual dispatch | Per-package npm publish with provenance (P5.4); needs maintainer `NPM_TOKEN` — see `docs/RELEASING.md` |
 | `release-please.yml` | push to `main` | Release PRs; per-package manifest (8 publishable packages, `node-workspace` plugin) |

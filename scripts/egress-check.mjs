@@ -93,7 +93,19 @@ const telemetryDenylist = [
   'heap-api'
 ]
 
-const scanIgnoreDir = new Set(['node_modules', 'dist', '.git', '.turbo', 'coverage', '.cursor', '.claude'])
+// `.wrangler` (wrangler dev bundles) and `.portal-dist` (e2e portal build) are
+// gitignored build artifacts of already-scanned allowlisted sources.
+const scanIgnoreDir = new Set([
+  'node_modules',
+  'dist',
+  '.git',
+  '.turbo',
+  'coverage',
+  '.cursor',
+  '.claude',
+  '.wrangler',
+  '.portal-dist'
+])
 const scanExtensions = new Set(['.md', '.ts', '.tsx', '.js', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.astro'])
 
 function walkFiles (dir, out = []) {

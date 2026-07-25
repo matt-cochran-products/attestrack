@@ -21,7 +21,12 @@ export function ConfirmActionDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="card-surface max-w-lg w-full p-6 border border-[var(--border-card)]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="card-surface max-w-lg w-full p-6 border border-[var(--border-card)]"
+      >
         <div className="font-mono text-sm text-[var(--text-active)] uppercase tracking-wide mb-2">{title}</div>
         <p className="font-sans text-[13px] text-[var(--text-muted)] leading-relaxed mb-6">{body}</p>
         <div className="flex gap-3 justify-end">

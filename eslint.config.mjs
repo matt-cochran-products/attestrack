@@ -19,7 +19,9 @@ export default tseslint.config(
       'deploy/local/**',
       'e2e/node_modules/**',
       'e2e/playwright-report/**',
-      'e2e/test-results/**'
+      'e2e/test-results/**',
+      'e2e/.portal-dist/**',
+      '**/.wrangler/**'
     ]
   },
   eslint.configs.recommended,

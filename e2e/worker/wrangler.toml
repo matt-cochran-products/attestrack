@@ -1,0 +1,12 @@
+# E2E-only wrangler config: `wrangler dev` (workerd) for Playwright journeys.
+# The namespace id is a local placeholder — nothing here touches a Cloudflare account.
+name = "attestrack-e2e"
+main = "worker.ts"
+compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "ATTESTRACK_KV"
+id = "e2e-local-placeholder"
+
+[vars]
+SITE_ID = "site_e2e"

@@ -199,7 +199,11 @@ function renderBanner(
   }
 
   wrap.append(content, btnRow)
-  accept.focus()
+  // Keyboard start point (P6.5): the first actionable control. For opt-in rows
+  // Accept is DISABLED until required IOA boxes are checked (disabled elements
+  // cannot receive focus), so focus the first checkbox; otherwise Accept.
+  const focusTarget: HTMLElement = allBoxes[0]?.input ?? accept
+  if (wrap.isConnected) focusTarget.focus()
 }
 
 /**
@@ -231,6 +235,13 @@ export function mountCommunityConsentBanner(opts: MountCommunityBannerOptions): 
   wrap.setAttribute('data-attestrack-banner', 'community')
   wrap.setAttribute('role', 'region')
   wrap.setAttribute('aria-label', 'Privacy choices')
+  // Keyboard (P2.4/P6.5): Escape dismisses WITHOUT recording a decision — the
+  // privacy-safe default stands (opt-in rows: not granted) and the banner can
+  // be reopened via `AttestrackConsent.open()`. The banner is intentionally
+  // NON-modal (role=region, no focus trap) so page content stays reachable.
+  wrap.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') wrap.remove()
+  })
   wrap.style.cssText =
     'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;padding:12px 16px;font:14px/1.4 system-ui,sans-serif;background:#111;color:#eee;border-top:1px solid #333;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;'
 
@@ -254,6 +265,9 @@ export function mountCommunityConsentBanner(opts: MountCommunityBannerOptions): 
   // the context arrives (skipped if the visitor already decided meanwhile).
   renderBanner(opts, null, wrap)
   mountTo.appendChild(wrap)
+  // renderBanner ran before the wrap was attached — set the keyboard start
+  // point now that focus can actually land (see focus note in renderBanner).
+  wrap.querySelector<HTMLElement>('input, button:not(:disabled)')?.focus()
   void fetchConsentContext(opts.workerOrigin).then((context) => {
     if (context && wrap.isConnected) renderBanner(opts, context, wrap)
   })

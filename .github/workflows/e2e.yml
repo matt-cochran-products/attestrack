@@ -1,9 +1,9 @@
 name: E2E Tests
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -16,5 +16,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @attestrack/e2e exec playwright install --with-deps
+      - run: pnpm --filter @attestrack/e2e exec playwright install --with-deps chromium
+      # Live-mode portal build served by the e2e page host (same-origin proxy
+      # to the workerd worker — mirrors the production hostname topology).
+      - run: pnpm --filter @attestrack/e2e build:portal-live
+      # Both projects run against workerd (`wrangler dev`): request-only smoke,
+      # then browser journeys (consent grant/decline/GPC cross-origin, Explore
+      # round-trip, portal live-mode smoke, banner + portal axe/keyboard a11y).
       - run: pnpm --filter @attestrack/e2e test
+      - run: pnpm --filter @attestrack/e2e test:browser

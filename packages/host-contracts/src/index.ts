@@ -17,4 +17,11 @@ export interface HostRuntime {
   scheduleBackground(task: () => void | Promise<void>): void
   /** Named secrets from the host environment (never logged). */
   getSecret(name: string): string | undefined
+  /**
+   * Optional host bot score for a request (P3.4 troll-shield passthrough).
+   * Cloudflare Bot Management convention: 1–29 = likely automated, 30+ human,
+   * `null` when the host/plan provides no score. Hosts without bot detection
+   * simply omit this port.
+   */
+  botScore?(request: Request): number | null
 }

@@ -11,6 +11,7 @@ const contractPath = join(root, 'docs', 'oss-http-contract.json')
 const constantsPath = join(root, 'packages', 'worker-core', 'src', 'constants.ts')
 const portalPath = join(root, 'packages', 'worker-core', 'src', 'portal.ts')
 const handlerPath = join(root, 'packages', 'worker-core', 'src', 'create-fetch-handler.ts')
+const observabilityPath = join(root, 'packages', 'worker-core', 'src', 'observability.ts')
 
 function fail(msg) {
   console.error(`[route-contract-check] ${msg}`)
@@ -116,6 +117,33 @@ if (ext) {
   }
   if (!portalSrc.includes('requiresAttestruePortalResponse')) {
     fail('portal.ts must export or call requiresAttestruePortalResponse for extension-only routes.')
+  }
+}
+
+// ── P3 observability honesty gates ─────────────────────────────────────────
+// The dashboard/destinations/logs/signal endpoints must stay COMPUTED from
+// recorded traffic (oss-http-contract.json `portalDataSources.computed`) —
+// regressing to seeded KV JSON would violate the launch rule "do not ship a
+// chart backed by invented numbers".
+if (contract.portalDataSources) {
+  const observabilitySrc = readFileSync(observabilityPath, 'utf8')
+  if (!portalSrc.includes('computeDashboardMetrics')) {
+    fail('portal.ts must compute /dashboard via computeDashboardMetrics (P3.2) — seeded dashboard JSON is not allowed.')
+  }
+  if (portalSrc.includes('KV_KEY_PORTAL_DASHBOARD') || portalSrc.includes('attestrack:portal:dashboard')) {
+    fail('portal.ts must not read a seeded dashboard KV key — /dashboard is computed (P3.2 honesty gate).')
+  }
+  if (!portalSrc.includes('buildDestinationRows')) {
+    fail('portal.ts must derive /destinations from recorded delivery stats via buildDestinationRows (P3.1).')
+  }
+  if (!portalSrc.includes('readRecentLogs')) {
+    fail('portal.ts must serve /logs from the ingest log ring via readRecentLogs (P3.1).')
+  }
+  if (!observabilitySrc.includes('KV_KEY_DRIFT_MISMATCH')) {
+    fail('observability.ts must read attestrack:drift:mismatch (KV_KEY_DRIFT_MISMATCH) for the drift surface (P3.5).')
+  }
+  if (!handlerSrc.includes('recordIngestObservability')) {
+    fail('create-fetch-handler.ts must record ingest observability on /t/event (P3.1/P3.2).')
   }
 }
 

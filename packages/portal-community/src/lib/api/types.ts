@@ -1,6 +1,6 @@
 /** DTOs for portal API responses (stubs + Worker contract target). */
 
-export type DestinationHealthStatus = 'healthy' | 'degraded' | 'inactive';
+export type DestinationHealthStatus = 'healthy' | 'degraded' | 'inactive' | 'no_data';
 
 export interface DestinationRow {
   id: string;
@@ -29,12 +29,16 @@ export interface RequestLogRow {
   status: string;
 }
 
+/**
+ * P3.3 decision: signal-recovery comparisons are NOT measured in v1 (they
+ * require a client beacon Attestrack does not ship yet). The Worker reports
+ * `measured: false` + `reason: 'requires_beacon'`; the only real number is
+ * the troll-shield bot-filter counter.
+ */
 export interface SignalRecoveryMetrics {
-  eventsFromBlockers: number;
-  blockersPct: number;
-  eventsFromITP: number;
-  itpPct: number;
-  cookieIdsPreserved: number;
+  measured: boolean;
+  reason?: string;
+  message?: string;
   botRequestsFiltered: number;
 }
 
@@ -88,9 +92,18 @@ export interface PolicyVersionLists {
   termsOfUse: unknown[];
 }
 
+/** Drift mismatch detail recorded by the Worker's drift-detection strategy (P3.5). */
+export interface DriftAlertDetail {
+  at: string;
+  expected: string;
+  current: string;
+}
+
 export interface DashboardMetrics {
   eventsToday: number;
   driftAlertCount: number;
+  /** Present when a config-drift mismatch is currently recorded (P3.5). */
+  driftAlert?: DriftAlertDetail | null;
   strategyStatus: 'all_healthy' | 'degraded' | 'inactive';
   strategySummary: string;
   shadowModeLabel: string;

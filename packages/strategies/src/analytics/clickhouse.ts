@@ -1,4 +1,4 @@
-import type { Strategy, StrategyPipelineContext } from '@attestrack/sdk'
+import { recordDeliveryResult, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest, TrackingEventV1 } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -65,28 +65,6 @@ export function toClickHouseRow(
   }
 }
 
-/** Record a delivery failure so the portal / STR.4 error surface can show it
- *  (Phase 3 builds the full log on top of this). Best-effort; never throws. */
-async function recordDeliveryError(ctx: StrategyPipelineContext, detail: string): Promise<void> {
-  try {
-    const kv = ctx.host.kv
-    if (!kv) return
-    const key = 'attestrack:delivery:error:clickhouse'
-    const prev = await kv.get(key)
-    let count = 0
-    if (prev) {
-      try {
-        count = (JSON.parse(prev) as { count?: number }).count ?? 0
-      } catch {
-        count = 0
-      }
-    }
-    await kv.put(key, JSON.stringify({ count: count + 1, lastError: detail.slice(0, 500) }))
-  } catch {
-    /* recording is best-effort too */
-  }
-}
-
 export function createClickHouseStrategy(): Strategy {
   return {
     id: 'clickhouse',
@@ -114,12 +92,18 @@ export function createClickHouseStrategy(): Strategy {
           },
           body: JSON.stringify(row)
         })
-        if (!res.ok) {
-          await recordDeliveryError(ctx, `HTTP ${res.status}`)
-        }
+        // P3.1: every attempt outcome feeds the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'clickhouse',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
       } catch (err) {
         // analytics must not throw — best-effort (Invariant 12) — but DO record.
-        await recordDeliveryError(ctx, err instanceof Error ? err.message : 'network error')
+        await recordDeliveryResult(ctx.host.kv, 'clickhouse', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

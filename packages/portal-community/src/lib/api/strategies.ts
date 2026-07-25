@@ -14,7 +14,7 @@ async function stubListStrategies(): Promise<StrategiesResponse> {
       { id: 'clickhouse', name: 'ClickHouse', status: 'active', eventsToday: 4903 },
       { id: 'tinybird', name: 'Tinybird', status: 'inactive', eventsToday: 0 },
       { id: 'tcf', name: 'TCF Consent String', status: 'active', eventsToday: null },
-      { id: 'trollshield', name: 'TrollShield (local)', status: 'active', eventsToday: 4291 },
+      { id: 'troll-shield', name: 'Troll shield — bot heuristics', status: 'active', eventsToday: 4291 },
       { id: 'drift', name: 'Drift Detection', status: 'active', eventsToday: null },
     ],
     proofLayer: [

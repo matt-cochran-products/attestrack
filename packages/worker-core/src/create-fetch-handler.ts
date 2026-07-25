@@ -33,6 +33,7 @@ import { preflightResponse, resolveCorsOrigin, withCors } from './cors.js'
 import { filterStrategiesByEnabledKv, parseEnabledStrategiesKv } from './enabled-strategies.js'
 import { CONSENT_JS_HASH, CONSENT_JS_SOURCE } from './consent-bundle.generated.js'
 import { TRACKING_EVENT_PATH } from './constants.js'
+import { recordIngestObservability } from './observability.js'
 import { handlePortalRequest } from './portal.js'
 
 const DEFAULT_PRIVACY = 'Privacy policy not configured. Set KV key attestrack:policy:privacy.\n'
@@ -271,8 +272,11 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
       }
 
       const site = pipelineSiteInfo(siteConfig)
+      const startedAt = Date.now()
       options.host.scheduleBackground(async () => {
-        await runPipeline(options, request, site, { tracking: parsed.data })
+        const ctx = await runPipeline(options, request, site, { tracking: parsed.data })
+        // P3.1/P3.2: sampled event counter + bounded log ring (best-effort).
+        await recordIngestObservability(options.host, ctx, Date.now() - startedAt)
       })
 
       return withCors(

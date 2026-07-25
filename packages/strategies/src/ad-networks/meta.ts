@@ -1,4 +1,4 @@
-import { destinationsAllowed, type Strategy } from '@attestrack/sdk'
+import { destinationsAllowed, recordDeliveryResult, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -35,13 +35,23 @@ export function createMetaCapiStrategy(): Strategy {
         access_token: token
       }
       try {
-        await fetch(url, {
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body)
         })
-      } catch {
-        /* isolated */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'meta-capi',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // isolated — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'meta-capi', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

@@ -11,10 +11,13 @@ export interface AnalyticsChartSeries {
 
 async function stubCuratedCharts(): Promise<AnalyticsChartSeries[]> {
   await stubDelay();
+  // P3.3 ANA copy amendment: no "recovered" claims — recovery is not measured
+  // in v1 (requires a client beacon). Stub charts show plainly-labeled sample
+  // volumes only; live mode reads operator-curated series from the Worker.
   return [
     {
-      id: 'blockers',
-      title: 'Events recovered from ad blockers (7d)',
+      id: 'events-volume',
+      title: 'Events ingested (7d) — sample data',
       points: [
         { label: 'Mar 18', value: 4102 },
         { label: 'Mar 19', value: 4847 },
@@ -26,16 +29,16 @@ async function stubCuratedCharts(): Promise<AnalyticsChartSeries[]> {
       ],
     },
     {
-      id: 'itp',
-      title: 'Events recovered from ITP / restrictions (7d)',
+      id: 'bots-filtered',
+      title: 'Bot requests filtered (7d) — sample data',
       points: [
-        { label: 'Mar 18', value: 1201 },
-        { label: 'Mar 19', value: 1340 },
-        { label: 'Mar 20', value: 1188 },
-        { label: 'Mar 21', value: 1422 },
-        { label: 'Mar 22', value: 1310 },
-        { label: 'Mar 23', value: 1288 },
-        { label: 'Mar 24', value: 1355 },
+        { label: 'Mar 18', value: 201 },
+        { label: 'Mar 19', value: 340 },
+        { label: 'Mar 20', value: 188 },
+        { label: 'Mar 21', value: 422 },
+        { label: 'Mar 22', value: 310 },
+        { label: 'Mar 23', value: 288 },
+        { label: 'Mar 24', value: 355 },
       ],
     },
   ];

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMockHostRuntime } from '@attestrack/sdk'
+import { createMockHostRuntime, readDeliveryStats } from '@attestrack/sdk'
 import type { TrackingEventV1 } from '@attestrack/types'
 import {
   buildClickHouseInsertUrl,
@@ -155,9 +155,25 @@ describe('createClickHouseStrategy', () => {
       tracking
     } as never)
     expect(res).toEqual({ continuePipeline: true })
-    const recorded = await host.kv?.get('attestrack:delivery:error:clickhouse')
-    expect(recorded).toBeTruthy()
-    expect(JSON.parse(recorded as string).count).toBe(1)
+    const stats = await readDeliveryStats(host.kv, 'clickhouse')
+    expect(stats?.error).toBe(1)
+    expect(stats?.lastError).toBe('HTTP 500')
+  })
+
+  it('records a delivery success on a 2xx response (P3.1 destinations view)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+    const host = createMockHostRuntime({
+      secrets: { CLICKHOUSE_HTTP_URL: 'https://ch.example.com/' }
+    })
+    await createClickHouseStrategy().run({
+      host,
+      request: new Request('https://x/'),
+      tracking
+    } as never)
+    const stats = await readDeliveryStats(host.kv, 'clickhouse')
+    expect(stats?.ok).toBe(1)
+    expect(stats?.okToday).toBe(1)
+    expect(stats?.lastOkAt).toBeTruthy()
   })
 
   it('swallows transport errors (analytics must not throw) and records them', async () => {
@@ -171,5 +187,8 @@ describe('createClickHouseStrategy', () => {
       tracking
     } as never)
     expect(res).toEqual({ continuePipeline: true })
+    const stats = await readDeliveryStats(host.kv, 'clickhouse')
+    expect(stats?.error).toBe(1)
+    expect(stats?.lastError).toBe('network')
   })
 })

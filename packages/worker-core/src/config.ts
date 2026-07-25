@@ -1,5 +1,7 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
-import { KV_KEY_PORTAL_SITE_CONFIG } from '@attestrack/types'
+import { DEFAULT_CONSENT_EVENT_TTL_SECONDS, KV_KEY_PORTAL_SITE_CONFIG } from '@attestrack/types'
+
+export { DEFAULT_CONSENT_EVENT_TTL_SECONDS }
 
 /**
  * Operational mode for the consent pipeline (INV-B-03: new deployments start in SHADOW).
@@ -30,8 +32,6 @@ export interface SiteConfigKv {
   /** TTL for consent-event KV records in seconds (default 90 days). */
   consentEventTtlSeconds?: number
 }
-
-export const DEFAULT_CONSENT_EVENT_TTL_SECONDS = 60 * 60 * 24 * 90
 
 export const defaultSiteConfig: SiteConfigKv = {
   siteId: 'local',

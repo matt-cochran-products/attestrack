@@ -32,4 +32,84 @@ describe('evidenceUnsignedStrategy', () => {
     expect(row.siteId).toBe('s1')
     expect(row.gpcSignalHonored).toBe(true)
   })
+
+  it('P2.5: ioaAttested is false for a token WITHOUT accepted IOA assertions (not consent != null)', async () => {
+    const host = createMockHostRuntime()
+    const put = vi.spyOn(host.kv, 'put')
+    await evidenceUnsignedStrategy.run({
+      host,
+      request: new Request('https://x/'),
+      jurisdictionKey: 'EU',
+      consent: {
+        raw: 't',
+        payload: {
+          v: 1,
+          siteId: 's1',
+          decision: 'granted',
+          issuedAt: new Date().toISOString(),
+          policyHash: 'h'
+        }
+      }
+    })
+    const [, value] = put.mock.calls[0] as [string, string]
+    const row = JSON.parse(value) as { ioaAttested: boolean }
+    expect(row.ioaAttested).toBe(false)
+  })
+
+  it('P2.5: ioaAttested is true only when the token carries accepted IOA ids', async () => {
+    const host = createMockHostRuntime()
+    const put = vi.spyOn(host.kv, 'put')
+    await evidenceUnsignedStrategy.run({
+      host,
+      request: new Request('https://x/'),
+      jurisdictionKey: 'EU',
+      consent: {
+        raw: 't',
+        payload: {
+          v: 1,
+          siteId: 's1',
+          decision: 'granted',
+          issuedAt: new Date().toISOString(),
+          policyHash: 'h',
+          ioa: ['privacy_policy']
+        }
+      }
+    })
+    const [, value] = put.mock.calls[0] as [string, string]
+    const row = JSON.parse(value) as { ioaAttested: boolean }
+    expect(row.ioaAttested).toBe(true)
+  })
+
+  it('P2.5: records mechanism + mode from the consent gate and honors the operator TTL', async () => {
+    const host = createMockHostRuntime()
+    const put = vi.spyOn(host.kv, 'put')
+    await evidenceUnsignedStrategy.run({
+      host,
+      request: new Request('https://x/'),
+      jurisdictionKey: 'DEFAULT',
+      site: { mode: 'ENFORCEMENT', consentEventTtlSeconds: 3600 },
+      consentGate: {
+        mode: 'ENFORCEMENT',
+        mechanism: 'opt-out',
+        tokenDecision: null,
+        effectiveDecision: null,
+        gpcApplied: false,
+        wouldAllow: true,
+        allowDestinations: true
+      }
+    })
+    const [, value, opts] = put.mock.calls[0] as [string, string, { expirationTtl?: number }]
+    const row = JSON.parse(value) as { mechanism?: string; mode?: string }
+    expect(row.mechanism).toBe('opt-out')
+    expect(row.mode).toBe('ENFORCEMENT')
+    expect(opts.expirationTtl).toBe(3600)
+  })
+
+  it('P2.5: defaults the record TTL to 90 days when the operator has not configured one', async () => {
+    const host = createMockHostRuntime()
+    const put = vi.spyOn(host.kv, 'put')
+    await evidenceUnsignedStrategy.run({ host, request: new Request('https://x/') })
+    const [, , opts] = put.mock.calls[0] as [string, string, { expirationTtl?: number }]
+    expect(opts.expirationTtl).toBe(60 * 60 * 24 * 90)
+  })
 })

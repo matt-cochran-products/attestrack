@@ -1,59 +1,55 @@
-# Attestrue (Public Repository)
+# Attestrack (Public Repository)
 
-**Repository:** `github.com/attestrue/attestrue`
+**Repository:** `github.com/matt-cochran/attestrack` (currently private, pre-launch)
 **License:** MIT
-**Purpose:** Attestrack — self-hosted analytics, server-side measurement, and community consent (`consent-js` + KV `ConsentConfig`); attorney-maintained regulation and Proof are licensed extensions
-**Last updated:** 2026-03-25
+**Purpose:** Attestrack — self-hosted analytics, server-side measurement, and **community consent** (`consent-js` + KV `ConsentConfig` + mandatory Worker strategies, per ADR-010); attorney-maintained regulation and Proof are licensed Attestrue extensions
+**Last updated:** 2026-07-25
 
 ## Quick Start
 
 ```bash
 pnpm install
-pnpm build        # Build all packages (Turborepo)
-pnpm test         # Run all tests
-pnpm typecheck    # TypeScript checking across all packages
-pnpm lint         # Lint all packages
-pnpm boundary-check   # ADR-002/010: fail if packages/merkle exists
+pnpm build                  # Build all packages (Turborepo)
+pnpm test                   # Run all tests
+pnpm typecheck              # TypeScript checking across all packages
+pnpm lint                   # ESLint (flat config, repo root)
+pnpm size-check             # consent-js bundle budget (12 kB, size-limit)
+pnpm boundary-check         # ADR-009: forbidden paths + licensed-sibling references
+pnpm route-contract-check   # docs/oss-http-contract.json vs worker-core source
 ```
 
 **Requirements:** Node >= 20, pnpm 9
 
 ## Toolchain
 
-- **Package manager:** pnpm 9 (workspaces)
-- **Build orchestration:** Turborepo — `typecheck -> lint -> test -> build -> boundary-check`
-- **Language:** TypeScript 5.5+ (strict mode, ES2022 target)
-- **Test framework:** Vitest
-- **E2E:** Playwright against Miniflare (CF Worker local runtime)
-- **Community consent script:** `packages/consent-js` (stub → implementation); premium `consent-runtime` may extend via CDN
+- **Package manager:** pnpm 9 (workspaces: `packages/*`, `tooling/*`, `e2e/`, `deploy/local`)
+- **Build orchestration:** Turborepo — tasks `typecheck`, `lint`, `test`, `build`, `size-check`, `boundary-check`; `lint` runs at the repo root (`eslint .`)
+- **Language:** TypeScript 5.5+ (strict mode, ES2022 target — `tooling/tsconfig/base.json`)
+- **Test framework:** Vitest (unit + contract tests in `packages/*/__tests__` and co-located `*.test.ts`)
+- **E2E:** Playwright smoke tests (`e2e/smoke.spec.ts`) against a **Node `http` dev server** (`e2e/scripts/dev-server.mjs`) that wraps `createAttestrackFetchHandler` with a mock host — **not** Miniflare/workerd yet (planned: Phase 6 of `ATTESTRACK-PRODUCTION-PLAN.md`)
+- **Mutation testing:** Stryker, scoped to the Explore SQL gate (`packages/schema`, nightly `mutation.yml`)
+- **Consent script:** `packages/consent-js` builds a Rollup IIFE (`dist/consent.js`); `packages/worker-core/scripts/embed-consent-bundle.mjs` embeds it so the Worker serves `GET /consent.js` first-party
 
 ## Code Conventions
 
-- No semicolons
-- Single quotes
-- Never use `any` type
-- All business logic in hooks; components are presentational (portal-community)
-- Narrow imports from generated models (not barrel imports)
+- `@typescript-eslint/no-explicit-any` is an **error** (lint-enforced) — never use `any`
+- Prevailing style: single quotes, no semicolons (not lint-enforced; match surrounding code)
+- Portal: business logic in hooks (`src/hooks/`), components presentational
+- Narrow imports; types flow downward through the dependency graph (no cycles)
 
 ## CI Pipelines
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci.yml` | PR + push to main | typecheck, lint, test, build, boundary-check |
-| `e2e.yml` | PR + push to main | Playwright against Miniflare |
-| `publish.yml` | Version tags (`v*`) | Publish npm packages + CF Pages deploy |
-| `release-please.yml` | Push to main | Automated changelog + version management |
+| `ci.yml` | PR + push to `main`/`dev` | typecheck, lint, test, route-contract-check, build, size-check, boundary-check |
+| `e2e.yml` | PR + push to `main` | Playwright smoke against the Node dev server |
+| `mutation.yml` | nightly + manual | Stryker on `packages/schema` Explore SQL gate (INV-B-15) |
+| `publish.yml` | tags `v*` | **Stub** — per-package npm publish not yet configured (plan P5.4) |
+| `release-please.yml` | push to `main` | Release PRs; single root manifest today (per-package planned, P5.4) |
 
-## Published npm Packages
+## npm Packages
 
-These are consumed by the private repo as versioned npm dependencies (never local path deps):
-
-| Package | Description | Dependencies |
-|---|---|---|
-| `@attestrack/types` | Domain types (zero deps, root of graph) | none |
-| `@attestrack/schema` | Zod runtime validation schemas | `@attestrack/types`, `zod` |
-| `@attestrack/sdk` | Adapter development kit | `@attestrack/types`, `@attestrack/schema` |
-| `@attestrack/consent-js` | Community first-party consent script (contracts + stub) | `@attestrack/types`, `@attestrack/schema` |
+All packages are version `0.0.0`; **nothing is published to npm yet** (`publish.yml` is a stub — plan P5). Intended-publishable packages carry no `private` flag: `@attestrack/types`, `@attestrack/schema`, `@attestrack/sdk`, `@attestrack/strategies`, `@attestrack/deploy`, `@attestrack/host-contracts`. Marked `private: true` today: `consent-js`, `worker-core`, `host-cloudflare-worker`, `portal-community`, `e2e`.
 
 ## Package Dependency Graph
 
@@ -71,7 +67,7 @@ These are consumed by the private repo as versioned npm dependencies (never loca
        |           .-----------'
        |           |
        |---> consent-js             (types)
-       |---> worker-core            (host-contracts + types + schema + sdk)
+       |---> worker-core            (host-contracts + types + schema + sdk; consent-js + strategies as devDeps)
        |---> strategies             (types + schema + sdk)
        |---> portal-community       (types + schema)
        '---> deploy                 (types)
@@ -82,157 +78,106 @@ No circular dependencies. Types flow downward. Nothing flows up.
 ## Repository Structure
 
 ```
-attestrue/
+attestrack/
 |
 |-- .github/
-|   |-- workflows/
-|   |   |-- ci.yml                    # PR/push: typecheck, lint, test, build, boundary-check
-|   |   |-- e2e.yml                  # Playwright + Miniflare
-|   |   |-- publish.yml              # npm publish on version tags
-|   |   '-- release-please.yml       # Automated changelog
+|   |-- workflows/                    # ci, e2e, mutation, publish (stub), release-please
+|   |-- ISSUE_TEMPLATE/               # bug report, feature request, security -> advisories
 |   |-- CODEOWNERS
 |   '-- pull_request_template.md
 |
 |-- packages/
 |   |
-|   |-- types/                        # @attestrack/types (published)
-|   |   |-- src/
-|   |   |   |-- strategy.ts          # StrategyManifest, StrategyCategory
-|   |   |   |-- tracking.ts          # TrackingEvent (ClickHouse/Tinybird schema)
-|   |   |   '-- index.ts             # Public surface: tracking + strategy only (ADR-010)
-|   |   |   # consent / evidence / jurisdiction / policy / counsel → @attestrack/types-extensions (licensed)
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- types/                        # @attestrack/types — public contracts (zero deps)
+|   |   '-- src/: tracking.ts, strategy.ts, consent.ts, consent-gate.ts,
+|   |             consent-event-record.ts, jurisdiction.ts (ConsentConfig,
+|   |             COMMUNITY_DEFAULT_CONSENT_CONFIG), regulation.ts, explore.ts,
+|   |             kv-keys.ts (KV key registry), index.ts
 |   |
-|   |-- schema/                       # @attestrack/schema (published)
-|   |   |-- src/
-|   |   |   |-- strategy.schema.ts
-|   |   |   |-- tracking.schema.ts
-|   |   |   '-- index.ts             # Public: tracking + strategy only
-|   |   |   # consent / jurisdiction / evidence / policy / proof schemas → @attestrack/schema-extensions (licensed)
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- schema/                       # @attestrack/schema — Zod runtime validation
+|   |   |-- src/: tracking.schema.ts, strategy.schema.ts, consent.schema.ts,
+|   |   |         consent-event-record.schema.ts, jurisdiction.schema.ts,
+|   |   |         explore-sql.ts (INV-B-14/15 SQL gate + adversarial/hardening tests)
+|   |   '-- warehouse/clickhouse.sql  # Canonical `events` DDL (ADR-013)
 |   |
-|   |-- sdk/                          # @attestrack/sdk (published)
-|   |   |-- src/
-|   |   |   |-- interfaces.ts        # Strategy, StrategyLoader, NoopLoader
-|   |   |   |-- testing.ts           # StrategyTestHarness, MockConsentEvent
-|   |   |   |-- helpers.ts           # CF Worker env/KV utilities
-|   |   |   '-- index.ts
-|   |   |-- examples/
-|   |   |   |-- minimal-adapter/
-|   |   |   '-- analytics-adapter/
-|   |   |-- docs/
-|   |   |   |-- ADAPTER-GUIDE.md
-|   |   |   |-- TESTING.md
-|   |   |   '-- PUBLISHING.md
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- sdk/                          # @attestrack/sdk — strategy author kit
+|   |   |-- src/: interfaces.ts, consent-token.ts (HMAC token: TTL, siteId
+|   |   |         binding, k<N>. rotation), consent-gate.ts (mode/mechanism
+|   |   |         semantics), strategy-resolution.ts (resolveStrategiesWithReplaces),
+|   |   |         testing.ts (mock host runtime), helpers.ts
+|   |   |-- examples/: minimal-adapter/, analytics-adapter/
+|   |   '-- docs/: ADAPTER-GUIDE.md, HOST-GUIDE.md, TESTING.md, PUBLISHING.md
 |   |
-|   |   # consent-runtime + browser-adapters: licensed repo (ADR-010)
+|   |-- consent-js/                   # @attestrack/consent-js — first-party banner IIFE
+|   |   |-- src/: init.ts, banner.ts (IOA checkboxes, co-equal Reject all),
+|   |   |         commit.ts (credentialed fetch; Worker sets the cross-subdomain
+|   |   |         cookie via Set-Cookie), gpc.ts, paths.ts
+|   |   '-- templates/community-default-consent-config.json
 |   |
-|   |-- worker-core/                  # Cloudflare Worker (not published)
-|   |   |-- src/
-|   |   |   |-- index.ts             # Worker fetch handler entry point
-|   |   |   |-- composite.ts         # CompositeStrategy execution engine
-|   |   |   |-- registry.ts          # Strategy bundle loader from CDN
-|   |   |   |-- config.ts            # CF KV configuration loader
-|   |   |   |-- policy-server.ts     # GET /privacy, GET /terms from CF KV
-|   |   |   |-- loader.ts            # THE EXTENSION SLOT (StrategyLoader + NoopLoader)
-|   |   |   |-- degraded.ts          # Fallback when CDN unavailable
-|   |   |   '-- types.ts             # Worker-specific types (Env interface)
-|   |   |-- __tests__/
-|   |   |   |-- composite.test.ts
-|   |   |   |-- registry.test.ts
-|   |   |   |-- loader.test.ts
-|   |   |   |-- policy-server.test.ts
-|   |   |   '-- degraded.test.ts
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- host-contracts/               # @attestrack/host-contracts — host port types
+|   |-- host-cloudflare-worker/       # @attestrack/host-cloudflare-worker — CF adapter
 |   |
-|   |-- strategies/                   # Community strategies (published)
-|   |   |-- src/
-|   |   |   |-- mandatory/           # Always execute (analytics path)
-|   |   |   |   '-- troll-shield.ts  # Behavioral signal detection
-|   |   |   |   # consent / jurisdiction / consent-log / TCF → strategies-licensed (private)
-|   |   |   |-- ad-networks/
-|   |   |   |   |-- meta.ts          # Meta Conversions API (CAPI)
-|   |   |   |   |-- google.ts        # Google Measurement Protocol
-|   |   |   |   |-- tiktok.ts        # TikTok Events API
-|   |   |   |   '-- microsoft.ts     # Microsoft UET Offline Conversions API
-|   |   |   |-- analytics/
-|   |   |   |   |-- clickhouse.ts    # Customer-hosted ClickHouse
-|   |   |   |   '-- tinybird.ts      # Tinybird Events API
-|   |   |   |-- drift/
-|   |   |   |   '-- detection.ts     # Configuration drift detection (post-Stage 2)
-|   |   |   '-- index.ts             # BUNDLED_STRATEGIES export
-|   |   |-- __tests__/
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- worker-core/                  # @attestrack/worker-core — Worker runtime
+|   |   |-- src/: create-fetch-handler.ts (routes: /health, /privacy, /terms,
+|   |   |         /consent.js, /__attestrack__/consent/{commit,context}, /t/event,
+|   |   |         CORS preflight, Set-Cookie consent cookie), cors.ts, config.ts
+|   |   |         (site config KV reader), composite.ts, enabled-strategies.ts,
+|   |   |         portal.ts (portal API + requires_attestrue 403s),
+|   |   |         explore-warehouse.ts (Tinybird/ClickHouse proxy),
+|   |   |         policy-server.ts, loader.ts (extension slot), degraded.ts,
+|   |   |         registry.ts, constants.ts
+|   |   |-- __tests__/contract/       # route/CORS/consent-matrix/explore contract tests
+|   |   '-- scripts/embed-consent-bundle.mjs
 |   |
-|   |-- portal-community/            # Community portal (React SPA, CF Pages)
-|   |   |-- src/
-|   |   |   |-- app.tsx
-|   |   |   |-- routes/
-|   |   |   |   |-- dashboard/       # Analytics cards, drift, strategies (ADR-010)
-|   |   |   |   |-- extensions/      # Handoff to licensed consent/regulation/proof
-|   |   |   |   |-- configuration/   # Site config, deployment mode
-|   |   |   |   |-- strategies/      # Activate/deactivate community strategies
-|   |   |   |   |-- migration/       # CMP migration wizard
-|   |   |   |   '-- upgrade/         # CTA to attestrue.com/upgrade
-|   |   |   |-- components/
-|   |   |   |-- hooks/
-|   |   |   '-- lib/
-|   |   |       '-- cf-kv.ts         # Reads from customer's own CF KV
-|   |   |-- package.json
-|   |   '-- tsconfig.json
+|   |-- strategies/                   # @attestrack/strategies — bundled strategies
+|   |   '-- src/: mandatory/ (jurisdiction.ts, consent.ts, consent-log.ts,
+|   |             troll-shield.ts — currently a no-op placeholder, plan P3.4),
+|   |             ad-networks/ (meta.ts, google.ts, tiktok.ts, microsoft.ts),
+|   |             analytics/ (clickhouse.ts, tinybird.ts, otel.ts),
+|   |             drift/detection.ts, index.ts (allBundledStrategies)
 |   |
-|   '-- deploy/                       # One-click CF deployment tooling
-|       |-- src/
-|       |   |-- worker-template.ts    # Generates wrangler.toml + worker code
-|       |   |-- kv-schema.ts          # Initial CF KV structure
-|       |   |-- r2-setup.ts           # R2 bucket + object lock config
-|       |   |-- d1-schema.sql         # D1 database schema
-|       |   |-- dns-guide.ts          # Customer-specific DNS instructions
-|       |   '-- index.ts              # CLI entry point: npx @attestrack/deploy
-|       |-- package.json
-|       '-- tsconfig.json
+|   |-- portal-community/             # @attestrack/portal-community — React SPA (CF Pages)
+|   |   '-- src/: routes/ (dashboard, signal, destinations, logs, analytics,
+|   |             explore, strategies, configuration, migration, extensions,
+|   |             upgrade), hooks/, components/, lib/api/ (stub-vs-live switch
+|   |             per VITE_ATTESTRACK_API_BASE_URL)
+|   |
+|   '-- deploy/                       # @attestrack/deploy — guided CF deploy CLI
+|       '-- src/: index.ts (CLI flow), apply-cloudflare.ts (wrangler: KV create,
+|                 seed, secrets, deploy, Pages), kv-schema.ts (KV seed shape),
+|                 worker-template.ts, dns-guide.ts, r2-setup.ts (doc-only,
+|                 optional R2 note), cli.ts, run-command.ts, parse-wrangler-*.ts
+|                 # No D1/R2 resources are created — v1 is KV-only (ADR-011)
 |
-|-- tooling/
-|   |-- eslint/
-|   |   '-- index.js                  # Shared ESLint config
-|   |-- tsconfig/
-|   |   |-- base.json                 # ES2022, strict, bundler moduleResolution
-|   |   |-- library.json              # Extends base + declaration maps
-|   |   '-- worker.json               # Extends base + CF workers-types
-|   '-- vitest/
-|       '-- setup.ts                   # Shared Vitest setup
-|
-|-- CONSENT-EVIDENCE-TOKEN-STANDARD.md   # Stub pointer — normative doc in licensed tree
+|-- e2e/                              # Playwright smoke (Node dev server, mock host)
+|-- deploy/local/                     # local dev harness (dev-worker.mjs + ClickHouse DDL copy)
+|-- scripts/
+|   |-- boundary-check.mjs            # ADR-009 gate (forbidden paths + sibling refs)
+|   '-- check-oss-routes.mjs          # HTTP route contract gate
+|-- tooling/                          # shared eslint / tsconfig / vitest setup
+|-- docs/                             # specs, scope matrix, REPO-SPEC-OSS, pilot guide
+|-- ADR/                              # ADR-001..013 (see ADR/README.md index)
+|-- ATTESTRACK-PRODUCTION-PLAN.md     # phased plan to public launch (P0-P8)
+|-- CONSENT-EVIDENCE-TOKEN-STANDARD.md  # pointer to licensed normative standard
 |-- ADAPTER-DEVELOPMENT-GUIDE.md
 |-- CONTRIBUTING.md
-|-- LICENSE                            # MIT
-|-- package.json                       # pnpm workspace root
-|-- pnpm-workspace.yaml               # packages/* + tooling/*
-'-- turbo.json                         # Build pipeline config
+|-- SECURITY.md
+|-- CODE_OF_CONDUCT.md
+|-- LICENSE                           # MIT
+|-- package.json                      # workspace root ("attestrack")
+|-- pnpm-workspace.yaml
+'-- turbo.json
 ```
-
-## Shared Contracts Bridge
-
-Three packages are published to npm and consumed by the private repo as versioned dependencies:
-
-- `@attestrack/types` -- Pure TS interfaces, zero deps, the shared vocabulary
-- `@attestrack/sdk` -- Adapter dev kit (Strategy interface, NoopLoader, test harness)
-- `@attestrack/schema` -- Zod runtime validation (carries zod as runtime dep)
-
-The private repo never has local path dependencies on this repo. Both compile against the same published type contracts.
 
 ## Key Architecture Notes
 
-- **Worker Core extension slot:** `worker-core/src/loader.ts` exports `StrategyLoader` interface + `NoopLoader`. The private repo's `CDNLoader` is injected via CF Worker env var at licensed deploy time.
-- **Consent-runtime bundle** (licensed): size budget enforced in private CI; not in public repo.
-- **Community strategies are bundled** into the Worker at build time. CDN is a convenience for updates, not a dependency.
-- **CompositeStrategy execution order (Attestrack):** Stage 1 mandatory includes **troll-shield** only; consent/jurisdiction/TCF run from **strategies-licensed** when extensions bind.
+- **OSS consent scope (ADR-010):** community consent is **in this repo** — `ConsentConfig` in the operator's KV, mandatory strategies (`jurisdiction`, `consent`, `evidence-unsigned` consent log), HMAC consent tokens, and the `consent-js` banner. Attorney-maintained regulation rows, witnessed evidence, and Proof are licensed Attestrue extensions.
+- **Extension slot:** `worker-core/src/loader.ts` exports `StrategyLoader` + noop loader; licensed CDN loaders are injected at licensed deploy time. The repo builds and runs green with zero premium packages.
+- **Consent pipeline (P2, PR #8):** site config `mode` is read per request — SHADOW never blocks destinations (would-be decision recorded), ENFORCEMENT applies the gate; `mechanism: 'opt-out'` rows allow destinations absent a declined token; GPC honored per row. Consent cookie is set by the **Worker** (`Set-Cookie`, `Domain` from site config — ADR-012).
+- **Consent event records:** KV-only with operator-configurable TTL (default 90 days) — **no D1/R2 in v1** (ADR-011).
+- **Warehouse contract:** `packages/schema/warehouse/clickhouse.sql` is the canonical `events` DDL; the ClickHouse strategy inserts `FORMAT JSONEachRow` (ADR-013).
+- **Portal API boundary:** banner config, policy publish, and mode toggle mutations return `403` + `requires_attestrue` (ADR-010 §4); see `docs/REPO-SPEC-OSS.md` + `docs/oss-http-contract.json` (gated by `route-contract-check`).
+- **Community strategies are bundled** into the Worker at build time; `attestrack:enabled_strategies` KV gates destination/analytics stages only (mandatory always runs).
 
 ## Placement Rule
 

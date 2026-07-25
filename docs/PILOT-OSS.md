@@ -16,7 +16,7 @@ From the **repository root** (so `packages/worker-core` exists):
 ```bash
 pnpm install
 pnpm --filter @attestrack/deploy build
-pnpm --filter @attestrack/deploy exec attestrue-deploy
+pnpm --filter @attestrack/deploy exec attestrack-deploy
 ```
 
 Or after publishing: `npx @attestrack/deploy` from the same monorepo layout.

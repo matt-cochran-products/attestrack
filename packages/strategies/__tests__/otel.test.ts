@@ -30,7 +30,7 @@ describe('createOtelStrategy', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 200 }))
     const host = createMockHostRuntime({
-      secrets: { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://collector:4318', OTEL_SERVICE_NAME: 'attestrue' }
+      secrets: { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://collector:4318', OTEL_SERVICE_NAME: 'attestrack' }
     })
 
     await createOtelStrategy().run({ host, request: new Request('https://x/'), tracking } as never)
@@ -54,7 +54,7 @@ describe('createOtelStrategy', () => {
     expect(attrs.sessionId).toBe('s1')
     expect(attrs['event.name']).toBe('cta_click')
     // service.name rides on the resource.
-    expect(body.resourceLogs[0].resource.attributes[0].value.stringValue).toBe('attestrue')
+    expect(body.resourceLogs[0].resource.attributes[0].value.stringValue).toBe('attestrack')
   })
 
   it('swallows transport errors (analytics must not throw)', async () => {

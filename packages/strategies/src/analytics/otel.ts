@@ -51,7 +51,7 @@ export function createOtelStrategy(): Strategy {
       const base = ctx.host.getSecret('OTEL_EXPORTER_OTLP_ENDPOINT')
       if (!base) return { continuePipeline: true }
       const headerRaw = ctx.host.getSecret('OTEL_EXPORTER_OTLP_HEADERS') // "k=v,k2=v2"
-      const serviceName = ctx.host.getSecret('OTEL_SERVICE_NAME') ?? 'attestrue-tracking'
+      const serviceName = ctx.host.getSecret('OTEL_SERVICE_NAME') ?? 'attestrack-tracking'
 
       const t = ctx.tracking as unknown as Record<string, unknown>
       const attrs = [
@@ -75,7 +75,7 @@ export function createOtelStrategy(): Strategy {
             resource: { attributes: [{ key: 'service.name', value: { stringValue: serviceName } }] },
             scopeLogs: [
               {
-                scope: { name: 'attestrue.tflo' },
+                scope: { name: 'attestrack.tflo' },
                 logRecords: [
                   {
                     timeUnixNano,

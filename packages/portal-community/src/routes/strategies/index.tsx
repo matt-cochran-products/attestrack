@@ -137,7 +137,7 @@ export default function StrategiesPage() {
           </tbody>
         </table>
         <a
-          href="https://github.com/attestrue/attestrue/blob/main/ADAPTER-DEVELOPMENT-GUIDE.md"
+          href="https://github.com/matt-cochran/attestrack/blob/main/ADAPTER-DEVELOPMENT-GUIDE.md"
           target="_blank"
           rel="noreferrer"
           className="font-mono text-[10px] text-[var(--accent-green)] mt-4 inline-block underline"

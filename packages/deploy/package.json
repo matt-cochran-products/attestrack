@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "attestrue-deploy": "dist/cli.js"
+    "attestrack-deploy": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

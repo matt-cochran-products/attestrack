@@ -87,6 +87,9 @@ export default function SqlEditor({ value, onChange, onRun, ariaLabel }: SqlEdit
             ]),
           ),
           keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap]),
+          // A11y (P6.5): CodeMirror renders its own role="textbox" content
+          // element — the accessible name must live THERE, not on a wrapper.
+          EditorView.contentAttributes.of({ 'aria-label': ariaLabel ?? 'SQL editor' }),
           editorTheme,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
@@ -115,5 +118,7 @@ export default function SqlEditor({ value, onChange, onRun, ariaLabel }: SqlEdit
     }
   }, [value]);
 
-  return <div ref={hostRef} role="textbox" aria-label={ariaLabel ?? 'SQL editor'} />;
+  // Plain container: the inner CodeMirror content element carries the textbox
+  // role and aria-label (nested textbox roles trip axe and screen readers).
+  return <div ref={hostRef} />;
 }

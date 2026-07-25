@@ -11,6 +11,23 @@ export default function RequestLogsPage() {
     );
   }
 
+  // PORTAL.8 — honest empty state: a fresh deploy has no ingest traffic yet;
+  // explain where rows come from instead of showing a bare header table.
+  if (logs.length === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="card-surface p-6 max-w-2xl">
+          <div className="font-mono text-[12px] text-[var(--text-active)] mb-2">No requests logged yet</div>
+          <p className="font-sans text-[13px] text-[var(--text-muted)]">
+            This view shows a bounded, sampled ring of recent Worker ingest traffic. Send events to
+            the Worker&apos;s <span className="font-mono">/t/event</span> route and entries will appear
+            here (retained per hour, best-effort).
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="card-surface overflow-x-auto">

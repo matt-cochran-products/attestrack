@@ -148,6 +148,39 @@ describe('portal explore/saved-queries pinning contract (P4.4 / EXP.10)', () => 
     expect(missing.status).toBe(404)
   })
 
+  it('caps pins at the Zod shape bound (50) by dropping the oldest — the entry never fails read-side validation', async () => {
+    const host = createMockHostRuntime()
+    const h = handler(host)
+    const id = await saveOne(h)
+    for (let i = 0; i < 52; i += 1) {
+      const res = await h(
+        jsonReq(pinUrl, { id, pinned: true, chart: { chartType: 'bar' } }, `u${i}@x.com`)
+      )
+      expect(res.status).toBe(200)
+    }
+    // The most recent pinner still sees their pin (entry survived validation)…
+    const latest = (await (
+      await h(
+        new Request(listUrl, {
+          method: 'GET',
+          headers: { 'Cf-Access-Authenticated-User-Email': 'u51@x.com' }
+        })
+      )
+    ).json()) as { pinned: boolean }[]
+    expect(latest).toHaveLength(1)
+    expect(latest[0]?.pinned).toBe(true)
+    // …while the oldest pin was dropped by the cap.
+    const oldest = (await (
+      await h(
+        new Request(listUrl, {
+          method: 'GET',
+          headers: { 'Cf-Access-Authenticated-User-Email': 'u0@x.com' }
+        })
+      )
+    ).json()) as { pinned: boolean }[]
+    expect(oldest[0]?.pinned).toBe(false)
+  })
+
   it('drops corrupt KV entries via the Zod shape instead of serving them', async () => {
     const host = createMockHostRuntime()
     await host.kv.put(

@@ -328,7 +328,9 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
         }
         pins.push({ user, pinnedAt: new Date().toISOString(), chart: chart.data })
       }
-      entry.pins = pins
+      // Keep within the Zod shape's pins cap (oldest dropped) so the entry
+      // never fails read-side validation and silently disappears.
+      entry.pins = pins.length > 50 ? pins.slice(-50) : pins
       await writeSavedQueries(host, list)
       return Response.json(
         { success: true, query: savedQueryClientView(entry, user) },

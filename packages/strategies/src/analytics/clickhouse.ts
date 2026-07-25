@@ -37,6 +37,13 @@ export function toClickHouseRow(
     occurredAt: t.occurredAt,
     consentDecision: resolved.consentDecision,
     jurisdiction: resolved.jurisdiction,
+    // Consent-gate honesty fields (P2.3), stamped server-side by the consent
+    // strategy — needed so SHADOW-mode analytics can report the would-be
+    // enforced rate (DASH.3) rather than inventing numbers.
+    consentMode: t.consentMode ?? null,
+    consentMechanism: t.consentMechanism ?? null,
+    consentWouldAllow:
+      t.consentWouldAllow === undefined ? null : t.consentWouldAllow ? 1 : 0,
     visitorId: t.visitorId ?? null,
     sessionId: t.sessionId ?? null,
     eventId: t.eventId ?? null,

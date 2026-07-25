@@ -12,34 +12,46 @@ const ALLOWED_TABLES = new Set(
 )
 
 const SELECT_LEADING = /^\s*select\b/i
+// Broadened over the original: also reject INTO/OUTFILE/INFILE, CREATE/RENAME, and
+// bare SYSTEM (ClickHouse admin) — anything that writes, exfiltrates, or escalates.
 const FORBIDDEN_KEYWORD =
-  /\b(insert|update|delete|drop|alter|truncate|grant|revoke|union|into\s+outfile|copy\s+from|attach\s+database|detach|optimize\s+table|system\.)\b/i
+  /\b(insert|update|delete|drop|alter|truncate|create|rename|grant|revoke|union|into|outfile|infile|copy|attach\s+database|detach|optimize\s+table|system)\b/i
 
 export type ExploreSqlGateResult =
   | { ok: true; sqlNormalized: string }
   | { ok: false; code: string; reason: string }
 
-function stripRoughStrings(sql: string): string {
+/** Replace string literals with `''` so their contents (which may contain `;`,
+ *  comment markers, keywords, or dotted names) can't fool the structural scan. */
+function stripStrings(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'/g, "''")
 }
 
-function hasMultipleStatements(sql: string): boolean {
-  return stripRoughStrings(sql).includes(';')
+function hasMultipleStatements(scan: string): boolean {
+  // A single optional trailing `;` is fine; any other `;` means >1 statement.
+  return scan.replace(/;\s*$/u, '').includes(';')
 }
 
-function extractTableIdentifiers(sql: string): string[] {
-  const out: string[] = []
-  const re = /\b(?:FROM|JOIN)\s+([`"]?)([a-zA-Z_][a-zA-Z0-9_]*)\1/gi
+/**
+ * A SQL identifier: bare (`events`), back-quoted (`` `events` ``), or
+ * double-quoted (`"events"`). Returns the tables read plus whether ANY reference
+ * was **qualified** (`db.table`) — qualified names are rejected in community
+ * Explore so an allowlisted DATABASE name (e.g. ClickHouse `default`) can't be
+ * used to reach an arbitrary table (INV-B-15). Handles quoted + whitespace-padded
+ * dotted parts, which the old first-identifier-only regex missed.
+ */
+function extractTables(scan: string): { names: string[]; qualified: boolean } {
+  const ident = String.raw`(?:\`[^\`]+\`|"[^"]+"|[A-Za-z_]\w*)`
+  const re = new RegExp(String.raw`\b(?:from|join)\s+(${ident})((?:\s*\.\s*${ident})+)?`, 'gi')
+  const names: string[] = []
+  let qualified = false
   let m: RegExpExecArray | null
-  while ((m = re.exec(sql)) !== null) {
-    const id = m[2]
-    if (id) out.push(id.toLowerCase())
+  while ((m = re.exec(scan)) !== null) {
+    if (m[2] && m[2].trim().length > 0) qualified = true
+    const bare = (m[1] ?? '').replace(/^[`"]|[`"]$/g, '').toLowerCase()
+    if (bare) names.push(bare)
   }
-  return out
-}
-
-function hasSubqueryFrom(sql: string): boolean {
-  return /\bFROM\s*\(/i.test(sql)
+  return { names, qualified }
 }
 
 function applyRowLimit(sql: string, maxRows: number): string {
@@ -61,36 +73,61 @@ export function validateAndNormalizeExploreSql(
   if (!trimmed) {
     return { ok: false, code: 'explore_sql_empty', reason: 'Query is empty.' }
   }
-  if (hasMultipleStatements(trimmed)) {
+
+  // Scan copy with string literals neutralized. All structural checks run on this
+  // so nothing inside a quoted string can bypass the gate.
+  const scan = stripStrings(trimmed)
+
+  // Reject SQL comments outright — a common evasion vector (comment-hiding of
+  // keywords, statement separators, or a smuggled second LIMIT) and unnecessary
+  // for Explore queries. "When in doubt, reject."
+  if (/--|\/\*|\*\//.test(scan)) {
+    return {
+      ok: false,
+      code: 'explore_sql_comment_not_allowed',
+      reason: 'SQL comments are not allowed in community Explore.'
+    }
+  }
+  if (hasMultipleStatements(scan)) {
     return {
       ok: false,
       code: 'explore_sql_multiple_statements',
       reason: 'Only a single SELECT statement is allowed.'
     }
   }
-  const sql = trimmed.replace(/;\s*$/u, '').trim()
-  if (!SELECT_LEADING.test(sql)) {
+
+  const scanSql = scan.replace(/;\s*$/u, '').trim()
+  if (!SELECT_LEADING.test(scanSql)) {
     return { ok: false, code: 'explore_sql_not_select', reason: 'Only SELECT queries are allowed.' }
   }
-  if (FORBIDDEN_KEYWORD.test(sql)) {
+  if (FORBIDDEN_KEYWORD.test(scanSql)) {
     return {
       ok: false,
       code: 'explore_sql_forbidden_keyword',
       reason: 'Statement contains forbidden keywords.'
     }
   }
-  if (hasSubqueryFrom(sql)) {
+  if (/\bfrom\s*\(/i.test(scanSql)) {
     return {
       ok: false,
       code: 'explore_sql_subquery_from',
       reason: 'Derived tables in FROM are not allowed in community Explore.'
     }
   }
-  const tables = extractTableIdentifiers(sql)
-  if (tables.length === 0) {
+
+  const { names, qualified } = extractTables(scanSql)
+  if (qualified) {
+    return {
+      ok: false,
+      code: 'explore_sql_qualified_table',
+      reason:
+        'Qualified database.table names are not allowed; read from a bare allowlisted table (INV-B-15).'
+    }
+  }
+  if (names.length === 0) {
     return { ok: false, code: 'explore_sql_no_from', reason: 'Query must read from an allowed table.' }
   }
-  for (const t of tables) {
+  for (const t of names) {
     if (!ALLOWED_TABLES.has(t)) {
       return {
         ok: false,
@@ -99,7 +136,11 @@ export function validateAndNormalizeExploreSql(
       }
     }
   }
-  return { ok: true, sqlNormalized: applyRowLimit(sql, maxRows) }
+
+  // Execute the ORIGINAL query (real string contents preserved; it contains no
+  // comments — we rejected those — so the LIMIT clamp can't be commented out).
+  const execSql = trimmed.replace(/;\s*$/u, '').trim()
+  return { ok: true, sqlNormalized: applyRowLimit(execSql, maxRows) }
 }
 
 export function exploreGateErrorPayload(code: string, reason: string): Record<string, unknown> {

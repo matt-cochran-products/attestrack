@@ -10,7 +10,8 @@
     "size-check": "turbo run size-check",
     "boundary-check": "node scripts/boundary-check.mjs",
     "route-contract-check": "node scripts/check-oss-routes.mjs",
-    "audit-gate": "node scripts/audit-gate.mjs"
+    "audit-gate": "node scripts/audit-gate.mjs",
+    "egress-check": "node scripts/egress-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

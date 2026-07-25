@@ -23,3 +23,4 @@ jobs:
       - run: pnpm build
       - run: pnpm size-check
       - run: pnpm boundary-check
+      - run: pnpm egress-check

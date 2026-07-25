@@ -1,8 +1,8 @@
--- attestrue tracking warehouse — local dev / self-host DDL.
+-- attestrack tracking warehouse — local dev / self-host DDL.
 --
 -- The Worker's ClickHouse strategy (packages/strategies/src/analytics/clickhouse.ts)
 -- POSTs one JSON row per tracking event to CLICKHOUSE_HTTP_URL using
--- `INSERT INTO attestrue.tracking_events FORMAT JSONEachRow`. Column names match
+-- `INSERT INTO attestrack.tracking_events FORMAT JSONEachRow`. Column names match
 -- the row keys EXACTLY (camelCase for the event fields, snake_case for the two
 -- derived fields the strategy adds), so JSONEachRow maps them by name.
 --
@@ -11,9 +11,9 @@
 -- signals (one rich record per real event, not reverse-engineered from noise) —
 -- populated once the schema extension (trackingEventV1Schema) ships them.
 
-CREATE DATABASE IF NOT EXISTS attestrue;
+CREATE DATABASE IF NOT EXISTS attestrack;
 
-CREATE TABLE IF NOT EXISTS attestrue.tracking_events
+CREATE TABLE IF NOT EXISTS attestrack.tracking_events
 (
     -- canonical spine
     v                 UInt8,

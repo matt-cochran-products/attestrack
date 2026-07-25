@@ -16,6 +16,8 @@ pnpm lint                   # ESLint (flat config, repo root)
 pnpm size-check             # consent-js bundle budget (12 kB, size-limit)
 pnpm boundary-check         # ADR-009: forbidden paths + licensed-sibling references
 pnpm route-contract-check   # docs/oss-http-contract.json vs worker-core source
+pnpm egress-check           # P7.5: no sibling-origin egress; zero telemetry SDKs
+pnpm audit-gate             # P7.4: high/critical npm advisories (documented allowlist)
 ```
 
 **Requirements:** Node >= 20, pnpm 9
@@ -41,7 +43,7 @@ pnpm route-contract-check   # docs/oss-http-contract.json vs worker-core source
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci.yml` | PR + push to `main`/`dev` | typecheck, lint, test, route-contract-check, build, size-check, boundary-check |
+| `ci.yml` | PR + push to `main`/`dev` | audit-gate, typecheck, lint, test, route-contract-check, build, size-check, boundary-check, egress-check |
 | `e2e.yml` | PR + push to `main` | Playwright smoke against the Node dev server |
 | `mutation.yml` | nightly + manual | Stryker on `packages/schema` Explore SQL gate (INV-B-15) |
 | `publish.yml` | tags `<component>-v*` + manual dispatch | Per-package npm publish with provenance (P5.4); needs maintainer `NPM_TOKEN` — see `docs/RELEASING.md` |
@@ -153,7 +155,9 @@ attestrack/
 |-- deploy/local/                     # local dev harness (dev-worker.mjs + ClickHouse DDL copy)
 |-- scripts/
 |   |-- boundary-check.mjs            # ADR-009 gate (forbidden paths + sibling refs)
-|   '-- check-oss-routes.mjs          # HTTP route contract gate
+|   |-- check-oss-routes.mjs          # HTTP route contract gate
+|   |-- egress-check.mjs              # P7.5 gate: no sibling-origin egress / telemetry SDKs (INV-B-01/02/16)
+|   '-- audit-gate.mjs                # P7.4 gate: pnpm audit high/critical w/ documented allowlist
 |-- tooling/                          # shared eslint / tsconfig / vitest setup
 |-- docs/                             # specs, scope matrix, REPO-SPEC-OSS, pilot guide
 |-- ADR/                              # ADR-001..013 (see ADR/README.md index)

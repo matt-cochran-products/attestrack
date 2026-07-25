@@ -31,6 +31,8 @@ Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../p
 
 **Prefix:** `/__attestrack__/portal/v1` (`PORTAL_API_PREFIX` in [packages/worker-core/src/portal.ts](../packages/worker-core/src/portal.ts)).
 
+> **Authentication (PORTAL.1 / P7.3) — read this before deploying.** Every route under the portal prefix is **unauthenticated by design**: Cloudflare Access is assumed in front of the Worker. **Without Access, this is a world-readable and world-writable operator config API** — anyone who finds the Worker hostname can read site config/logs and mutate `/strategies/toggle`, `/site-config/trusted-domains` (which feeds the CORS allowlist), and saved queries, and run `/explore/query` against your warehouse. Defense-in-depth option: set the Worker secret `PORTAL_API_SHARED_SECRET`; the Worker then requires the `x-attestrack-portal-secret` header (constant-time compare) on **every** portal request and answers `401 portal_unauthorized` otherwise. The check is a no-op when the secret is unset. Do **not** embed the secret in the public portal SPA bundle — it is for API clients or a header-injecting proxy. See `docs/THREAT-MODEL.md`.
+
 Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade (licensed repo, `docs/EXTENSION-PORTAL-API.md` — plain-text citation; not linkable from this repository). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
 
 ### Portal observability data sources (P3)
@@ -45,6 +47,7 @@ Machine list: `oss-http-contract.json` → `portalDataSources` (enforced by `pnp
 | GET `/signal`, `/signal-recovery` | **De-scoped v1 (P3.3)** | Returns `{ measured: false, reason: 'requires_beacon', message, botRequestsFiltered }`. Recovery comparisons need a client beacon Attestrack does not ship yet; the bot counter `attestrack:obs:bots:<day>` (troll-shield) is the only real figure |
 | GET `/signal-recovery/timeline` | **De-scoped v1** | Always `[]` — never invented points |
 | GET `/alert-rules` | KV (`attestrack:portal:alert_rules`, operator config) | A synthetic `consent-config` row is prepended while `attestrack:drift:mismatch` is active (P3.5) |
+| GET/POST `/analytics/curated` | **Computed** ([curated-analytics.ts](../packages/worker-core/src/curated-analytics.ts) `computeCuratedChart`) | **P4.3.** GET returns chart descriptors + warehouse status only (no series). POST `{ chartId, dateFrom, dateTo }` (dates `YYYY-MM-DD`) computes ONE chart per request (ANA.6): `events-volume`, `consent-rate-by-jurisdiction`, `bot-share` run **canned SQL through the SAME Explore gate + executor** as user queries (single warehouse path — INV-B-14/15/16); `destination-success-rate` derives from recorded delivery stats (STR.4). States `ok`/`empty`/`not_configured`/`error` carry a message and an empty series — never placeholder numbers. Enforced by `route-contract-check` (seeded analytics KV forbidden; curated SQL must pass the gate; no direct `fetch` in curated-analytics.ts) |
 
 Counters/logs are best-effort KV read-modify-write: values are **approximate lower bounds** under concurrency and must not be treated as billing-grade.
 
@@ -57,6 +60,7 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | Code | Typical status | Meaning |
 |------|----------------|---------|
 | `consent_secret_not_configured` | 503 | Secret binding missing |
+| `consent_secret_too_weak` | 503 | `CONSENT_TOKEN_SECRET` shorter than 16 bytes — the Worker refuses to mint tokens under a brute-forceable key (P7.2) |
 | `invalid_json` | 400 | Body not JSON |
 | `invalid_body` | 400 | Schema validation failed; `details` present |
 | `invalid_sql` | 400 | Explore proxy rejected SQL; top-level `reason` + `details.code` / `details.reason` (triage) |
@@ -65,8 +69,10 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | `explore_warehouse_fetch_failed` | 502 | Network failure calling warehouse |
 | `explore_warehouse_rejected` | 400 | ClickHouse returned `exception` in JSON body |
 | `explore_warehouse_bad_response` | 502 | Non-JSON warehouse response |
+| `saved_queries_limit` | 400 | Saved-query list is at `SAVED_QUERIES_MAX_ENTRIES` (100) — remove one before saving (P4.4) |
 | `invalid_mode` | 400 | Site mode enum (reserved; OSS does not accept mode POST — see `requires_attestrue`) |
 | `invalid_domains` | 400 | Trusted domains payload |
+| `portal_unauthorized` | 401 | `PORTAL_API_SHARED_SECRET` is configured and the `x-attestrack-portal-secret` header is missing/wrong (P7.3) |
 | `requires_attestrue` | 403 | Banner, policy, enforcement mode, and related portal mutations are **Attestrue**; response includes `handoff` URL |
 | `not_found` | 404 | Unknown portal subpath |
 | `method_not_allowed` | 405 | Wrong method for portal |
@@ -98,7 +104,9 @@ When `VITE_ATTESTRACK_API_BASE_URL` is unset, the portal **must** use local stub
 
 - **Gate:** Shared SQL validation in [`@attestrack/schema`](../packages/schema/src/explore-sql.ts) — single `SELECT`, allowlisted **bare** tables (`events`, `attestrack_events`; qualified `db.table` names rejected, `default` removed from the allowlist), no `UNION`, no `FROM (` subqueries, injected/clamped `LIMIT` (max `ATTESTRACK_EXPLORE_MAX_ROWS` = 500 in [`@attestrack/types`](../packages/types/src/explore.ts)).
 - **Warehouse:** `POST …/explore/query` runs against **Tinybird** if `TINYBIRD_TOKEN` is set (optional `TINYBIRD_API_URL`, default `https://api.tinybird.co`), else **ClickHouse** if `CLICKHOUSE_QUERY_URL` or `CLICKHOUSE_HTTP_URL` (origin used as query base). Uses `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` when set. POST body: `FORMAT JSON` over HTTP.
-- **Saved queries:** `GET` / `POST` `/explore/saved-queries`, `POST` `/explore/saved-queries/remove` — stored under `attestrack:portal:saved_queries` ([`kv-keys.ts`](../packages/types/src/kv-keys.ts)).
+- **Saved queries (P4.4):** `GET` / `POST` `/explore/saved-queries`, `POST` `/explore/saved-queries/remove`, `POST` `/explore/saved-queries/pin` — stored under `attestrack:portal:saved_queries` ([`kv-keys.ts`](../packages/types/src/kv-keys.ts)) with a **Zod-validated shape** (`savedQueriesKvSchema` in [`@attestrack/schema`](../packages/schema/src/portal-saved-queries.schema.ts)): corrupt entries are dropped, the list is bounded (`SAVED_QUERIES_MAX_ENTRIES` = 100; saves beyond it return `saved_queries_limit`).
+- **Pinning (EXP.10):** `POST …/pin` body `{ id, pinned, chart? }` (`chart` = user-directed `{ chartType, xColumn?, yColumn?, valueColumn? }`, chart types per `ATTESTRACK_EXPLORE_CHART_TYPES`). Pins are **personal**: keyed on the `Cf-Access-Authenticated-User-Email` request header (Cloudflare Access assumed in front of the portal API — PORTAL.1); list responses expose only the requester's own `pinned`/`pinnedChart`, never other users' pins. **Caveat:** without Access the header is absent and all requests share one anonymous pin identity (`''`).
+- **Editor (P4.2):** the portal Explore surface is a CodeMirror 6 SQL editor with schema autocomplete from `ATTESTRACK_EVENT_COLUMNS` + the table allowlist (EXP.6), a TanStack results table (EXP.7), and user-directed ECharts visualisation (EXP.8 — `table` default, never inferred). Curated Analytics charts reuse the same gate/executor server-side (see Portal observability data sources).
 
 ---
 

@@ -35,6 +35,7 @@
       "/explore/query",
       "/explore/saved-queries",
       "/explore/saved-queries/remove",
+      "/explore/saved-queries/pin",
       "/site-config/trusted-domains",
       "/analytics/curated",
       "/analytics/warehouse-status",
@@ -50,12 +51,13 @@
       "/logs/incoming": "same log ring as /logs",
       "/signal": "de-scoped v1 (P3.3): { measured: false, reason: 'requires_beacon', botRequestsFiltered } — the bot counter (attestrack:obs:bots:*) is the only real figure",
       "/signal-recovery": "same as /signal",
-      "/signal-recovery/timeline": "always [] in v1 (requires a client beacon; never invented points)"
+      "/signal-recovery/timeline": "always [] in v1 (requires a client beacon; never invented points)",
+      "/analytics/curated": "P4.3: GET returns chart descriptors + warehouse status only; POST { chartId, dateFrom, dateTo } computes ONE curated chart — warehouse charts (events-volume, consent-rate-by-jurisdiction, bot-share) via canned SQL through the SAME Explore gate (validateAndNormalizeExploreSql) + executor, destination-success-rate from recorded delivery stats (attestrack:obs:delivery:*). The route-contract check enforces that portal.ts calls computeCuratedChart and reads no seeded analytics KV, and that curated-analytics.ts goes through the Explore gate (never raw SQL)"
     },
     "kvBacked": {
       "/alert-rules": "operator-defined rules from attestrack:portal:alert_rules, prepended with a synthetic consent-config row while attestrack:drift:mismatch is active",
       "/strategies": "attestrack:portal:strategies (operator config)",
-      "/analytics/curated": "attestrack:portal:analytics (operator-curated series)"
+      "/explore/saved-queries": "attestrack:portal:saved_queries — Zod-validated shape (P4.4, @attestrack/schema savedQueriesKvSchema); per-user pins keyed on the Cf-Access-Authenticated-User-Email header (EXP.10; anonymous shared identity '' without Access)"
     }
   },
   "portalSubpathsRequiresAttestrue": {

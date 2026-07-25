@@ -1,4 +1,4 @@
-// Local attestrue Worker for self-host / dogfood dev.
+// Local attestrack Worker for self-host / dogfood dev.
 //
 // Runs the real Attestrack fetch handler (worker-core + all bundled strategies)
 // on a plain Node HTTP server, with the ClickHouse analytics strategy enabled by
@@ -9,12 +9,12 @@
 // Env:
 //   PORT                  default 8799
 //   CLICKHOUSE_HTTP_URL   full ClickHouse HTTP INSERT endpoint. Default targets a
-//                         local ClickHouse: INSERT INTO attestrue.tracking_events
+//                         local ClickHouse: INSERT INTO attestrack.tracking_events
 //                         FORMAT JSONEachRow (best_effort datetime parsing so the
 //                         event's ISO occurredAt maps to DateTime64).
 //   CLICKHOUSE_USER / CLICKHOUSE_PASSWORD  optional basic-auth.
 //
-// Ship a tflo signal here with the tflo→attestrue adapter (a POST to /t/event).
+// Ship a tflo signal here with the tflo→attestrack adapter (a POST to /t/event).
 import { createServer } from 'node:http'
 import { createAttestrackFetchHandler } from '@attestrack/worker-core'
 import { allBundledStrategies } from '@attestrack/strategies'
@@ -24,7 +24,7 @@ const port = Number(process.env.PORT ?? 8799)
 const clickhouseUrl =
   process.env.CLICKHOUSE_HTTP_URL ??
   'http://localhost:8123/?date_time_input_format=best_effort&query=' +
-    encodeURIComponent('INSERT INTO attestrue.tracking_events FORMAT JSONEachRow')
+    encodeURIComponent('INSERT INTO attestrack.tracking_events FORMAT JSONEachRow')
 
 const host = createMockHostRuntime({
   secrets: {
@@ -74,5 +74,5 @@ createServer(async (req, res) => {
     res.end(String(e))
   }
 }).listen(port, () => {
-  process.stderr.write(`attestrue local Worker on ${port} → ClickHouse ${clickhouseUrl.split('?')[0]}\n`)
+  process.stderr.write(`attestrack local Worker on ${port} → ClickHouse ${clickhouseUrl.split('?')[0]}\n`)
 })

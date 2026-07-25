@@ -21,12 +21,12 @@ describe('privacy consent token', () => {
   })
 
   it('rejects wrong secret', async () => {
-    const token = await createPrivacyConsentToken('a', {
+    const token = await createPrivacyConsentToken('secret-a-sixteen-bytes!!', {
       siteId: 's',
       decision: 'declined',
       policyHash: 'h'
     })
-    const v = await verifyPrivacyConsentToken('b', token)
+    const v = await verifyPrivacyConsentToken('secret-b-sixteen-bytes!!', token)
     expect(v.ok).toBe(false)
   })
 })

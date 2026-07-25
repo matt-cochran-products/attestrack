@@ -13,6 +13,19 @@ const forbiddenPaths = ['packages/merkle']
 /** Built without a single literal so this script does not self-trigger text scan. */
 const licensedSiblingName = ['attestrue', 'premium'].join('-')
 
+/** Files that legitimately name the licensed sibling because their JOB is to
+ *  DOCUMENT the OSS/premium boundary (ADR-009). Allowlisted so the poka-yoke
+ *  still catches accidental references everywhere else. */
+const allowedRefs = new Set([
+  path.join('docs', 'OSS-SCOPE-MATRIX.md'),
+  path.join('docs', 'REPO-SPEC-OSS.md'),
+  path.join('ADR', 'ADR-002-evidence-licensed-only.md'),
+  path.join('ADR', 'ADR-007-signing-dlq.md'),
+  path.join('ADR', 'ADR-008-standards-publication-gates.md'),
+  path.join('ADR', 'ADR-010-attestrack-core-extension-cache.md'),
+  'CONSENT-EVIDENCE-TOKEN-STANDARD.md'
+])
+
 const scanIgnoreDir = new Set([
   'node_modules',
   'dist',
@@ -69,6 +82,7 @@ const thisScript = fileURLToPath(import.meta.url)
 const files = walkFiles(root)
 for (const file of files) {
   if (file === thisScript) continue
+  if (allowedRefs.has(path.relative(root, file))) continue
   let text = ''
   try {
     text = fs.readFileSync(file, 'utf8')

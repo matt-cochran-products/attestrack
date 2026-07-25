@@ -19,6 +19,48 @@ import {
 } from './observability.js'
 export const PORTAL_API_PREFIX = '/__attestrack__/portal/v1'
 
+/**
+ * PORTAL.1 authn stance (P7.3): every route under {@link PORTAL_API_PREFIX} is
+ * **unauthenticated by design** — Cloudflare Access is assumed in front of the
+ * Worker hostname serving the portal API. WITHOUT Access (or the shared secret
+ * below) this is a world-readable AND world-writable operator config API
+ * (`/strategies/toggle`, `/site-config/trusted-domains`, saved-query writes).
+ *
+ * Optional defense-in-depth: when the Worker secret
+ * {@link PORTAL_SHARED_SECRET_NAME} is configured, every portal-prefix request
+ * must carry the {@link PORTAL_SHARED_SECRET_HEADER} header with the exact
+ * secret value (constant-time compare) or it gets `401 portal_unauthorized`.
+ * When the secret is NOT configured, behavior is unchanged (Access-fronted
+ * default). Note: enabling it also gates GET routes, so the community portal
+ * SPA can only talk to the Worker through something that injects the header
+ * (reverse proxy, API client) — the secret must never be embedded in the
+ * public SPA bundle.
+ */
+export const PORTAL_SHARED_SECRET_NAME = 'PORTAL_API_SHARED_SECRET'
+export const PORTAL_SHARED_SECRET_HEADER = 'x-attestrack-portal-secret'
+
+const te = new TextEncoder()
+
+/** Constant-time string compare (length-oblivious loop; no early content exit). */
+function constantTimeEquals(a: string, b: string): boolean {
+  const ab = te.encode(a)
+  const bb = te.encode(b)
+  let diff = ab.length ^ bb.length
+  const len = Math.max(ab.length, bb.length)
+  for (let i = 0; i < len; i += 1) diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0)
+  return diff === 0
+}
+
+function portalUnauthorizedResponse(): Response {
+  return Response.json(
+    {
+      error: 'portal_unauthorized',
+      message: `Portal API shared secret is configured; send the ${PORTAL_SHARED_SECRET_HEADER} header.`
+    },
+    { status: 401, headers: { 'cache-control': 'no-store' } }
+  )
+}
+
 const ATTESTRUE_UPGRADE_ORIGIN = 'https://attestrue.com'
 
 /** Policy/banner/enforcement mutations are Attestrue (worker-extension + licensed portal), not OSS. */
@@ -76,6 +118,16 @@ const defaultStrategies = {
 export async function handlePortalRequest(request: Request, host: HostRuntime): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith(PORTAL_API_PREFIX)) return null
+
+  // P7.3 defense-in-depth: optional shared-secret gate over the WHOLE portal
+  // API (reads and writes). No-op when the secret is not configured.
+  const sharedSecret = host.getSecret(PORTAL_SHARED_SECRET_NAME)
+  if (sharedSecret !== undefined && sharedSecret !== '') {
+    const provided = request.headers.get(PORTAL_SHARED_SECRET_HEADER)
+    if (provided === null || !constantTimeEquals(provided, sharedSecret)) {
+      return portalUnauthorizedResponse()
+    }
+  }
 
   const sub = url.pathname.slice(PORTAL_API_PREFIX.length) || '/'
 

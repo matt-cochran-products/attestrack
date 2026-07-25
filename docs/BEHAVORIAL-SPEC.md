@@ -84,6 +84,8 @@ The CLI completes a full community deployment without requiring a user account o
 
 The portal does not implement its own authentication. Access to the portal is controlled by the Cloudflare Access policy configured during deployment. A user who can access the portal URL is authenticated. There is no login screen in the portal.
 
+> **Amended (P7.3, `docs/THREAT-MODEL.md`):** the Worker's portal API (`/__attestrack__/portal/v1/*`) is likewise unauthenticated and MUST sit behind the same Access policy — without Access it is a world-writable config API. As optional defense-in-depth, the Worker secret `PORTAL_API_SHARED_SECRET` gates every portal API request behind the `x-attestrack-portal-secret` header (no-op when unset).
+
 ### PORTAL.2 — All data from the customer's own infrastructure
 
 Every piece of data displayed in the portal comes from the customer's own Cloudflare KV, D1, or R2. The portal makes no calls to Attestrue infrastructure during normal operation. The portal does not transmit any customer data to Attestrue.

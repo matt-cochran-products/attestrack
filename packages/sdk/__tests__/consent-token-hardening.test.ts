@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createPrivacyConsentToken,
+  isConsentSecretStrongEnough,
   keyringFromSecretValues,
   parseConsentSecretValue,
   verifyPrivacyConsentToken
@@ -204,7 +205,7 @@ describe('consent token hardening (P2.2)', () => {
     })
 
     it('signs new tokens with the current key id after rotation', async () => {
-      const rotated = keyringFromSecretValues('k2.new-secret!', 'k1.old-secret!')
+      const rotated = keyringFromSecretValues('k2.new-secret-sixteen-plus-bytes!', 'k1.old-secret-sixteen-plus-bytes!')
       const token = await createPrivacyConsentToken(rotated, {
         siteId: 's1',
         decision: 'granted',
@@ -218,16 +219,16 @@ describe('consent token hardening (P2.2)', () => {
 
     it('rejects tokens signed with a key id absent from the keyring (unknown_key)', async () => {
       const token = await createPrivacyConsentToken(
-        { keys: { k3: 'retired-secret' }, currentKeyId: 'k3' },
+        { keys: { k3: 'retired-secret-sixteen-bytes!' }, currentKeyId: 'k3' },
         { siteId: 's1', decision: 'granted', policyHash: 'h' }
       )
-      const v = await verifyPrivacyConsentToken({ keys: { k4: 'other' }, currentKeyId: 'k4' }, token)
+      const v = await verifyPrivacyConsentToken({ keys: { k4: 'other-secret-sixteen-bytes!!' }, currentKeyId: 'k4' }, token)
       expect(v.ok).toBe(false)
       if (!v.ok) expect(v.reason).toBe('unknown_key')
     })
 
     it('a token re-labeled with another valid key id fails (key id is signature-bound)', async () => {
-      const keyring = keyringFromSecretValues('k1.secret-one', 'k2.secret-two')
+      const keyring = keyringFromSecretValues('k1.secret-one-sixteen-bytes!', 'k2.secret-two-sixteen-bytes!')
       const token = await createPrivacyConsentToken(keyring, {
         siteId: 's1',
         decision: 'granted',
@@ -250,5 +251,52 @@ describe('consent token hardening (P2.2)', () => {
     const v = await verifyPrivacyConsentToken(SECRET, legacy)
     expect(v.ok).toBe(false)
     if (!v.ok) expect(v.reason).toBe('malformed')
+  })
+
+  describe('P7.2 crypto-review hardening', () => {
+    it('refuses to mint under a signing secret shorter than 16 bytes', async () => {
+      await expect(
+        createPrivacyConsentToken('short-secret', {
+          siteId: 's1',
+          decision: 'granted',
+          policyHash: 'h'
+        })
+      ).rejects.toThrow(/shorter than 16 bytes/)
+    })
+
+    it('mints at exactly the 16-byte floor', async () => {
+      const token = await createPrivacyConsentToken('0123456789abcdef', {
+        siteId: 's1',
+        decision: 'granted',
+        policyHash: 'h'
+      })
+      const v = await verifyPrivacyConsentToken('0123456789abcdef', token)
+      expect(v.ok).toBe(true)
+    })
+
+    it('measures the floor in BYTES, not code points (multi-byte secrets)', () => {
+      // 8 snowmen = 8 code points but 24 UTF-8 bytes → strong enough.
+      expect(isConsentSecretStrongEnough('☃'.repeat(8))).toBe(true)
+      expect(isConsentSecretStrongEnough('a'.repeat(15))).toBe(false)
+      expect(isConsentSecretStrongEnough('a'.repeat(16))).toBe(true)
+    })
+
+    it('rejects oversized tokens as malformed before any crypto work', async () => {
+      const v = await verifyPrivacyConsentToken(SECRET, `k1.${'A'.repeat(5000)}.sig`)
+      expect(v.ok).toBe(false)
+      if (!v.ok) expect(v.reason).toBe('malformed')
+    })
+
+    it('still verifies real tokens well below the length bound', async () => {
+      const token = await createPrivacyConsentToken(SECRET, {
+        siteId: 's1',
+        decision: 'granted',
+        policyHash: 'h',
+        ioa: ['privacy_policy', 'terms']
+      })
+      expect(token.length).toBeLessThan(1024)
+      const v = await verifyPrivacyConsentToken(SECRET, token)
+      expect(v.ok).toBe(true)
+    })
   })
 })

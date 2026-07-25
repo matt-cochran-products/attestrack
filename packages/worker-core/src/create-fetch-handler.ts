@@ -6,7 +6,9 @@ import {
 } from '@attestrack/schema'
 import {
   createPrivacyConsentToken,
+  isConsentSecretStrongEnough,
   keyringFromSecretValues,
+  parseConsentSecretValue,
   resolveStrategiesWithReplaces,
   type Strategy,
   type StrategyLoader,
@@ -141,6 +143,14 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
       if (!secret) {
         return withCors(
           Response.json({ error: 'consent_secret_not_configured' }, { status: 503 }),
+          corsOrigin
+        )
+      }
+      if (!isConsentSecretStrongEnough(parseConsentSecretValue(secret).secret)) {
+        // P7.2: never mint evidence tokens under a brute-forceable key —
+        // surface a clean operator-facing error instead of a mint-time 500.
+        return withCors(
+          Response.json({ error: 'consent_secret_too_weak' }, { status: 503 }),
           corsOrigin
         )
       }

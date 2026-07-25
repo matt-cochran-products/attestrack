@@ -1,11 +1,11 @@
-import type { HostRuntime } from '@attestrue/host-contracts'
+import type { HostRuntime } from '@attestrack/host-contracts'
 import type {
   JurisdictionConsentRow,
   TrackingEventV1,
   StrategyManifest,
   StrategyStage,
   VerifiedPrivacyConsentToken
-} from '@attestrue/types'
+} from '@attestrack/types'
 
 /** Mutable pipeline context passed through mandatory and destination stages. */
 export interface StrategyPipelineContext {

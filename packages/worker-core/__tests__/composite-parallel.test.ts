@@ -3,8 +3,8 @@ import {
   runDestinationStrategiesParallel,
   runMandatoryStrategies
 } from '../src/composite.js'
-import type { Strategy } from '@attestrue/sdk'
-import { createMockHostRuntime } from '@attestrue/sdk'
+import type { Strategy } from '@attestrack/sdk'
+import { createMockHostRuntime } from '@attestrack/sdk'
 
 describe('runMandatoryStrategies', () => {
   it('isolates troll-shield failures', async () => {

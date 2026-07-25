@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/consent-js",
+  "name": "@attestrack/consent-js",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "size-check": "size-limit"
   },
   "dependencies": {
-    "@attestrue/types": "workspace:*"
+    "@attestrack/types": "workspace:*"
   },
   "devDependencies": {
     "happy-dom": "^15.11.0",

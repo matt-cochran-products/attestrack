@@ -1,6 +1,6 @@
 # Repository specification — OSS (v0)
 
-**Binding for:** the public `attestrue` monorepo (`@attestrue/worker-core`, `@attestrue/portal-community`, `@attestrue/deploy`, etc.).  
+**Binding for:** the public `attestrue` monorepo (`@attestrack/worker-core`, `@attestrack/portal-community`, `@attestrack/deploy`, etc.).  
 **Not:** full Core ConOps, proprietary Repo Spec, or Portal Community Spec referenced from [BEHAVORIAL-SPEC.md](BEHAVORIAL-SPEC.md).
 
 **Canonical machine list:** [oss-http-contract.json](oss-http-contract.json) — validated by `pnpm route-contract-check` against Worker source.
@@ -72,7 +72,7 @@ When `VITE_ATTESTRACK_API_BASE_URL` is unset, the portal **must** use local stub
 
 ## Explore (INV-B-14 / INV-B-15 / INV-B-17)
 
-- **Gate:** Shared SQL validation in [`@attestrue/schema`](../packages/schema/src/explore-sql.ts) — single `SELECT`, allowlisted tables (`events`, `attestrack_events`, `default`), no `UNION`, no `FROM (` subqueries, injected/clamped `LIMIT` (max `ATTESTRACK_EXPLORE_MAX_ROWS` in [`@attestrue/types`](../packages/types/src/explore.ts)).
+- **Gate:** Shared SQL validation in [`@attestrack/schema`](../packages/schema/src/explore-sql.ts) — single `SELECT`, allowlisted tables (`events`, `attestrack_events`, `default`), no `UNION`, no `FROM (` subqueries, injected/clamped `LIMIT` (max `ATTESTRACK_EXPLORE_MAX_ROWS` in [`@attestrack/types`](../packages/types/src/explore.ts)).
 - **Warehouse:** `POST …/explore/query` runs against **Tinybird** if `TINYBIRD_TOKEN` is set (optional `TINYBIRD_API_URL`, default `https://api.tinybird.co`), else **ClickHouse** if `CLICKHOUSE_QUERY_URL` or `CLICKHOUSE_HTTP_URL` (origin used as query base). Uses `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` when set. POST body: `FORMAT JSON` over HTTP.
 - **Saved queries:** `GET` / `POST` `/explore/saved-queries`, `POST` `/explore/saved-queries/remove` — stored under `attestrack:portal:saved_queries` ([`kv-keys.ts`](../packages/types/src/kv-keys.ts)).
 

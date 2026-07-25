@@ -5,7 +5,7 @@ import {
   KV_KEY_POLICY_PRIVACY,
   KV_KEY_POLICY_TERMS,
   KV_KEY_PORTAL_SITE_CONFIG
-} from '@attestrue/types'
+} from '@attestrack/types'
 
 /** Default optional strategies: analytics + drift only; ad destinations off until secrets exist. */
 export const defaultEnabledStrategyIds = ['clickhouse', 'tinybird', 'drift-detection'] as const

@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/local-dev",
+  "name": "@attestrack/local-dev",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,8 +8,8 @@
     "worker": "node dev-worker.mjs"
   },
   "dependencies": {
-    "@attestrue/worker-core": "workspace:*",
-    "@attestrue/strategies": "workspace:*",
-    "@attestrue/sdk": "workspace:*"
+    "@attestrack/worker-core": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
+    "@attestrack/sdk": "workspace:*"
   }
 }

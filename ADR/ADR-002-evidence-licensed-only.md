@@ -9,11 +9,11 @@
 
 Architecture Assessment Q2 asks what the community-mode evidence shape is. **v9.2** resolved: no Merkle tree; **RFC 8785** canonical JSON, **`record_id` = SHA-256**, signing input **`{ site_id, record_id, timestamp }`** only for **Proof**. Full cryptographic contract (Ed25519 witness, proof blob, **`POST /verify`**, dual **`proof-anchors`**, `daily_root`): licensed **Consent Evidence Trust Chain Specification** v1.1 (`attestrue-premium/docs/CONSENT-EVIDENCE-TRUST-CHAIN-SPEC.md`).
 
-**Community consent** (this repository) ships **operator-managed** `ConsentConfig`, mandatory strategies (**jurisdiction**, **consent**, **evidence-unsigned**), HMAC privacy consent tokens, and **`@attestrue/consent-js`**. **Flat** `ConsentEventRecordV1` is **self-attested operational** evidence — not the **Proof** / witnessed canonical record.
+**Community consent** (this repository) ships **operator-managed** `ConsentConfig`, mandatory strategies (**jurisdiction**, **consent**, **evidence-unsigned**), HMAC privacy consent tokens, and **`@attestrack/consent-js`**. **Flat** `ConsentEventRecordV1` is **self-attested operational** evidence — not the **Proof** / witnessed canonical record.
 
 ## Decision
 
-- **No `@attestrue/merkle`** in the public repository. **No per-event Merkle tree** in the evidence architecture.
+- **No `@attestrack/merkle`** in the public repository. **No per-event Merkle tree** in the evidence architecture.
 - **Attestrack** SHALL include **`packages/consent-js`** and **community** mandatory consent strategies (see [`docs/COMMUNITY-CONSENT.md`](../docs/COMMUNITY-CONSENT.md)). **Premium** upgrades **jurisdiction sourcing** via `StrategyManifest.replaces` (e.g. `JurisdictionCompleteStrategy` replaces **`jurisdiction`**).
 - **Canonical consent evidence** (witnessed), **attorney-maintained regulation matrix**, and **Proof** remain **licensed** extension artifacts (CDN + edge cache) where applicable — not duplicated as Merkle in OSS.
 - **Proof** is **witnessing only** — it does **not** bundle **Operating Agreement** or **Acknowledgment** SKUs (v9.2 §3.4–3.5).

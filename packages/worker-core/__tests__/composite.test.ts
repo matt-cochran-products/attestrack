@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { runStrategiesForStage } from '../src/composite.js'
-import type { Strategy } from '@attestrue/sdk'
-import { createMockHostRuntime } from '@attestrue/sdk'
+import type { Strategy } from '@attestrack/sdk'
+import { createMockHostRuntime } from '@attestrack/sdk'
 
 describe('runStrategiesForStage', () => {
   it('runs strategies in order and merges context', async () => {

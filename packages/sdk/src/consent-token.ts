@@ -1,5 +1,5 @@
-import type { PrivacyConsentTokenPayloadV1 } from '@attestrue/types'
-import { privacyConsentTokenPayloadV1Schema } from '@attestrue/schema'
+import type { PrivacyConsentTokenPayloadV1 } from '@attestrack/types'
+import { privacyConsentTokenPayloadV1Schema } from '@attestrack/schema'
 
 const te = new TextEncoder()
 

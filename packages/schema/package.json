@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/schema",
+  "name": "@attestrack/schema",
   "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/types": "workspace:*",
+    "@attestrack/types": "workspace:*",
     "zod": "^3.23.0"
   },
   "files": ["dist"]

@@ -16,9 +16,9 @@
 //
 // Ship a tflo signal here with the tflo→attestrue adapter (a POST to /t/event).
 import { createServer } from 'node:http'
-import { createAttestrackFetchHandler } from '@attestrue/worker-core'
-import { allBundledStrategies } from '@attestrue/strategies'
-import { createMockHostRuntime, flushMockBackgroundTasks, noopStrategyLoader } from '@attestrue/sdk'
+import { createAttestrackFetchHandler } from '@attestrack/worker-core'
+import { allBundledStrategies } from '@attestrack/strategies'
+import { createMockHostRuntime, flushMockBackgroundTasks, noopStrategyLoader } from '@attestrack/sdk'
 
 const port = Number(process.env.PORT ?? 8799)
 const clickhouseUrl =

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMockHostRuntime } from '@attestrue/sdk'
+import { createMockHostRuntime } from '@attestrack/sdk'
 import { createOtelStrategy } from '../src/analytics/otel.js'
 
 const tracking = {

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
-import { createAttestrackFetchHandler } from '@attestrue/worker-core'
-import { allBundledStrategies } from '@attestrue/strategies'
-import { createMockHostRuntime, flushMockBackgroundTasks, noopStrategyLoader } from '@attestrue/sdk'
+import { createAttestrackFetchHandler } from '@attestrack/worker-core'
+import { allBundledStrategies } from '@attestrack/strategies'
+import { createMockHostRuntime, flushMockBackgroundTasks, noopStrategyLoader } from '@attestrack/sdk'
 
 const port = 8791
 const secret = 's'.repeat(32)

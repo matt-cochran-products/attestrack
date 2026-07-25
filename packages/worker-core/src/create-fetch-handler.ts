@@ -1,13 +1,13 @@
-import type { HostRuntime } from '@attestrue/host-contracts'
-import { consentCommitRequestSchema, trackingEventV1Schema } from '@attestrue/schema'
+import type { HostRuntime } from '@attestrack/host-contracts'
+import { consentCommitRequestSchema, trackingEventV1Schema } from '@attestrack/schema'
 import {
   createPrivacyConsentToken,
   resolveStrategiesWithReplaces,
   type Strategy,
   type StrategyLoader,
   type StrategyPipelineContext
-} from '@attestrue/sdk'
-import { KV_KEY_ENABLED_STRATEGIES, KV_KEY_POLICY_PRIVACY, KV_KEY_POLICY_TERMS } from '@attestrue/types'
+} from '@attestrack/sdk'
+import { KV_KEY_ENABLED_STRATEGIES, KV_KEY_POLICY_PRIVACY, KV_KEY_POLICY_TERMS } from '@attestrack/types'
 import {
   runDestinationStrategiesParallel,
   runMandatoryStrategies,

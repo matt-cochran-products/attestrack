@@ -7,9 +7,9 @@ import {
   createMockHostRuntime,
   flushMockBackgroundTasks,
   type Strategy
-} from '@attestrue/sdk'
-import { defaultCommunityStrategies } from '@attestrue/strategies'
-import { KV_KEY_ENABLED_STRATEGIES, KV_KEY_PORTAL_SITE_CONFIG } from '@attestrue/types'
+} from '@attestrack/sdk'
+import { defaultCommunityStrategies } from '@attestrack/strategies'
+import { KV_KEY_ENABLED_STRATEGIES, KV_KEY_PORTAL_SITE_CONFIG } from '@attestrack/types'
 import { TRACKING_EVENT_PATH } from '../../src/constants.js'
 
 describe('createAttestrackFetchHandler (contract)', () => {

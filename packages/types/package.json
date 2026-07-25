@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/types",
+  "name": "@attestrack/types",
   "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",

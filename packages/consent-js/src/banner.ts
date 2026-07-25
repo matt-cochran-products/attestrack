@@ -1,4 +1,4 @@
-import type { ConsentDecision } from '@attestrue/types'
+import type { ConsentDecision } from '@attestrack/types'
 import { commitPrivacyConsent, persistConsentCookie } from './commit.js'
 import { readGlobalPrivacyControl } from './gpc.js'
 import { initAttestrackClient, markConsentGranted } from './init.js'

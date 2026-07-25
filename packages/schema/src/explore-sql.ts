@@ -1,7 +1,7 @@
 import {
   ATTESTRACK_EXPLORE_ALLOWED_TABLES,
   ATTESTRACK_EXPLORE_MAX_ROWS
-} from '@attestrue/types'
+} from '@attestrack/types'
 
 export const EXPLORE_MAX_ROWS = ATTESTRACK_EXPLORE_MAX_ROWS
 

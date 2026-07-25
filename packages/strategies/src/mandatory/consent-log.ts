@@ -1,6 +1,6 @@
-import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
-import type { ConsentEventRecordV1, StrategyManifest } from '@attestrue/types'
-import { KV_KEY_CONSENT_EVENT_PREFIX } from '@attestrue/types'
+import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
+import type { ConsentEventRecordV1, StrategyManifest } from '@attestrack/types'
+import { KV_KEY_CONSENT_EVENT_PREFIX } from '@attestrack/types'
 
 function gpcActive(request: Request): boolean {
   return request.headers.get('Sec-GPC') === '1'

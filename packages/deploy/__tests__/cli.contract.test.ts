@@ -2,14 +2,14 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { KV_KEY_ENABLED_STRATEGIES } from '@attestrue/types'
+import { KV_KEY_ENABLED_STRATEGIES } from '@attestrack/types'
 import { runInteractiveDeploy, type RunCommandFn } from '../src/index.js'
 
 function seedMinimalMonorepo(root: string) {
   const pkgs: { dir: string; name: string }[] = [
-    { dir: 'worker-core', name: '@attestrue/worker-core' },
-    { dir: 'host-cloudflare-worker', name: '@attestrue/host-cloudflare-worker' },
-    { dir: 'strategies', name: '@attestrue/strategies' }
+    { dir: 'worker-core', name: '@attestrack/worker-core' },
+    { dir: 'host-cloudflare-worker', name: '@attestrack/host-cloudflare-worker' },
+    { dir: 'strategies', name: '@attestrack/strategies' }
   ]
   for (const { dir, name } of pkgs) {
     const p = join(root, 'packages', dir)

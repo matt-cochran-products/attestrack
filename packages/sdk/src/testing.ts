@@ -1,4 +1,4 @@
-import type { HostRuntime, HostKeyValue } from '@attestrue/host-contracts'
+import type { HostRuntime, HostKeyValue } from '@attestrack/host-contracts'
 
 class MemoryKv implements HostKeyValue {
   private readonly m = new Map<string, string>()

@@ -1,6 +1,6 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
-import { KV_KEY_CONSENT_CONFIG, KV_KEY_DRIFT_CURRENT, KV_KEY_DRIFT_EXPECTED } from '@attestrue/types'
+import type { Strategy } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
+import { KV_KEY_CONSENT_CONFIG, KV_KEY_DRIFT_CURRENT, KV_KEY_DRIFT_EXPECTED } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'drift-detection',

@@ -6,7 +6,7 @@ Use this when you want to run **Attestrack end-to-end** on **your** Cloudflare a
 
 - Node.js 20+
 - pnpm 9 (`packageManager` in the repo root `package.json`)
-- A Cloudflare account; install the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) or rely on the `wrangler` dependency pulled in by `@attestrue/deploy`
+- A Cloudflare account; install the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) or rely on the `wrangler` dependency pulled in by `@attestrack/deploy`
 - Log in once: `npx wrangler login`, or set `CLOUDFLARE_API_TOKEN` with **Workers**, **Workers KV**, and **Cloudflare Pages** permissions
 
 ## One-command deploy (preferred)
@@ -15,11 +15,11 @@ From the **repository root** (so `packages/worker-core` exists):
 
 ```bash
 pnpm install
-pnpm --filter @attestrue/deploy build
-pnpm --filter @attestrue/deploy exec attestrue-deploy
+pnpm --filter @attestrack/deploy build
+pnpm --filter @attestrack/deploy exec attestrue-deploy
 ```
 
-Or after publishing: `npx @attestrue/deploy` from the same monorepo layout.
+Or after publishing: `npx @attestrack/deploy` from the same monorepo layout.
 
 The CLI will:
 
@@ -63,7 +63,7 @@ The deploy completion banner repeats this reminder.
 
 ## Consent script and Explore
 
-1. Mount `@attestrue/consent-js` (or your integration) on a test property pointing at your Worker
+1. Mount `@attestrack/consent-js` (or your integration) on a test property pointing at your Worker
 2. Configure warehouse secrets (`TINYBIRD_TOKEN` and/or ClickHouse secrets) for **Explore**; saved queries live in KV under `attestrack:portal:saved_queries`
 
 ## Dashboard metrics (expectations)

@@ -1,5 +1,5 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import type { Strategy } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'meta-capi',

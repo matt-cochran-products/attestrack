@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createConsentCookieStrategy, verifyCommunityConsentToken } from '../src/mandatory/consent.js'
-import { createPrivacyConsentToken, createMockHostRuntime } from '@attestrue/sdk'
+import { createPrivacyConsentToken, createMockHostRuntime } from '@attestrack/sdk'
 
 describe('createConsentCookieStrategy', () => {
   it('honors GPC by downgrading granted token when jurisdiction requires it', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COMMUNITY_DEFAULT_CONSENT_CONFIG } from '@attestrue/types'
+import { COMMUNITY_DEFAULT_CONSENT_CONFIG } from '@attestrack/types'
 import { consentConfigSchema } from '../src/jurisdiction.schema.js'
 
 describe('consentConfigSchema', () => {

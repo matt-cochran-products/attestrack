@@ -1,4 +1,4 @@
-import type { Strategy } from '@attestrue/sdk'
+import type { Strategy } from '@attestrack/sdk'
 import { createClickHouseStrategy } from './analytics/clickhouse.js'
 import { createOtelStrategy } from './analytics/otel.js'
 import { createTinybirdStrategy } from './analytics/tinybird.js'

@@ -1,6 +1,6 @@
 /**
  * Runtime ports for any edge or server host (Cloudflare Workers, Node, etc.).
- * Implementations live in packages like `@attestrue/host-cloudflare-worker`.
+ * Implementations live in packages like `@attestrack/host-cloudflare-worker`.
  */
 
 export interface HostKeyValue {

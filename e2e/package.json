@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/e2e",
+  "name": "@attestrack/e2e",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,9 +7,9 @@
     "test:install": "playwright install --with-deps"
   },
   "dependencies": {
-    "@attestrue/sdk": "workspace:*",
-    "@attestrue/strategies": "workspace:*",
-    "@attestrue/worker-core": "workspace:*"
+    "@attestrack/sdk": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
+    "@attestrack/worker-core": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"

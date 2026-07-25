@@ -1,5 +1,5 @@
-import { verifyPrivacyConsentToken, type Strategy } from '@attestrue/sdk'
-import type { StrategyManifest, VerifiedPrivacyConsentToken } from '@attestrue/types'
+import { verifyPrivacyConsentToken, type Strategy } from '@attestrack/sdk'
+import type { StrategyManifest, VerifiedPrivacyConsentToken } from '@attestrack/types'
 import { communityJurisdictionStrategy } from './jurisdiction.js'
 import { evidenceUnsignedStrategy } from './consent-log.js'
 import { communityTrollShieldStrategy } from './troll-shield.js'

@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/strategies",
+  "name": "@attestrack/strategies",
   "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,9 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/types": "workspace:*",
-    "@attestrue/sdk": "workspace:*",
-    "@attestrue/schema": "workspace:*"
+    "@attestrack/types": "workspace:*",
+    "@attestrack/sdk": "workspace:*",
+    "@attestrack/schema": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^2.0.0"

@@ -71,9 +71,9 @@ Phase 4 exit rule: every EXP row **passes a contract/component test** or is **ex
 |----|-----------------|-------|---------|----------|
 | INV-B-01, INV-B-02 | Y (design intent) | No Attestrue calls in OSS code paths | ADR-010 | Code review + e2e smoke |
 | INV-B-03 | Y (enforced) | Shadow default in seed AND pipeline: missing/`NOT_CONFIGURED` mode collapses to SHADOW; SHADOW never blocks destinations, would-be decision recorded | — | [consent-matrix.contract.test.ts](../packages/worker-core/__tests__/contract/consent-matrix.contract.test.ts) (INV-B-03-named cases), [consent-gate.test.ts](../packages/sdk/__tests__/consent-gate.test.ts) |
-| INV-B-04 | Partial | Enforcement without policy versions — full gate is product; OSS has modes | — | — |
+| INV-B-04 | Partial | Enforcement without policy versions — full gate is product; OSS has modes (SHADOW/ENFORCEMENT shipped + tested; policy-version gating licensed) | — | [consent-matrix.contract.test.ts](../packages/worker-core/__tests__/contract/consent-matrix.contract.test.ts) (mode semantics; licensed remainder has no OSS evidence by design) |
 | INV-B-05 – INV-B-09 | Licensed / reference (INV-B-06/07 banner surface is OSS) | Evidence chain, policy immutability UI licensed; community banner enforces required IOA checkboxes (06) and a co-equal Reject all (07) | ADR-010 | [banner.test.ts](../packages/consent-js/__tests__/banner.test.ts) INV-B-06/07 tests |
-| INV-B-10 | Target | CLI must not echo secrets — verify as deploy matures | — | — |
+| INV-B-10 | Y (P5) | CLI never echoes secrets: masked prompt + `maskSecrets` on all CLI output/diffs | — | [secret-masking.test.ts](../packages/deploy/__tests__/secret-masking.test.ts), [`mask.ts`](../packages/deploy/src/mask.ts) |
 | INV-B-11 | Y | Customer account resources | — | deploy templates |
 | INV-B-12 | Y | Static upgrade route | — | portal static |
 | INV-B-13 | Licensed | Community TIR disclaimer | ADR-010 | — |

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tooling/tsconfig/library.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"],
+    "baseUrl": ".",
+    "paths": {
+      "@attestrack/sdk": ["src/index.ts"]
+    }
+  },
+  "include": ["examples"]
+}

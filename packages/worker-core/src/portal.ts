@@ -1,4 +1,4 @@
-import type { HostRuntime } from '@attestrue/host-contracts'
+import type { HostRuntime } from '@attestrack/host-contracts'
 import {
   KV_KEY_PORTAL_ANALYTICS,
   KV_KEY_PORTAL_ALERT_RULES,
@@ -9,8 +9,8 @@ import {
   KV_KEY_PORTAL_SIGNAL,
   KV_KEY_PORTAL_SITE_CONFIG,
   KV_KEY_PORTAL_STRATEGIES
-} from '@attestrue/types'
-import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrue/schema'
+} from '@attestrack/types'
+import { exploreGateErrorPayload, validateAndNormalizeExploreSql } from '@attestrack/schema'
 import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
 export const PORTAL_API_PREFIX = '/__attestrack__/portal/v1'
 

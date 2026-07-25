@@ -50,23 +50,23 @@ These are consumed by the private repo as versioned npm dependencies (never loca
 
 | Package | Description | Dependencies |
 |---|---|---|
-| `@attestrue/types` | Domain types (zero deps, root of graph) | none |
-| `@attestrue/schema` | Zod runtime validation schemas | `@attestrue/types`, `zod` |
-| `@attestrue/sdk` | Adapter development kit | `@attestrue/types`, `@attestrue/schema` |
-| `@attestrue/consent-js` | Community first-party consent script (contracts + stub) | `@attestrue/types`, `@attestrue/schema` |
+| `@attestrack/types` | Domain types (zero deps, root of graph) | none |
+| `@attestrack/schema` | Zod runtime validation schemas | `@attestrack/types`, `zod` |
+| `@attestrack/sdk` | Adapter development kit | `@attestrack/types`, `@attestrack/schema` |
+| `@attestrack/consent-js` | Community first-party consent script (contracts + stub) | `@attestrack/types`, `@attestrack/schema` |
 
 ## Package Dependency Graph
 
 ```
-@attestrue/host-contracts   (no deps)
+@attestrack/host-contracts   (no deps)
        |
-       |---> @attestrue/host-cloudflare-worker   (host-contracts + CF types)
+       |---> @attestrack/host-cloudflare-worker   (host-contracts + CF types)
        |
-@attestrue/types            (no deps)
+@attestrack/types            (no deps)
        |
-       |---> @attestrue/schema     (types + zod)
+       |---> @attestrack/schema     (types + zod)
        |           |
-       |           '---> @attestrue/sdk        (types + schema + host-contracts)
+       |           '---> @attestrack/sdk        (types + schema + host-contracts)
        |                       |
        |           .-----------'
        |           |
@@ -95,25 +95,25 @@ attestrue/
 |
 |-- packages/
 |   |
-|   |-- types/                        # @attestrue/types (published)
+|   |-- types/                        # @attestrack/types (published)
 |   |   |-- src/
 |   |   |   |-- strategy.ts          # StrategyManifest, StrategyCategory
 |   |   |   |-- tracking.ts          # TrackingEvent (ClickHouse/Tinybird schema)
 |   |   |   '-- index.ts             # Public surface: tracking + strategy only (ADR-010)
-|   |   |   # consent / evidence / jurisdiction / policy / counsel → @attestrue/types-extensions (licensed)
+|   |   |   # consent / evidence / jurisdiction / policy / counsel → @attestrack/types-extensions (licensed)
 |   |   |-- package.json
 |   |   '-- tsconfig.json
 |   |
-|   |-- schema/                       # @attestrue/schema (published)
+|   |-- schema/                       # @attestrack/schema (published)
 |   |   |-- src/
 |   |   |   |-- strategy.schema.ts
 |   |   |   |-- tracking.schema.ts
 |   |   |   '-- index.ts             # Public: tracking + strategy only
-|   |   |   # consent / jurisdiction / evidence / policy / proof schemas → @attestrue/schema-extensions (licensed)
+|   |   |   # consent / jurisdiction / evidence / policy / proof schemas → @attestrack/schema-extensions (licensed)
 |   |   |-- package.json
 |   |   '-- tsconfig.json
 |   |
-|   |-- sdk/                          # @attestrue/sdk (published)
+|   |-- sdk/                          # @attestrack/sdk (published)
 |   |   |-- src/
 |   |   |   |-- interfaces.ts        # Strategy, StrategyLoader, NoopLoader
 |   |   |   |-- testing.ts           # StrategyTestHarness, MockConsentEvent
@@ -194,7 +194,7 @@ attestrue/
 |       |   |-- r2-setup.ts           # R2 bucket + object lock config
 |       |   |-- d1-schema.sql         # D1 database schema
 |       |   |-- dns-guide.ts          # Customer-specific DNS instructions
-|       |   '-- index.ts              # CLI entry point: npx @attestrue/deploy
+|       |   '-- index.ts              # CLI entry point: npx @attestrack/deploy
 |       |-- package.json
 |       '-- tsconfig.json
 |
@@ -221,9 +221,9 @@ attestrue/
 
 Three packages are published to npm and consumed by the private repo as versioned dependencies:
 
-- `@attestrue/types` -- Pure TS interfaces, zero deps, the shared vocabulary
-- `@attestrue/sdk` -- Adapter dev kit (Strategy interface, NoopLoader, test harness)
-- `@attestrue/schema` -- Zod runtime validation (carries zod as runtime dep)
+- `@attestrack/types` -- Pure TS interfaces, zero deps, the shared vocabulary
+- `@attestrack/sdk` -- Adapter dev kit (Strategy interface, NoopLoader, test harness)
+- `@attestrack/schema` -- Zod runtime validation (carries zod as runtime dep)
 
 The private repo never has local path dependencies on this repo. Both compile against the same published type contracts.
 

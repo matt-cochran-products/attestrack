@@ -1,7 +1,7 @@
-import type { ConsentCommitRequest, TrackingEventV1 } from '@attestrue/types'
+import type { ConsentCommitRequest, TrackingEventV1 } from '@attestrack/types'
 import { TRACKING_EVENT_PATH } from './paths.js'
 
-/** Worker route handled by `createAttestrackFetchHandler` in `@attestrue/worker-core`. */
+/** Worker route handled by `createAttestrackFetchHandler` in `@attestrack/worker-core`. */
 export const CONSENT_COMMIT_PATH = '/__attestrack__/consent/commit'
 
 export async function commitPrivacyConsent(
@@ -24,7 +24,7 @@ export async function commitPrivacyConsent(
 }
 
 /**
- * Persists the opaque consent token as `at_consent` (see `@attestrue/strategies` mandatory consent).
+ * Persists the opaque consent token as `at_consent` (see `@attestrack/strategies` mandatory consent).
  * Call only in a secure browser context (HTTPS).
  */
 export function persistConsentCookie(token: string, maxAgeSec = 31536000): void {

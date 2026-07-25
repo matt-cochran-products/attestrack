@@ -213,7 +213,7 @@ User has credentials and configuration ready.
 npx @attestrack/deploy
 ````
 
-*(If using legacy package name: `@attestrue/deploy`, this deploys Attestrack.)*
+*(If using legacy package name: `@attestrack/deploy`, this deploys Attestrack.)*
 
 ---
 

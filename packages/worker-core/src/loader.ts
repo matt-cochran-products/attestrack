@@ -1,1 +1,1 @@
-export { noopStrategyLoader, type StrategyLoader } from '@attestrue/sdk'
+export { noopStrategyLoader, type StrategyLoader } from '@attestrack/sdk'

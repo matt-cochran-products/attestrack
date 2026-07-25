@@ -1,4 +1,4 @@
-import { validateAndNormalizeExploreSql } from '@attestrue/schema';
+import { validateAndNormalizeExploreSql } from '@attestrack/schema';
 import { apiPost, apiGet, isLiveApi } from './http';
 import { stubDelay } from './delay';
 import { PORTAL_WORKER_PREFIX } from './constants';

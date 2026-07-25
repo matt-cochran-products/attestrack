@@ -215,7 +215,7 @@ export async function runInteractiveDeploy(options?: RunInteractiveDeployOptions
         '# Monorepo required',
         '',
         'This scaffold was generated without resolving local `file:` dependencies.',
-        'Clone the attestrue repository and re-run `npx @attestrue/deploy` from the repo root,',
+        'Clone the attestrue repository and re-run `npx @attestrack/deploy` from the repo root,',
         'or copy this folder into the repo and add package.json dependencies manually.',
         ''
       ].join('\n')
@@ -289,7 +289,7 @@ function buildScaffoldReadme(opts: {
       ? [
           '## Automated path',
           '',
-          'From the repo root, `npx @attestrue/deploy` creates the KV namespace (or reuses an existing one if you confirm), installs deps, seeds KV,',
+          'From the repo root, `npx @attestrack/deploy` creates the KV namespace (or reuses an existing one if you confirm), installs deps, seeds KV,',
           'prompts for `CONSENT_TOKEN_SECRET`, deploys the Worker, and (unless `--skip-portal`) builds and deploys the portal to Cloudflare Pages.',
           'Re-run: use `--reuse-kv` for non-interactive reuse, or answer the reuse prompt when `wrangler.toml` already exists.',
           ''
@@ -299,7 +299,7 @@ function buildScaffoldReadme(opts: {
       ? [
           '## Manual path (scaffold-only)',
           '',
-          '1. `cd` this folder; ensure package.json lists `@attestrue/*` dependencies.',
+          '1. `cd` this folder; ensure package.json lists `@attestrack/*` dependencies.',
           '2. `npm install`',
           '3. `npx wrangler secret put CONSENT_TOKEN_SECRET`',
           '4. `npx wrangler kv bulk put .kv-bulk-upload.json --binding ATTESTRACK_KV` (after creating the namespace)',

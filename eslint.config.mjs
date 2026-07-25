@@ -15,6 +15,7 @@ export default tseslint.config(
       '**/rollup.config.js',
       'tooling/vitest/setup.ts',
       'e2e/scripts/**',
+      'deploy/local/**',
       'e2e/node_modules/**',
       'e2e/playwright-report/**',
       'e2e/test-results/**'

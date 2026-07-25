@@ -1,5 +1,5 @@
-import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
 
 export const communityTrollShieldStrategyManifest: StrategyManifest = {
   id: 'troll-shield',

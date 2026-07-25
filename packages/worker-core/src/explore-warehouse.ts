@@ -1,5 +1,5 @@
-import type { HostRuntime } from '@attestrue/host-contracts'
-import { EXPLORE_MAX_ROWS } from '@attestrue/schema'
+import type { HostRuntime } from '@attestrack/host-contracts'
+import { EXPLORE_MAX_ROWS } from '@attestrack/schema'
 
 export type ExploreWarehouseOk = {
   ok: true

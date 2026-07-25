@@ -1,10 +1,10 @@
-# @attestrue/consent-js
+# @attestrack/consent-js
 
 Community **first-party consent script** for Attestrack: banner, Global Privacy Control handling, HMAC consent token coordination with the Worker, and script blocking. The package is **stubbed** here; behavior will ship incrementally alongside mandatory Worker strategies.
 
 ## Configuration (KV)
 
-Operators store **`ConsentConfig`** (validated by `consentConfigSchema`) in their own KV. A JSON template ships at [`templates/community-default-consent-config.json`](./templates/community-default-consent-config.json). The same TypeScript defaults are exported as `COMMUNITY_DEFAULT_CONSENT_CONFIG` from `@attestrue/types`.
+Operators store **`ConsentConfig`** (validated by `consentConfigSchema`) in their own KV. A JSON template ships at [`templates/community-default-consent-config.json`](./templates/community-default-consent-config.json). The same TypeScript defaults are exported as `COMMUNITY_DEFAULT_CONSENT_CONFIG` from `@attestrack/types`.
 
 **Not legal advice.** Community defaults are sensible starting points for a working deployment; keeping them current as laws change is the operator’s responsibility.
 

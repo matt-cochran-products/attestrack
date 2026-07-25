@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Strategy, StrategyPipelineContext, StrategyResult } from '../src/interfaces.js'
 import { resolveStrategiesWithReplaces } from '../src/strategy-resolution.js'
-import type { StrategyManifest } from '@attestrue/types'
+import type { StrategyManifest } from '@attestrack/types'
 
 async function noopRun(_ctx: StrategyPipelineContext): Promise<StrategyResult> {
   return { continuePipeline: true }

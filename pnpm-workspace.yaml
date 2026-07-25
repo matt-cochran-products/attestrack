@@ -1,4 +1,5 @@
 packages:
+  - 'deploy/local'
   - 'packages/*'
   - 'tooling/*'
   - 'e2e/'

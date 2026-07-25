@@ -39,15 +39,27 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.37)(happy-dom@15.11.7)(jsdom@25.0.1)
 
+  deploy/local:
+    dependencies:
+      '@attestrack/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@attestrack/strategies':
+        specifier: workspace:*
+        version: link:../../packages/strategies
+      '@attestrack/worker-core':
+        specifier: workspace:*
+        version: link:../../packages/worker-core
+
   e2e:
     dependencies:
-      '@attestrue/sdk':
+      '@attestrack/sdk':
         specifier: workspace:*
         version: link:../packages/sdk
-      '@attestrue/strategies':
+      '@attestrack/strategies':
         specifier: workspace:*
         version: link:../packages/strategies
-      '@attestrue/worker-core':
+      '@attestrack/worker-core':
         specifier: workspace:*
         version: link:../packages/worker-core
     devDependencies:
@@ -57,7 +69,7 @@ importers:
 
   packages/consent-js:
     dependencies:
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:
@@ -88,7 +100,7 @@ importers:
 
   packages/deploy:
     dependencies:
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
       wrangler:
@@ -104,7 +116,7 @@ importers:
 
   packages/host-cloudflare-worker:
     dependencies:
-      '@attestrue/host-contracts':
+      '@attestrack/host-contracts':
         specifier: workspace:*
         version: link:../host-contracts
     devDependencies:
@@ -116,10 +128,10 @@ importers:
 
   packages/portal-community:
     dependencies:
-      '@attestrue/schema':
+      '@attestrack/schema':
         specifier: workspace:*
         version: link:../schema
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
       react:
@@ -174,7 +186,7 @@ importers:
 
   packages/schema:
     dependencies:
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
       zod:
@@ -183,25 +195,25 @@ importers:
 
   packages/sdk:
     dependencies:
-      '@attestrue/host-contracts':
+      '@attestrack/host-contracts':
         specifier: workspace:*
         version: link:../host-contracts
-      '@attestrue/schema':
+      '@attestrack/schema':
         specifier: workspace:*
         version: link:../schema
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
 
   packages/strategies:
     dependencies:
-      '@attestrue/schema':
+      '@attestrack/schema':
         specifier: workspace:*
         version: link:../schema
-      '@attestrue/sdk':
+      '@attestrack/sdk':
         specifier: workspace:*
         version: link:../sdk
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:
@@ -213,20 +225,20 @@ importers:
 
   packages/worker-core:
     dependencies:
-      '@attestrue/host-contracts':
+      '@attestrack/host-contracts':
         specifier: workspace:*
         version: link:../host-contracts
-      '@attestrue/schema':
+      '@attestrack/schema':
         specifier: workspace:*
         version: link:../schema
-      '@attestrue/sdk':
+      '@attestrack/sdk':
         specifier: workspace:*
         version: link:../sdk
-      '@attestrue/types':
+      '@attestrack/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:
-      '@attestrue/strategies':
+      '@attestrack/strategies':
         specifier: workspace:*
         version: link:../strategies
       vitest:

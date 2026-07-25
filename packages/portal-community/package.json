@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/portal-community",
+  "name": "@attestrack/portal-community",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/schema": "workspace:*",
-    "@attestrue/types": "workspace:*",
+    "@attestrack/schema": "workspace:*",
+    "@attestrack/types": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.23.0",

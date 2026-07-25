@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createAttestrackFetchHandler } from '../../src/create-fetch-handler.js'
-import { noopStrategyLoader, createMockHostRuntime } from '@attestrue/sdk'
+import { noopStrategyLoader, createMockHostRuntime } from '@attestrack/sdk'
 
 /** INV-B-14 / INV-B-15 — Explore gate + warehouse contract. */
 describe('portal explore/query contract', () => {

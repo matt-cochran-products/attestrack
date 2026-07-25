@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { evidenceUnsignedStrategy } from '../src/mandatory/consent-log.js'
-import { createMockHostRuntime } from '@attestrue/sdk'
+import { createMockHostRuntime } from '@attestrack/sdk'
 
 describe('evidenceUnsignedStrategy', () => {
   it('writes consent event record to KV', async () => {

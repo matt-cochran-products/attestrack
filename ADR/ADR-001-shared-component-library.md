@@ -10,7 +10,7 @@ Architecture Assessment Q1 asks whether community (#16) and licensed (#42) porta
 
 ## Decision
 
-Create `packages/ui/` as `@attestrue/ui` in this repository, consumed by portal-community (#16) and by the licensed portals in the private repo. This is a shared presentational component library -- no backend dependencies, no business logic. Both portals import from `@attestrue/ui` for shared UI components (evidence chain viewer, jurisdiction map, proof badge, configuration panels, dashboard widgets). This resolves Decision 7 (Evaluate Community/Licensed Portal Merge) -- the answer is: shared library, not merged app.
+Create `packages/ui/` as `@attestrack/ui` in this repository, consumed by portal-community (#16) and by the licensed portals in the private repo. This is a shared presentational component library -- no backend dependencies, no business logic. Both portals import from `@attestrack/ui` for shared UI components (evidence chain viewer, jurisdiction map, proof badge, configuration panels, dashboard widgets). This resolves Decision 7 (Evaluate Community/Licensed Portal Merge) -- the answer is: shared library, not merged app.
 
 ## Consequences
 
@@ -26,15 +26,15 @@ Create `packages/ui/` as `@attestrue/ui` in this repository, consumed by portal-
 
 ## Structural Assertions
 
-1. "When `@attestrue/ui` exports a component, that component SHALL be presentational only -- no API calls, no business logic, no backend dependencies."
-2. "When portal-community (#16) renders a shared view, it SHALL import the component from `@attestrue/ui`."
-3. "When `@attestrue/ui` is consumed, it SHALL NOT require any backend service to render -- data is provided by the consuming portal via props."
+1. "When `@attestrack/ui` exports a component, that component SHALL be presentational only -- no API calls, no business logic, no backend dependencies."
+2. "When portal-community (#16) renders a shared view, it SHALL import the component from `@attestrack/ui`."
+3. "When `@attestrack/ui` is consumed, it SHALL NOT require any backend service to render -- data is provided by the consuming portal via props."
 
 ## Spec Changes Required
 
-- **Public repo:** Create `packages/ui/` with package.json (`@attestrue/ui`, private initially, published to npm when stable)
-- **`specs/customer-portal/STRUCTURE.md`:** Close Q1, add `@attestrue/ui` consumption assertions
-- **`specs/MANIFEST.md`:** Add `@attestrue/ui` to component allocation
+- **Public repo:** Create `packages/ui/` with package.json (`@attestrack/ui`, private initially, published to npm when stable)
+- **`specs/customer-portal/STRUCTURE.md`:** Close Q1, add `@attestrack/ui` consumption assertions
+- **`specs/MANIFEST.md`:** Add `@attestrack/ui` to component allocation
 - **`specs/ARCHITECTURE-ASSESSMENT.md`:** Close Q1, update Decision 7
 
 ## FMECA Cross-References

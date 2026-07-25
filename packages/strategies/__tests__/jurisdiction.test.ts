@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { communityJurisdictionStrategy } from '../src/mandatory/jurisdiction.js'
-import { createMockHostRuntime } from '@attestrue/sdk'
-import { KV_KEY_CONSENT_CONFIG } from '@attestrue/types'
+import { createMockHostRuntime } from '@attestrack/sdk'
+import { KV_KEY_CONSENT_CONFIG } from '@attestrack/types'
 
 describe('communityJurisdictionStrategy', () => {
   it('uses DEFAULT when geo unknown', async () => {

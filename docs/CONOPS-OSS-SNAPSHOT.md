@@ -26,13 +26,13 @@ Implemented in [composite.ts](../packages/worker-core/src/composite.ts) and invo
 4. **Destination** — Parallel fan-out with per-strategy error isolation.
 5. **Analytics** — Analytics stage strategies after destinations.
 
-Context is `StrategyPipelineContext` from `@attestrue/sdk`.
+Context is `StrategyPipelineContext` from `@attestrack/sdk`.
 
 ---
 
 ## Background work
 
-`HostRuntime.scheduleBackground` queues async work. On Cloudflare, this maps to `waitUntil`-style continuation so the client response can return before destinations finish. Tests use `flushMockBackgroundTasks` from `@attestrue/sdk` to assert ordering.
+`HostRuntime.scheduleBackground` queues async work. On Cloudflare, this maps to `waitUntil`-style continuation so the client response can return before destinations finish. Tests use `flushMockBackgroundTasks` from `@attestrack/sdk` to assert ordering.
 
 ---
 

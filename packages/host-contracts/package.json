@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/host-contracts",
+  "name": "@attestrack/host-contracts",
   "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",

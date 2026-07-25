@@ -15,9 +15,9 @@ export function buildScaffoldPackageJson(opts: ScaffoldPackageJsonOptions): stri
       deploy: 'wrangler deploy'
     },
     dependencies: {
-      '@attestrue/worker-core': opts.workerCore,
-      '@attestrue/host-cloudflare-worker': opts.hostCloudflareWorker,
-      '@attestrue/strategies': opts.strategies
+      '@attestrack/worker-core': opts.workerCore,
+      '@attestrack/host-cloudflare-worker': opts.hostCloudflareWorker,
+      '@attestrack/strategies': opts.strategies
     },
     devDependencies: {
       wrangler: opts.wranglerSemver

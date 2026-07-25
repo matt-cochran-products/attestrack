@@ -16,7 +16,7 @@ This repository is the open-source **Attestrack** implementation, including **co
 - **First-party endpoint.** Events hit your subdomain; the Worker fans out server-side to Meta, Google, TikTok, Microsoft, and other strategies you enable.
 - **Canonical event schema** for ClickHouse (and Tinybird) so analytics stay **queryable and yours**.
 
-> **Product boundary (ADR-010):** Attestrack ships **analytics + server-side measurement + community consent** (`ConsentConfig` in your KV, mandatory Worker strategies, `@attestrue/consent-js`). **Attorney-maintained regulation rows, canonical witnessed evidence, and Proof** are **Attestrue extensions** (CDN artifacts on your Worker). See [`docs/COMMUNITY-CONSENT.md`](docs/COMMUNITY-CONSENT.md).
+> **Product boundary (ADR-010):** Attestrack ships **analytics + server-side measurement + community consent** (`ConsentConfig` in your KV, mandatory Worker strategies, `@attestrack/consent-js`). **Attorney-maintained regulation rows, canonical witnessed evidence, and Proof** are **Attestrue extensions** (CDN artifacts on your Worker). See [`docs/COMMUNITY-CONSENT.md`](docs/COMMUNITY-CONSENT.md).
 
 ### Self-hosted analytics layer
 
@@ -48,7 +48,7 @@ pnpm boundary-check
 **Run locally**
 
 - Marketing site (separate repo): clone [attestrue-site](https://github.com/attestrue/attestrue-site), then `npm install` and `npm run dev` (or `pnpm` equivalents).
-- Community portal: `pnpm --filter @attestrue/portal-community dev`
+- Community portal: `pnpm --filter @attestrack/portal-community dev`
 
 ---
 
@@ -96,7 +96,7 @@ attestrue/
 
 ## Deploy to Cloudflare
 
-From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV seed, secrets, optional Pages portal). See [docs/PILOT-OSS.md](docs/PILOT-OSS.md).
+From the repository root, use the guided `@attestrack/deploy` CLI (Worker, KV seed, secrets, optional Pages portal). See [docs/PILOT-OSS.md](docs/PILOT-OSS.md).
 
 ---
 
@@ -105,15 +105,15 @@ From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV see
 | Package | Role |
 |---------|------|
 | [`attestrue-site`](https://github.com/attestrue/attestrue-site) (separate repo) | Attestrack marketing site (attestrack.dev) |
-| `@attestrue/deploy` | Deployment tooling |
-| `@attestrue/worker-core` | Worker fetch handler + strategy pipeline (uses `HostRuntime` only) |
-| `@attestrue/host-contracts` | Portable host port types |
-| `@attestrue/host-cloudflare-worker` | Default Cloudflare `HostRuntime` adapter |
-| `@attestrue/consent-js` | Browser consent commit + cookie helpers |
-| `@attestrue/strategies` | Bundled strategies (analytics + ads + community consent) |
-| `@attestrue/portal-community` | Operator UI |
-| `@attestrue/schema` / `@attestrue/types` | Shared public contracts |
-| `@attestrue/sdk` | Strategy author SDK + consent token + `resolveStrategiesWithReplaces` |
+| `@attestrack/deploy` | Deployment tooling |
+| `@attestrack/worker-core` | Worker fetch handler + strategy pipeline (uses `HostRuntime` only) |
+| `@attestrack/host-contracts` | Portable host port types |
+| `@attestrack/host-cloudflare-worker` | Default Cloudflare `HostRuntime` adapter |
+| `@attestrack/consent-js` | Browser consent commit + cookie helpers |
+| `@attestrack/strategies` | Bundled strategies (analytics + ads + community consent) |
+| `@attestrack/portal-community` | Operator UI |
+| `@attestrack/schema` / `@attestrack/types` | Shared public contracts |
+| `@attestrack/sdk` | Strategy author SDK + consent token + `resolveStrategiesWithReplaces` |
 
 ---
 

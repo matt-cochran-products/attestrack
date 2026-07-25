@@ -1,4 +1,4 @@
-import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
+import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
 
 /** Placeholder analytics sink; forward `ctx.tracking` to ClickHouse/Tinybird in a real adapter. */
 export const minimalAnalyticsStrategy: Strategy = {

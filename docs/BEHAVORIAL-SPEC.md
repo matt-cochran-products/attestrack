@@ -27,7 +27,7 @@ This spec covers three surfaces: the deployment CLI, the community portal, and t
 
 ### CLI.1 — Single entry point
 
-The entire deployment is initiated by a single command with no required flags. Running `npx @attestrue/deploy` with no arguments starts the interactive setup. No other command is required for a complete deployment.
+The entire deployment is initiated by a single command with no required flags. Running `npx @attestrack/deploy` with no arguments starts the interactive setup. No other command is required for a complete deployment.
 
 ### CLI.2 — Guided, not assumed
 

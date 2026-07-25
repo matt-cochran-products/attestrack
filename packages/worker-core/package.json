@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/worker-core",
+  "name": "@attestrack/worker-core",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/host-contracts": "workspace:*",
-    "@attestrue/schema": "workspace:*",
-    "@attestrue/sdk": "workspace:*",
-    "@attestrue/types": "workspace:*"
+    "@attestrack/host-contracts": "workspace:*",
+    "@attestrack/schema": "workspace:*",
+    "@attestrack/sdk": "workspace:*",
+    "@attestrack/types": "workspace:*"
   },
   "devDependencies": {
-    "@attestrue/strategies": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
     "vitest": "^2.0.0"
   }
 }

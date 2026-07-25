@@ -5,7 +5,7 @@ function isWorkerCorePackage(path: string): boolean {
   if (!existsSync(path)) return false
   try {
     const pkg = JSON.parse(readFileSync(path, 'utf8')) as { name?: string }
-    return pkg.name === '@attestrue/worker-core'
+    return pkg.name === '@attestrack/worker-core'
   } catch {
     return false
   }

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Attestrack (this repository) ships **free analytics**, **self-hosted server-side measurement**, and a **complete community consent path**: operator **`ConsentConfig` in KV**, mandatory strategies (**jurisdiction**, **consent**, **evidence-unsigned**), HMAC privacy consent tokens, and **`@attestrue/consent-js`** (first-party banner / GPC / token coordination / script gating — contracts and stubs first; behavior lands incrementally).
+Attestrack (this repository) ships **free analytics**, **self-hosted server-side measurement**, and a **complete community consent path**: operator **`ConsentConfig` in KV**, mandatory strategies (**jurisdiction**, **consent**, **evidence-unsigned**), HMAC privacy consent tokens, and **`@attestrack/consent-js`** (first-party banner / GPC / token coordination / script gating — contracts and stubs first; behavior lands incrementally).
 
 **Paid extensions** upgrade **how** consent configuration is sourced and maintained — not whether consent exists. **Privacy Consent** provides attorney-maintained, case-law-current rows and auto-updates after rulings, writing the **same KV document shape** (or key) the community tier uses. **Proof** (licensed **trust chain**: RFC 8785 `record_id`, Ed25519 witness, dual `proof-anchors` — **Consent Evidence Trust Chain Specification** v1.1 in the premium doc tree) and other licensed artifacts remain extension-only where applicable.
 
@@ -14,7 +14,7 @@ Attestrack (this repository) ships **free analytics**, **self-hosted server-side
 ## Decisions (abbreviated)
 
 - `packages/consent-js` **exists** in the public repo; it is the home for the community first-party consent script (stub → implementation).
-- Community mandatory strategies **JurisdictionStrategy**, **consent gate**, and **EvidenceUnsignedStrategy** live in `@attestrue/strategies` (stubs → implementation). Premium **JurisdictionCompleteStrategy** declares `replaces: ['jurisdiction']` so CDN-injected code **supersedes** the community jurisdiction strategy without changing Worker bindings or KV schema.
+- Community mandatory strategies **JurisdictionStrategy**, **consent gate**, and **EvidenceUnsignedStrategy** live in `@attestrack/strategies` (stubs → implementation). Premium **JurisdictionCompleteStrategy** declares `replaces: ['jurisdiction']` so CDN-injected code **supersedes** the community jurisdiction strategy without changing Worker bindings or KV schema.
 - CDN pointer + content-addressed blobs apply to **premium strategy bundles**, **consent-runtime** enhancements, and **regulation-pack** artifacts (see full ADR in licensed product documentation).
 - Operator-maintained **`ConsentConfig`** defaults ship in-repo (`COMMUNITY_DEFAULT_CONSENT_CONFIG` + JSON template); they are **not** attorney-maintained legal advice.
 

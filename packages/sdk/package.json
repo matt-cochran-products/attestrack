@@ -1,5 +1,5 @@
 {
-  "name": "@attestrue/sdk",
+  "name": "@attestrack/sdk",
   "version": "0.0.0",
   "type": "module",
   "main": "dist/index.js",
@@ -10,9 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/host-contracts": "workspace:*",
-    "@attestrue/types": "workspace:*",
-    "@attestrue/schema": "workspace:*"
+    "@attestrack/host-contracts": "workspace:*",
+    "@attestrack/types": "workspace:*",
+    "@attestrack/schema": "workspace:*"
   },
   "files": ["dist"]
 }

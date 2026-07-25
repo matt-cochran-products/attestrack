@@ -1,4 +1,4 @@
-import type { HostKeyValue, HostRuntime } from '@attestrue/host-contracts'
+import type { HostKeyValue, HostRuntime } from '@attestrack/host-contracts'
 
 function kvNamespaceAdapter(ns: KVNamespace): HostKeyValue {
   return {

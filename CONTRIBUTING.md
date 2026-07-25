@@ -45,7 +45,7 @@ For an end-to-end Cloudflare run (Worker + KV + optional Pages portal) from this
 
 ## Strategy and adapter authors
 
-See [`ADAPTER-DEVELOPMENT-GUIDE.md`](ADAPTER-DEVELOPMENT-GUIDE.md) and [`packages/sdk/docs/ADAPTER-GUIDE.md`](packages/sdk/docs/ADAPTER-GUIDE.md).
+See [`ADAPTER-DEVELOPMENT-GUIDE.md`](ADAPTER-DEVELOPMENT-GUIDE.md) and [`packages/sdk/docs/ADAPTER-GUIDE.md`](packages/sdk/docs/ADAPTER-GUIDE.md). Community strategy submissions (STR.5) use the dedicated PR template — open your PR with `?template=community_strategy.md` ([`.github/PULL_REQUEST_TEMPLATE/community_strategy.md`](.github/PULL_REQUEST_TEMPLATE/community_strategy.md)).
 
 ## License
 

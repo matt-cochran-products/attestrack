@@ -45,3 +45,7 @@ test-results/
 *.swp
 *.swo
 *~
+
+# Stryker mutation testing
+.stryker-tmp/
+reports/mutation/

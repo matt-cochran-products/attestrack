@@ -27,9 +27,11 @@ function stripStrings(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'/g, "''")
 }
 
-function hasMultipleStatements(scan: string): boolean {
-  // A single optional trailing `;` is fine; any other `;` means >1 statement.
-  return scan.replace(/;\s*$/u, '').includes(';')
+/** Strip a single optional trailing `;` (+ trailing whitespace) exactly once.
+ *  Done up front so every downstream check works on one canonical form and the
+ *  trailing separator is never stripped redundantly. */
+function stripTrailingStatementTerminator(sql: string): string {
+  return sql.replace(/;\s*$/u, '').trim()
 }
 
 /**
@@ -54,15 +56,15 @@ function extractTables(scan: string): { names: string[]; qualified: boolean } {
   return { names, qualified }
 }
 
+/** Clamp/append the LIMIT. `sql` is already trimmed and terminator-free. */
 function applyRowLimit(sql: string, maxRows: number): string {
-  const trimmed = sql.trim().replace(/;\s*$/u, '')
-  const limitMatch = trimmed.match(/\blimit\s+(\d+)\s*$/i)
+  const limitMatch = sql.match(/\blimit\s+(\d+)\s*$/i)
   if (limitMatch && limitMatch.index !== undefined && limitMatch[1] !== undefined) {
     const n = Math.min(parseInt(limitMatch[1], 10), maxRows)
-    const base = trimmed.slice(0, limitMatch.index).trim()
+    const base = sql.slice(0, limitMatch.index).trim()
     return `${base} LIMIT ${n}`
   }
-  return `${trimmed} LIMIT ${maxRows}`
+  return `${sql} LIMIT ${maxRows}`
 }
 
 export function validateAndNormalizeExploreSql(
@@ -74,9 +76,13 @@ export function validateAndNormalizeExploreSql(
     return { ok: false, code: 'explore_sql_empty', reason: 'Query is empty.' }
   }
 
+  // Canonical executable form: original string contents preserved (so the query
+  // still runs), a single optional trailing `;` stripped exactly once.
+  const execSql = stripTrailingStatementTerminator(trimmed)
+
   // Scan copy with string literals neutralized. All structural checks run on this
   // so nothing inside a quoted string can bypass the gate.
-  const scan = stripStrings(trimmed)
+  const scan = stripStrings(execSql)
 
   // Reject SQL comments outright — a common evasion vector (comment-hiding of
   // keywords, statement separators, or a smuggled second LIMIT) and unnecessary
@@ -88,26 +94,25 @@ export function validateAndNormalizeExploreSql(
       reason: 'SQL comments are not allowed in community Explore.'
     }
   }
-  if (hasMultipleStatements(scan)) {
+  // The trailing terminator is already gone; any remaining `;` is a 2nd statement.
+  if (scan.includes(';')) {
     return {
       ok: false,
       code: 'explore_sql_multiple_statements',
       reason: 'Only a single SELECT statement is allowed.'
     }
   }
-
-  const scanSql = scan.replace(/;\s*$/u, '').trim()
-  if (!SELECT_LEADING.test(scanSql)) {
+  if (!SELECT_LEADING.test(scan)) {
     return { ok: false, code: 'explore_sql_not_select', reason: 'Only SELECT queries are allowed.' }
   }
-  if (FORBIDDEN_KEYWORD.test(scanSql)) {
+  if (FORBIDDEN_KEYWORD.test(scan)) {
     return {
       ok: false,
       code: 'explore_sql_forbidden_keyword',
       reason: 'Statement contains forbidden keywords.'
     }
   }
-  if (/\bfrom\s*\(/i.test(scanSql)) {
+  if (/\bfrom\s*\(/i.test(scan)) {
     return {
       ok: false,
       code: 'explore_sql_subquery_from',
@@ -115,7 +120,7 @@ export function validateAndNormalizeExploreSql(
     }
   }
 
-  const { names, qualified } = extractTables(scanSql)
+  const { names, qualified } = extractTables(scan)
   if (qualified) {
     return {
       ok: false,
@@ -137,9 +142,8 @@ export function validateAndNormalizeExploreSql(
     }
   }
 
-  // Execute the ORIGINAL query (real string contents preserved; it contains no
+  // Execute the canonical query (real string contents preserved; it contains no
   // comments — we rejected those — so the LIMIT clamp can't be commented out).
-  const execSql = trimmed.replace(/;\s*$/u, '').trim()
   return { ok: true, sqlNormalized: applyRowLimit(execSql, maxRows) }
 }
 

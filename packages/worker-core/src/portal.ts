@@ -89,7 +89,7 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     }
     if (sub === '/dashboard') {
       // P3.2: computed from real KV counters + delivery stats + drift state —
-      // any operator-seeded attestrack:portal:dashboard JSON is intentionally ignored.
+      // any operator-seeded dashboard JSON (the pre-P3 KV key) is intentionally ignored.
       const cfg = await readSiteConfig(host)
       const enabledIds = parseEnabledStrategiesKv(await host.kv.get(KV_KEY_ENABLED_STRATEGIES))
       const metrics = await computeDashboardMetrics(host, cfg, enabledIds)

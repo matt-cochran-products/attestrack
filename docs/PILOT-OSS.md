@@ -66,9 +66,16 @@ The deploy completion banner repeats this reminder.
 1. Mount `@attestrack/consent-js` (or your integration) on a test property pointing at your Worker
 2. Configure warehouse secrets (`TINYBIRD_TOKEN` and/or ClickHouse secrets) for **Explore**; saved queries live in KV under `attestrack:portal:saved_queries`
 
-## Dashboard metrics (expectations)
+## Dashboard, destinations, and logs (live data)
 
-OSS dashboard cards that read **KV** (for example `attestrack:portal:dashboard`) may show **stub or operator-seeded** values until you add automation. This is expected for the community pilot; do not assume every chart reflects live warehouse rollups without additional Worker or ETL work.
+On a fresh deploy, once traffic hits `/t/event` the portal **populates itself — no manual KV seeding**:
+
+- **Dashboard** — `eventsToday` (sampled per-UTC-day counter; approximate above 5 000 events/day), drift alerts, and strategy status are computed by the Worker from recorded data
+- **Destinations** — per-strategy delivery outcomes (success rate, last event, last error) recorded by every configured sink; endpoints with secrets but no traffic yet honestly show *configured — no deliveries recorded yet*
+- **Request Logs** — a bounded per-hour log ring (60 entries/hour, 48 h retention) written on ingest
+- **Signal Recovery** — **not measured in v1**: blocker/ITP recovery comparisons require a client beacon Attestrack does not ship yet, so the view says so instead of estimating; the bot-filter counter (troll-shield heuristics) is the only real figure
+
+Counters are best-effort KV writes — treat them as approximate lower bounds, not billing-grade numbers. See [REPO-SPEC-OSS.md](REPO-SPEC-OSS.md) → *Portal observability data sources* for the exact contract.
 
 ## Manual fallback
 

@@ -33,6 +33,21 @@ Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../p
 
 Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade (licensed repo, `docs/EXTENSION-PORTAL-API.md` — plain-text citation; not linkable from this repository). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
 
+### Portal observability data sources (P3)
+
+Machine list: `oss-http-contract.json` → `portalDataSources` (enforced by `pnpm route-contract-check`: `/dashboard` must stay computed; a regression to seeded KV JSON fails CI). Launch rule: **no chart or figure backed by invented numbers** — every value below is recorded on real traffic or the view says so.
+
+| Subpath | Source | Notes |
+|---------|--------|-------|
+| GET `/dashboard` | **Computed** ([observability.ts](../packages/worker-core/src/observability.ts) `computeDashboardMetrics`) | `eventsToday` from the sampled per-UTC-day counter `attestrack:obs:events:<day>` (1-in-10 sampling above 5 000/day → approximate at high volume); `driftAlertCount`/`driftAlert` from `attestrack:drift:mismatch`; `strategyStatus`/`strategySummary` from per-strategy delivery stats |
+| GET `/destinations` | **Computed** (`buildDestinationRows`) | Per-strategy delivery stats `attestrack:obs:delivery:<id>` (ok/error totals + same-UTC-day window, `lastOkAt`/`lastErrorAt`/`lastError`) recorded by every bundled sink and ad destination; `auth` from Worker secret presence; configured-but-quiet endpoints report `no_data`, never fake health |
+| GET `/logs`, `/logs/incoming` | **Computed** (`readRecentLogs`) | Bounded per-hour KV log ring `attestrack:obs:log:<YYYY-MM-DDTHH>` (60 entries/hour, 48 h TTL, best-effort writer that never throws) appended on each `/t/event` ingest; consent/status columns derive from the real consent gate (`GRANTED`/`DECLINED`/`GPC_DECLINED`/`SHADOW_NONE`; `PROCESSED`/`BLOCKED_ENFORCEMENT`/`BOT_FILTERED`) |
+| GET `/signal`, `/signal-recovery` | **De-scoped v1 (P3.3)** | Returns `{ measured: false, reason: 'requires_beacon', message, botRequestsFiltered }`. Recovery comparisons need a client beacon Attestrack does not ship yet; the bot counter `attestrack:obs:bots:<day>` (troll-shield) is the only real figure |
+| GET `/signal-recovery/timeline` | **De-scoped v1** | Always `[]` — never invented points |
+| GET `/alert-rules` | KV (`attestrack:portal:alert_rules`, operator config) | A synthetic `consent-config` row is prepended while `attestrack:drift:mismatch` is active (P3.5) |
+
+Counters/logs are best-effort KV read-modify-write: values are **approximate lower bounds** under concurrency and must not be treated as billing-grade.
+
 ---
 
 ## JSON error contract (fail fast, triage-friendly)
@@ -66,6 +81,10 @@ Authoritative key names: [packages/types/src/kv-keys.ts](../packages/types/src/k
 Deploy seed shape: [packages/deploy/src/kv-schema.ts](../packages/deploy/src/kv-schema.ts).
 
 **Enabled strategies:** `attestrack:enabled_strategies` (`KV_KEY_ENABLED_STRATEGIES`) — JSON array of strategy **ids**. The Worker applies this to **`destination` and `analytics` stages only**; **mandatory** strategies always run. If the key is missing or invalid JSON, all bundled optional strategies remain eligible. The deploy seed defaults to analytics + drift only (`clickhouse`, `tinybird`, `drift-detection`); add destination ids (e.g. `meta-capi`) when you configure ad-network secrets.
+
+**Observability keys (P3, written by the Worker — never seed these by hand):** `attestrack:obs:log:<hour>` (bounded request-log ring), `attestrack:obs:events:<day>` (sampled ingest counter), `attestrack:obs:delivery:<strategyId>` (per-strategy delivery stats), `attestrack:obs:bots:<day>` (troll-shield counter). The pre-P3 seeded portal keys for dashboard/destinations/logs/signal were **removed** — those endpoints are computed (see Portal observability data sources above).
+
+**Drift keys (P3.5):** the deploy seed writes `attestrack:drift:expected_fingerprint` = SHA-256 of the consent-config JSON exactly as seeded; the drift-detection strategy recomputes `attestrack:drift:current_fingerprint` on traffic and writes a TTL'd `attestrack:drift:mismatch` `{ at, expected, current }` on divergence, which drives the portal drift banner, dashboard count, and the synthetic alert-rule row.
 
 ---
 

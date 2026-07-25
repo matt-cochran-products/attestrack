@@ -41,6 +41,23 @@
       "/strategies/toggle"
     ]
   },
+  "portalDataSources": {
+    "description": "P3 observability: these portal GET endpoints are COMPUTED from data recorded on real traffic — never from operator-seeded KV JSON. The route-contract check enforces that /dashboard stays computed (portal.ts must call computeDashboardMetrics and must not read a seeded dashboard key).",
+    "computed": {
+      "/dashboard": "eventsToday from the sampled per-UTC-day counter (attestrack:obs:events:*), drift alert count/detail from attestrack:drift:mismatch, strategy status from per-strategy delivery stats (attestrack:obs:delivery:*)",
+      "/destinations": "per-strategy delivery stats + Worker secret presence; configured-but-quiet endpoints report status no_data",
+      "/logs": "bounded per-hour KV log ring (attestrack:obs:log:*, 60 entries/hour, 48h TTL) written on /t/event ingest",
+      "/logs/incoming": "same log ring as /logs",
+      "/signal": "de-scoped v1 (P3.3): { measured: false, reason: 'requires_beacon', botRequestsFiltered } — the bot counter (attestrack:obs:bots:*) is the only real figure",
+      "/signal-recovery": "same as /signal",
+      "/signal-recovery/timeline": "always [] in v1 (requires a client beacon; never invented points)"
+    },
+    "kvBacked": {
+      "/alert-rules": "operator-defined rules from attestrack:portal:alert_rules, prepended with a synthetic consent-config row while attestrack:drift:mismatch is active",
+      "/strategies": "attestrack:portal:strategies (operator config)",
+      "/analytics/curated": "attestrack:portal:analytics (operator-curated series)"
+    }
+  },
   "portalSubpathsRequiresAttestrue": {
     "description": "Returned 403 JSON { error: requires_attestrue, handoff } — implemented in Attestrue worker-extension + licensed portal after upgrade.",
     "GET": ["/policy", "/policy-versions", "/banner", "/banner/history"],

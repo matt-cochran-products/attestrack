@@ -45,4 +45,4 @@ Premium strategies and consent-runtime enhancements load through **`StrategyLoad
 ## Intentional deltas vs premium ConOps
 
 - No in-tree documentation for operator counsel workflows, demand-letter packs, or witnessed record UI.
-- Explore proxy returns empty result sets until warehouse integration lands; validation is **not** yet allowlist-complete (see [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md) INV-B-15).
+- Explore proxy executes against the operator's Tinybird or ClickHouse when the corresponding secrets are configured ([explore-warehouse.ts](../packages/worker-core/src/explore-warehouse.ts)); the SQL gate enforces single-`SELECT`, a table allowlist (qualified-name aware), and a clamped `LIMIT` ([explore-sql.ts](../packages/schema/src/explore-sql.ts), INV-B-14/15 — see [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md)). Unconfigured warehouses return `explore_warehouse_not_configured`, not empty results.

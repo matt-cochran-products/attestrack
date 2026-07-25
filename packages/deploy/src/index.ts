@@ -10,7 +10,7 @@ import {
 } from './apply-cloudflare.js'
 import { formatDnsInstructions } from './dns-guide.js'
 import { defaultEnabledStrategyIds, initialKvSeed } from './kv-schema.js'
-import { findAttestrueMonorepoRoot, relativeFileDep } from './repo-root.js'
+import { findAttestrackMonorepoRoot, relativeFileDep } from './repo-root.js'
 import { R2_SETUP_README } from './r2-setup.js'
 import { defaultRunCommand, type RunCommandFn } from './run-command.js'
 import { buildScaffoldPackageJson } from './scaffold-package-json.js'
@@ -111,16 +111,16 @@ export async function runInteractiveDeploy(options?: RunInteractiveDeployOptions
   const scaffoldOnly = options?.scaffoldOnly === true
   const skipPortal = options?.skipPortal === true
   const dryRun =
-    options?.dryRun === true || process.env.ATTESTRUE_DEPLOY_DRY_RUN === '1'
+    options?.dryRun === true || process.env.ATTESTRACK_DEPLOY_DRY_RUN === '1'
   const run = options?.runCommand ?? defaultRunCommand
   const scripted = options?.scripted
   const reuseFlag = options?.reuseExistingKvWhenPresent === true
 
   const cwd = process.cwd()
-  const repoRoot = findAttestrueMonorepoRoot(cwd)
+  const repoRoot = findAttestrackMonorepoRoot(cwd)
   if (!scaffoldOnly && !repoRoot) {
     throw new Error(
-      'Full Cloudflare deploy requires the attestrue monorepo. Clone https://github.com/attestrue/attestrue and run from the repository root (see docs/PILOT-OSS.md).'
+      'Full Cloudflare deploy requires the Attestrack monorepo. Clone https://github.com/matt-cochran/attestrack and run from the repository root (see docs/PILOT-OSS.md).'
     )
   }
 
@@ -215,7 +215,7 @@ export async function runInteractiveDeploy(options?: RunInteractiveDeployOptions
         '# Monorepo required',
         '',
         'This scaffold was generated without resolving local `file:` dependencies.',
-        'Clone the attestrue repository and re-run `npx @attestrack/deploy` from the repo root,',
+        'Clone the Attestrack repository (https://github.com/matt-cochran/attestrack) and re-run `npx @attestrack/deploy` from the repo root,',
         'or copy this folder into the repo and add package.json dependencies manually.',
         ''
       ].join('\n')
@@ -231,7 +231,7 @@ export async function runInteractiveDeploy(options?: RunInteractiveDeployOptions
 
   if (scaffoldOnly) {
     if (!repoRoot) {
-      output.write('\nNote: run from the attestrue repo root to also generate package.json with file: deps.\n')
+      output.write('\nNote: run from the Attestrack repo root to also generate package.json with file: deps.\n')
     }
     return
   }

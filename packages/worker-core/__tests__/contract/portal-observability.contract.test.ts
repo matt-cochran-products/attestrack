@@ -39,6 +39,12 @@ function trackingBody(eventName = 'page_view') {
   })
 }
 
+/** Browser-shaped ingest headers (the P3.4 troll-shield flags UA-less traffic). */
+const BROWSER_HEADERS = {
+  'content-type': 'application/json',
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0 Safari/537.36'
+}
+
 afterEach(() => vi.restoreAllMocks())
 
 describe('P3 portal observability endpoints (computed, never seeded)', () => {
@@ -48,7 +54,7 @@ describe('P3 portal observability endpoints (computed, never seeded)', () => {
       const res = await handler(
         new Request('https://t.example.com/t/event', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: BROWSER_HEADERS,
           body: trackingBody(name)
         })
       )
@@ -81,7 +87,7 @@ describe('P3 portal observability endpoints (computed, never seeded)', () => {
     const res = await handler(
       new Request('https://t.example.com/t/event', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: BROWSER_HEADERS,
         body: trackingBody()
       })
     )
@@ -156,7 +162,7 @@ describe('P3 portal observability endpoints (computed, never seeded)', () => {
     const res = await handler(
       new Request('https://t.example.com/t/event', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: BROWSER_HEADERS,
         body: trackingBody()
       })
     )
@@ -170,6 +176,29 @@ describe('P3 portal observability endpoints (computed, never seeded)', () => {
     expect(ch?.status).toBe('healthy')
     expect(ch?.successRate).toBe(100)
     expect(ch?.eventsToday).toBe(1)
+  })
+
+  it('end-to-end: a bot-shaped ingest is logged BOT_FILTERED and feeds the real bot counter (P3.4)', async () => {
+    const { host, handler } = makeHandler()
+    const res = await handler(
+      new Request('https://t.example.com/t/event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'user-agent': 'curl/8.6.0' },
+        body: trackingBody('scrape')
+      })
+    )
+    expect(res.status).toBe(200)
+    await flushMockBackgroundTasks(host)
+
+    const logs = (await (
+      await handler(new Request(`${PORTAL}/logs`, { method: 'GET' }))
+    ).json()) as RequestLogEntry[]
+    expect(logs[0]?.status).toBe('BOT_FILTERED')
+
+    const signal = (await (
+      await handler(new Request(`${PORTAL}/signal`, { method: 'GET' }))
+    ).json()) as { botRequestsFiltered: number }
+    expect(signal.botRequestsFiltered).toBe(1)
   })
 
   it('GET /signal reports the P3.3 de-scope honestly, with only the real bot counter', async () => {

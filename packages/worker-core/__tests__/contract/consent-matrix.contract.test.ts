@@ -172,7 +172,12 @@ async function runMatrixCase(c: MatrixCase, mode: Mode): Promise<RunResult> {
     strategyLoader: noopStrategyLoader
   })
 
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    // Browser-shaped traffic: the P3.4 troll-shield flags UA-less requests as
+    // bots (destinations never fire for bots), which is not under test here.
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0 Safari/537.36'
+  }
   if (c.token !== 'none') {
     headers.cookie = `at_consent=${encodeURIComponent(await mintToken(c.token))}`
   }
@@ -247,7 +252,10 @@ describe('consent matrix (P2.6) — {mechanism} × {GPC} × {mode} × {token sta
     const res = await handler(
       new Request('https://x/t/event', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0 Safari/537.36'
+        },
         body: JSON.stringify({
           v: 1,
           eventName: 'page_view',
@@ -296,6 +304,7 @@ describe('consent matrix (P2.6) — {mechanism} × {GPC} × {mode} × {token sta
         method: 'POST',
         headers: {
           'content-type': 'application/json',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0 Safari/537.36',
           cookie: `at_consent=${encodeURIComponent(foreignToken)}`
         },
         body: JSON.stringify({

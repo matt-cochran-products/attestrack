@@ -49,10 +49,14 @@ export function evaluateConsentGate(input: EvaluateConsentGateInput): ConsentGat
  * Single check destination strategies use before firing (P2.3).
  * Falls back to strict opt-in semantics when the consent gate has not run
  * (e.g. a custom pipeline without the mandatory consent strategy).
+ *
+ * P3.4: bot-flagged traffic (troll-shield heuristics) never fires ad
+ * destinations — analytics sinks keep the labeled row instead.
  */
 export function destinationsAllowed(
-  ctx: Pick<StrategyPipelineContext, 'consentGate' | 'consent'>
+  ctx: Pick<StrategyPipelineContext, 'consentGate' | 'consent' | 'botDetection'>
 ): boolean {
+  if (ctx.botDetection?.isBot) return false
   if (ctx.consentGate) return ctx.consentGate.allowDestinations
   return ctx.consent?.payload.decision === 'granted'
 }

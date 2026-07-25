@@ -16,6 +16,8 @@ class MemoryKv implements HostKeyValue {
 export interface MockHostOptions {
   secrets?: Record<string, string | undefined>
   geoCountry?: string | null
+  /** Simulated host bot score (P3.4); omit for hosts without bot management. */
+  botScore?: number | null
 }
 
 const mockBackgroundQueues = new WeakMap<HostRuntime, Array<() => void | Promise<void>>>()
@@ -35,6 +37,10 @@ export function createMockHostRuntime(options: MockHostOptions = {}): HostRuntim
     },
     getSecret(name) {
       return secrets[name]
+    },
+    botScore(request: Request) {
+      void request
+      return options.botScore ?? null
     }
   }
   mockBackgroundQueues.set(host, queue)

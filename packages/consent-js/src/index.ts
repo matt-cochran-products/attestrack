@@ -1,4 +1,12 @@
-export { mountCommunityConsentBanner } from './banner.js'
+export {
+  CONSENT_CONTEXT_PATH,
+  fetchConsentContext,
+  mountCommunityConsentBanner,
+  open,
+  readConsentCookieDecision,
+  type ConsentContext,
+  type MountCommunityBannerOptions
+} from './banner.js'
 export {
   CONSENT_COMMIT_PATH,
   commitPrivacyConsent,

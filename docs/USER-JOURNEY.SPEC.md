@@ -1,6 +1,6 @@
 # Attestrack — User Journey Specification
 
-**Version 2.0 — March 2026**  
+**Version 2.0 (amended by the v2.1 note below) — March 2026**  
 **Status: Authoritative reference (open-source Attestrack only)**  
 **Scope: Discovery through working Attestrack deployment · Analytics, transport, debugging, and destination delivery**  
 **Audience: Product · Engineering · Design**
@@ -8,6 +8,13 @@
 ---
 
 ## Version Notes
+
+**v2.1 note (2026-07 — ADR-010 / ADR-011 alignment; supersedes v2.0 where they conflict)**
+
+- **Community consent is part of the open-source journey.** Per [ADR-010](../ADR/ADR-010-attestrack-core-extension-cache.md) (which takes precedence over this document — see [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md)), Attestrack ships a complete **community consent path**: operator `ConsentConfig` in KV, mandatory jurisdiction/consent/consent-log strategies, HMAC consent tokens, the first-party `consent-js` banner (served at `GET /consent.js`), GPC handling, and SHADOW/ENFORCEMENT mode semantics in the pipeline. v2.0 statements below that consent enforcement is "not implemented in Attestrack" describe the pre-ADR-010 split and are **superseded**.
+- **What remains Attestrue (licensed):** attorney-maintained regulation configuration, policy version binding/publishing, witnessing, Proof/evidence trust chain, and counsel/legal workflows. The portal's banner-config / policy-publish / mode-toggle mutations return `403 requires_attestrue` (ADR-010 §4).
+- **Stage 3 resource creation is Worker + KV + Pages only.** D1/R2 were cut from OSS v1 ([ADR-011](../ADR/ADR-011-kv-only-consent-event-storage.md)); consent event records are KV-only with an operator-configurable TTL.
+- The deploy command is `npx @attestrack/deploy` (currently: run from the monorepo root — standalone npx pending npm publishing, plan P5).
 
 **v2.0 changes**
 
@@ -33,9 +40,9 @@
 
 This document defines the user journey for **Attestrack** — from discovery through a working **analytics and server-side measurement deployment** and use of the **community portal**.
 
-**Attestrack does not include:**
+**Attestrack does not include** *(v2.0 list — see the v2.1 note: community consent enforcement IS now in OSS scope per ADR-010; the regulation/policy/evidence/witnessing rows below remain licensed)*:
 
-- Consent enforcement
+- ~~Consent enforcement~~ *(superseded — community consent path is OSS, ADR-010)*
 - Regulation-aware configuration
 - Policy versioning or binding
 - Evidence or legal workflows
@@ -51,6 +58,8 @@ This document is declarative. It defines **user experience and outcomes**, not i
 
 ## Product Boundary Principle
 
+*(Amended by the v2.1 note: "Community consent" belongs on the OSS side; "Consent logic" on the Attestrue side means attorney-maintained regulation rows and licensed runtime packs, not the community consent path.)*
+
 **Open-source Attestrack provides:**
 
 - Measurement
@@ -58,6 +67,7 @@ This document is declarative. It defines **user experience and outcomes**, not i
 - Analytics
 - Debugging
 - Destination delivery
+- Community consent (v2.1 — ADR-010)
 
 **Attestrue (closed product) provides:**
 
@@ -159,7 +169,9 @@ Stage 7a:  Analytics and data exploration
 
 ## Attestrue Handoff (Outside Attestrack)
 
-Consent enforcement, regulation-aware configuration, policy binding, evidence, and witnessing are part of **Attestrue**.
+*(v2.1: "consent enforcement" here means the licensed tier — attorney-maintained regulation rows and runtime packs. The community consent path is OSS; see the v2.1 note.)*
+
+Regulation-aware configuration, policy binding, evidence, and witnessing are part of **Attestrue**.
 
 Attestrack may link to Attestrue for activation, but these capabilities are:
 
@@ -213,7 +225,7 @@ User has credentials and configuration ready.
 npx @attestrack/deploy
 ````
 
-*(If using legacy package name: `@attestrack/deploy`, this deploys Attestrack.)*
+*(Currently run from the monorepo root; standalone `npx` pending npm publishing — plan P5.)*
 
 ---
 
@@ -224,7 +236,7 @@ npx @attestrack/deploy
 3. Subdomain
 4. Strategy selection
 5. Analytics destination (optional)
-6. Resource creation (Worker, KV, D1, R2)
+6. Resource creation (Worker, KV — ADR-011: no D1/R2)
 7. Worker deploy
 8. Portal deploy
 
@@ -513,7 +525,9 @@ No embedded BI dependency.
 
 This specification defines the **complete open-source Attestrack journey**.
 
-All consent, regulatory, evidence, and witnessing capabilities are:
+*(v2.1: community consent — banner, tokens, GPC, mode semantics — is in scope and implemented here per ADR-010.)*
+
+Regulatory (attorney-maintained), evidence, and witnessing capabilities are:
 
 * **out of scope**
 * **not implemented here**

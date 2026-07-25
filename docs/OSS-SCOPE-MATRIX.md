@@ -56,7 +56,7 @@
 | INV-B-12 | Y | Static upgrade route | — | portal static |
 | INV-B-13 | Licensed | Community TIR disclaimer | ADR-010 | — |
 | **INV-B-14** | Y | Worker enforces read-only gate + allowlist before warehouse | — | explore contract + schema tests |
-| **INV-B-15** | Partial | Table allowlist (`events`, `attestrack_events`, `default`); not full schema introspection lockdown | — | schema `explore-sql` |
+| **INV-B-15** | Y (gate) | Table allowlist (`events`, `attestrack_events`); qualified `db.table` names rejected (`default` removed from the allowlist — it is a ClickHouse database); DB grants remain the recommended backstop (ADR-013) | — | schema `explore-sql` (+ adversarial/hardening tests, nightly Stryker mutation run) |
 | **INV-B-16** | Y (intent) | Query stays on customer infra | ADR-010 | Worker fetch to customer secrets only |
 | **INV-B-17** | Y | `KV_KEY_PORTAL_SAVED_QUERIES` + portal routes | — | explore contract tests |
 
@@ -67,7 +67,7 @@
 | Stage | OSS ([USER-JOURNEY.SPEC.md](USER-JOURNEY.SPEC.md) v2.0) | Licensed / extension |
 |-------|-----|----------------------|
 | 1–5a, 6 (tracking), 7, 7a | Core narrative + analytics-first portal + Worker (measurement path) | — |
-| Commercial narrative (banner, policy publish, jurisdiction, enforcement, upgrade) | **Handoff only** in OSS UI | [attestrue-premium `USER-JOURNEY-SPEC.md` Part VI](../../attestrue-premium/docs/USER-JOURNEY-SPEC.md) |
+| Commercial narrative (banner, policy publish, jurisdiction, enforcement, upgrade) | **Handoff only** in OSS UI | attestrue-premium `docs/USER-JOURNEY-SPEC.md` Part VI (licensed repo — plain-text citation; not linkable from this repository) |
 
 ---
 

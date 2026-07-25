@@ -1,6 +1,6 @@
 # Repository specification — OSS (v0)
 
-**Binding for:** the public `attestrue` monorepo (`@attestrack/worker-core`, `@attestrack/portal-community`, `@attestrack/deploy`, etc.).  
+**Binding for:** the public `attestrack` monorepo — `github.com/matt-cochran/attestrack` (`@attestrack/worker-core`, `@attestrack/portal-community`, `@attestrack/deploy`, etc.).  
 **Not:** full Core ConOps, proprietary Repo Spec, or Portal Community Spec referenced from [BEHAVORIAL-SPEC.md](BEHAVORIAL-SPEC.md).
 
 **Canonical machine list:** [oss-http-contract.json](oss-http-contract.json) — validated by `pnpm route-contract-check` against Worker source.
@@ -31,7 +31,7 @@ Constants: `TRACKING_EVENT_PATH` in [packages/worker-core/src/constants.ts](../p
 
 **Prefix:** `/__attestrack__/portal/v1` (`PORTAL_API_PREFIX` in [packages/worker-core/src/portal.ts](../packages/worker-core/src/portal.ts)).
 
-Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade ([`EXTENSION-PORTAL-API.md` in premium repo](../../attestrue-premium/docs/EXTENSION-PORTAL-API.md)). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
+Subpaths are listed in `oss-http-contract.json` (`portalSubpaths`). Endpoints that return **`403` + `requires_attestrue`** are listed under `portalSubpathsRequiresAttestrue` — authoritative implementations live in **attestrue-premium** after upgrade (licensed repo, `docs/EXTENSION-PORTAL-API.md` — plain-text citation; not linkable from this repository). The community portal client **must** use the same prefix ([packages/portal-community/src/lib/api/constants.ts](../packages/portal-community/src/lib/api/constants.ts)).
 
 ---
 
@@ -77,7 +77,7 @@ When `VITE_ATTESTRACK_API_BASE_URL` is unset, the portal **must** use local stub
 
 ## Explore (INV-B-14 / INV-B-15 / INV-B-17)
 
-- **Gate:** Shared SQL validation in [`@attestrack/schema`](../packages/schema/src/explore-sql.ts) — single `SELECT`, allowlisted tables (`events`, `attestrack_events`, `default`), no `UNION`, no `FROM (` subqueries, injected/clamped `LIMIT` (max `ATTESTRACK_EXPLORE_MAX_ROWS` in [`@attestrack/types`](../packages/types/src/explore.ts)).
+- **Gate:** Shared SQL validation in [`@attestrack/schema`](../packages/schema/src/explore-sql.ts) — single `SELECT`, allowlisted **bare** tables (`events`, `attestrack_events`; qualified `db.table` names rejected, `default` removed from the allowlist), no `UNION`, no `FROM (` subqueries, injected/clamped `LIMIT` (max `ATTESTRACK_EXPLORE_MAX_ROWS` = 500 in [`@attestrack/types`](../packages/types/src/explore.ts)).
 - **Warehouse:** `POST …/explore/query` runs against **Tinybird** if `TINYBIRD_TOKEN` is set (optional `TINYBIRD_API_URL`, default `https://api.tinybird.co`), else **ClickHouse** if `CLICKHOUSE_QUERY_URL` or `CLICKHOUSE_HTTP_URL` (origin used as query base). Uses `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` when set. POST body: `FORMAT JSON` over HTTP.
 - **Saved queries:** `GET` / `POST` `/explore/saved-queries`, `POST` `/explore/saved-queries/remove` — stored under `attestrack:portal:saved_queries` ([`kv-keys.ts`](../packages/types/src/kv-keys.ts)).
 

@@ -18,6 +18,10 @@ What to include:
 - Reproduction steps or a proof of concept
 - Impact assessment (what an attacker gains)
 
+## Threat model
+
+The maintained threat model (assets, adversaries, data flows, findings register, and the CI gates that guard it) lives at [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
+
 ## Scope of particular interest
 
 - Consent token forgery, expiry/rotation bypass (`packages/sdk/src/consent-token.ts`)

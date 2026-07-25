@@ -1,4 +1,4 @@
-import { destinationsAllowed, type Strategy } from '@attestrack/sdk'
+import { destinationsAllowed, recordDeliveryResult, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -22,7 +22,7 @@ export function createTikTokEventsStrategy(): Strategy {
       if (!access || !pixel) return { continuePipeline: true }
       const url = 'https://business-api.tiktok.com/open_api/v1.3/event/track/'
       try {
-        await fetch(url, {
+        const res = await fetch(url, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -35,8 +35,18 @@ export function createTikTokEventsStrategy(): Strategy {
             context: { ad: { callback: 'attestrack' } }
           })
         })
-      } catch {
-        /* isolated */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'tiktok-events',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // isolated — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'tiktok-events', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

@@ -1,4 +1,4 @@
-import { destinationsAllowed, type Strategy } from '@attestrack/sdk'
+import { destinationsAllowed, recordDeliveryResult, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -21,7 +21,7 @@ export function createMicrosoftUetStrategy(): Strategy {
       const tagId = ctx.host.getSecret('MICROSOFT_UET_TAG_ID')
       if (!token || !tagId) return { continuePipeline: true }
       try {
-        await fetch('https://conversionapi.ads.microsoft.com/v1/offline/conversion', {
+        const res = await fetch('https://conversionapi.ads.microsoft.com/v1/offline/conversion', {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -33,8 +33,18 @@ export function createMicrosoftUetStrategy(): Strategy {
             eventTime: ctx.tracking.occurredAt
           })
         })
-      } catch {
-        /* isolated */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'microsoft-uet',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // isolated — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'microsoft-uet', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

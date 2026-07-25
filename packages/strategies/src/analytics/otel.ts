@@ -1,4 +1,4 @@
-import type { Strategy } from '@attestrack/sdk'
+import { recordDeliveryResult, type Strategy } from '@attestrack/sdk'
 import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
@@ -100,13 +100,23 @@ export function createOtelStrategy(): Strategy {
       }
 
       try {
-        await fetch(`${base.replace(/\/$/, '')}/v1/logs`, {
+        const res = await fetch(`${base.replace(/\/$/, '')}/v1/logs`, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload)
         })
-      } catch {
-        /* analytics must not throw — best-effort */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'otel',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // analytics must not throw — best-effort — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'otel', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

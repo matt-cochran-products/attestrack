@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Attestrack e2e — consent banner harness</title>
+  </head>
+  <body>
+    <main>
+      <h1>Customer page (origin http://localhost:8788)</h1>
+      <p>The consent bundle below is loaded cross-origin from the Worker (origin http://localhost:8791).</p>
+      <a href="#main">in-page link (keyboard baseline)</a>
+    </main>
+    <script src="http://localhost:8791/consent.js"></script>
+    <script>
+      window.AttestrackConsent.mountCommunityConsentBanner({
+        workerOrigin: 'http://localhost:8791',
+        siteId: 'site_e2e',
+        policyHash: 'sha256:e2e'
+      })
+    </script>
+  </body>
+</html>

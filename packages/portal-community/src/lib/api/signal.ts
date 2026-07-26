@@ -5,12 +5,12 @@ import type { SignalRecoveryMetrics } from './types';
 
 async function stubGetSignalRecovery(): Promise<SignalRecoveryMetrics> {
   await stubDelay();
+  // Mirrors the live Worker's P3.3 de-scope: recovery is not measured in v1.
   return {
-    eventsFromBlockers: 34291,
-    blockersPct: 18,
-    eventsFromITP: 12847,
-    itpPct: 9,
-    cookieIdsPreserved: 28103,
+    measured: false,
+    reason: 'requires_beacon',
+    message:
+      'Signal-recovery comparison (server-side events vs browser-blocked estimate) requires a client beacon that Attestrack v1 does not ship. No recovery numbers are reported rather than estimated ones.',
     botRequestsFiltered: 4291,
   };
 }
@@ -33,13 +33,7 @@ export async function getRecoveryTimeline(days: 7 | 30 | 90): Promise<RecoveryTi
     return apiGet<RecoveryTimelinePoint[]>(`${PORTAL_WORKER_PREFIX}/signal-recovery/timeline?days=${days}`);
   }
   await stubDelay();
-  return [
-    { date: 'Mar 18', serverSide: 4102, browserEstimate: 3472 },
-    { date: 'Mar 19', serverSide: 4847, browserEstimate: 4103 },
-    { date: 'Mar 20', serverSide: 3991, browserEstimate: 3381 },
-    { date: 'Mar 21', serverSide: 5203, browserEstimate: 4402 },
-    { date: 'Mar 22', serverSide: 4918, browserEstimate: 4161 },
-    { date: 'Mar 23', serverSide: 4441, browserEstimate: 3761 },
-    { date: 'Mar 24', serverSide: 4847, browserEstimate: 4103 },
-  ];
+  // De-scoped with signal recovery (P3.3): the browser-estimate series would be
+  // invented without a client beacon, so the stub matches the live Worker: [].
+  return [];
 }

@@ -1,5 +1,5 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import { destinationsAllowed, recordDeliveryResult, type Strategy } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'microsoft-uet',
@@ -15,12 +15,13 @@ export function createMicrosoftUetStrategy(): Strategy {
     manifest,
     async run(ctx) {
       if (!ctx.tracking) return { continuePipeline: true }
-      if (ctx.consent?.payload.decision !== 'granted') return { continuePipeline: true }
+      // P2.3: the consent gate (mode + mechanism + GPC) decides, not raw token state.
+      if (!destinationsAllowed(ctx)) return { continuePipeline: true }
       const token = ctx.host.getSecret('MICROSOFT_UET_ACCESS_TOKEN')
       const tagId = ctx.host.getSecret('MICROSOFT_UET_TAG_ID')
       if (!token || !tagId) return { continuePipeline: true }
       try {
-        await fetch('https://conversionapi.ads.microsoft.com/v1/offline/conversion', {
+        const res = await fetch('https://conversionapi.ads.microsoft.com/v1/offline/conversion', {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -32,8 +33,18 @@ export function createMicrosoftUetStrategy(): Strategy {
             eventTime: ctx.tracking.occurredAt
           })
         })
-      } catch {
-        /* isolated */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'microsoft-uet',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // isolated — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'microsoft-uet', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

@@ -1,4 +1,4 @@
-import type { Strategy } from '@attestrue/sdk'
+import type { Strategy } from '@attestrack/sdk'
 
 /**
  * Parse KV value for `KV_KEY_ENABLED_STRATEGIES`.

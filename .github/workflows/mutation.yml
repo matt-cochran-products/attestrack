@@ -1,0 +1,31 @@
+name: Mutation (Explore SQL gate)
+
+# Mutation testing is deeper (and slower) than the unit suite, so it does NOT
+# gate every PR — the fast `pnpm test` in ci.yml stays the PR gate. This runs
+# nightly and on demand, scoped to the INV-B-15 Explore SQL gate
+# (packages/schema/src/explore-sql.ts). A surviving mutant is a candidate
+# allowlist/keyword-gate bypass the tests don't pin down; `stryker run` exits
+# non-zero when mutation score drops below the configured break threshold.
+on:
+  schedule:
+    - cron: '0 7 * * *' # 07:00 UTC nightly
+  workflow_dispatch: {}
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Stryker runs vitest directly against source, which resolves the
+      # workspace deps (@attestrack/types) via their built dist — so the deps
+      # must be built first (turbo's normal `pnpm test` does this implicitly;
+      # this job does not go through turbo).
+      - run: pnpm --filter @attestrack/schema^... build
+      - name: Stryker — Explore SQL gate
+        run: pnpm --filter @attestrack/schema mutation

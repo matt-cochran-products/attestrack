@@ -3,8 +3,17 @@
   "portalApiPrefix": "/__attestrack__/portal/v1",
   "trackingPostPath": "/t/event",
   "topLevel": {
-    "GET": ["/health", "/privacy", "/terms"],
-    "POST": ["/__attestrack__/consent/commit"]
+    "GET": ["/health", "/privacy", "/terms", "/consent.js", "/__attestrack__/consent/context"],
+    "POST": ["/__attestrack__/consent/commit"],
+    "OPTIONS": ["/__attestrack__/consent/commit", "/__attestrack__/consent/context", "/t/event"]
+  },
+  "cors": {
+    "description": "Credentialed CORS (allow-credentials) for browser routes; allowlist derived from site config domain + trustedDomains. /consent.js is served with a public wildcard origin (no credentials).",
+    "credentialedRoutes": [
+      "/__attestrack__/consent/commit",
+      "/__attestrack__/consent/context",
+      "/t/event"
+    ]
   },
   "portalSubpaths": {
     "GET": [
@@ -26,11 +35,30 @@
       "/explore/query",
       "/explore/saved-queries",
       "/explore/saved-queries/remove",
+      "/explore/saved-queries/pin",
       "/site-config/trusted-domains",
       "/analytics/curated",
       "/analytics/warehouse-status",
       "/strategies/toggle"
     ]
+  },
+  "portalDataSources": {
+    "description": "P3 observability: these portal GET endpoints are COMPUTED from data recorded on real traffic — never from operator-seeded KV JSON. The route-contract check enforces that /dashboard stays computed (portal.ts must call computeDashboardMetrics and must not read a seeded dashboard key).",
+    "computed": {
+      "/dashboard": "eventsToday from the sampled per-UTC-day counter (attestrack:obs:events:*), drift alert count/detail from attestrack:drift:mismatch, strategy status from per-strategy delivery stats (attestrack:obs:delivery:*)",
+      "/destinations": "per-strategy delivery stats + Worker secret presence; configured-but-quiet endpoints report status no_data",
+      "/logs": "bounded per-hour KV log ring (attestrack:obs:log:*, 60 entries/hour, 48h TTL) written on /t/event ingest",
+      "/logs/incoming": "same log ring as /logs",
+      "/signal": "de-scoped v1 (P3.3): { measured: false, reason: 'requires_beacon', botRequestsFiltered } — the bot counter (attestrack:obs:bots:*) is the only real figure",
+      "/signal-recovery": "same as /signal",
+      "/signal-recovery/timeline": "always [] in v1 (requires a client beacon; never invented points)",
+      "/analytics/curated": "P4.3: GET returns chart descriptors + warehouse status only; POST { chartId, dateFrom, dateTo } computes ONE curated chart — warehouse charts (events-volume, consent-rate-by-jurisdiction, bot-share) via canned SQL through the SAME Explore gate (validateAndNormalizeExploreSql) + executor, destination-success-rate from recorded delivery stats (attestrack:obs:delivery:*). The route-contract check enforces that portal.ts calls computeCuratedChart and reads no seeded analytics KV, and that curated-analytics.ts goes through the Explore gate (never raw SQL)"
+    },
+    "kvBacked": {
+      "/alert-rules": "operator-defined rules from attestrack:portal:alert_rules, prepended with a synthetic consent-config row while attestrack:drift:mismatch is active",
+      "/strategies": "attestrack:portal:strategies (operator config)",
+      "/explore/saved-queries": "attestrack:portal:saved_queries — Zod-validated shape (P4.4, @attestrack/schema savedQueriesKvSchema); per-user pins keyed on the Cf-Access-Authenticated-User-Email header (EXP.10; anonymous shared identity '' without Access)"
+    }
   },
   "portalSubpathsRequiresAttestrue": {
     "description": "Returned 403 JSON { error: requires_attestrue, handoff } — implemented in Attestrue worker-extension + licensed portal after upgrade.",

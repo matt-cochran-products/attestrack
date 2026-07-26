@@ -57,7 +57,9 @@ export default function DashboardPage() {
           <div className="font-mono text-2xl text-[var(--text-active)] mb-1">
             {metrics.eventsToday.toLocaleString()}
           </div>
-          <div className="font-mono text-[10px] text-[var(--text-muted)]">Incoming events (stub)</div>
+          <div className="font-mono text-[10px] text-[var(--text-muted)]">
+            Ingested events, UTC day (approximate above 5k/day — sampled counter)
+          </div>
         </div>
         <div className="card-surface p-4">
           <div className="label mb-2">Active drift alerts</div>

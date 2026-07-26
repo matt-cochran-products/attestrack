@@ -1,11 +1,68 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import { recordDeliveryResult, type Strategy } from '@attestrack/sdk'
+import type { StrategyManifest, TrackingEventV1 } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'clickhouse',
   stage: 'analytics',
   displayName: 'ClickHouse HTTP sink',
   defaultEnabled: false
+}
+
+/**
+ * Build the ClickHouse HTTP insert URL. If the operator already embedded a
+ * `query=` (advanced / self-managed table name — e.g. the pubops dogfood points
+ * at its own `tracking_events`), it is used verbatim. Otherwise we append the
+ * canonical `INSERT INTO events FORMAT JSONEachRow` targeting the repo-shipped
+ * `events` table (packages/schema/warehouse/clickhouse.sql), with best-effort
+ * datetime parsing so the ISO `occurredAt` lands in DateTime64.
+ */
+export function buildClickHouseInsertUrl(base: string): string {
+  if (/[?&]query=/i.test(base)) return base
+  const sep = base.includes('?') ? '&' : '?'
+  const q = encodeURIComponent('INSERT INTO events FORMAT JSONEachRow')
+  return `${base}${sep}query=${q}&date_time_input_format=best_effort`
+}
+
+/** Explicit event → warehouse-row projection (NO blind spread) — the row keys
+ *  are exactly the `events` table columns; unknown/extra fields never reach the
+ *  warehouse. */
+export function toClickHouseRow(
+  t: TrackingEventV1,
+  resolved: { consentDecision: string | null; jurisdiction: string | null }
+): Record<string, unknown> {
+  return {
+    v: t.v,
+    eventName: t.eventName,
+    siteId: t.siteId,
+    occurredAt: t.occurredAt,
+    consentDecision: resolved.consentDecision,
+    jurisdiction: resolved.jurisdiction,
+    // Consent-gate honesty fields (P2.3), stamped server-side by the consent
+    // strategy — needed so SHADOW-mode analytics can report the would-be
+    // enforced rate (DASH.3) rather than inventing numbers.
+    consentMode: t.consentMode ?? null,
+    consentMechanism: t.consentMechanism ?? null,
+    consentWouldAllow:
+      t.consentWouldAllow === undefined ? null : t.consentWouldAllow ? 1 : 0,
+    visitorId: t.visitorId ?? null,
+    sessionId: t.sessionId ?? null,
+    eventId: t.eventId ?? null,
+    pagePath: t.pagePath ?? null,
+    referrer: t.referrer ?? null,
+    utmSource: t.utmSource ?? null,
+    utmMedium: t.utmMedium ?? null,
+    utmCampaign: t.utmCampaign ?? null,
+    utmTerm: t.utmTerm ?? null,
+    utmContent: t.utmContent ?? null,
+    userAgentClass: t.userAgentClass ?? null,
+    ctaType: t.ctaType ?? null,
+    scrollDepthPct: t.scrollDepthPct ?? null,
+    section: t.section ?? null,
+    dwellMs: t.dwellMs ?? null,
+    webVitalName: t.webVitalName ?? null,
+    webVitalValue: t.webVitalValue ?? null,
+    params: t.params ?? null
+  }
 }
 
 export function createClickHouseStrategy(): Strategy {
@@ -16,18 +73,18 @@ export function createClickHouseStrategy(): Strategy {
     async run(ctx) {
       if (!ctx.tracking) return { continuePipeline: true }
       const url = ctx.host.getSecret('CLICKHOUSE_HTTP_URL')
+      if (!url) return { continuePipeline: true }
       const user = ctx.host.getSecret('CLICKHOUSE_USER')
       const pass = ctx.host.getSecret('CLICKHOUSE_PASSWORD')
-      if (!url) return { continuePipeline: true }
-      const auth =
-        user && pass ? `Basic ${btoa(`${user}:${pass}`)}` : undefined
-      const row = {
-        ...ctx.tracking,
-        consent_decision: ctx.consent?.payload.decision ?? ctx.tracking.consentDecision ?? null,
+      const auth = user && pass ? `Basic ${btoa(`${user}:${pass}`)}` : undefined
+
+      const row = toClickHouseRow(ctx.tracking, {
+        consentDecision: ctx.consent?.payload.decision ?? ctx.tracking.consentDecision ?? null,
         jurisdiction: ctx.jurisdictionKey ?? ctx.tracking.jurisdiction ?? null
-      }
+      })
+
       try {
-        await fetch(url, {
+        const res = await fetch(buildClickHouseInsertUrl(url), {
           method: 'POST',
           headers: {
             ...(auth ? { Authorization: auth } : {}),
@@ -35,8 +92,18 @@ export function createClickHouseStrategy(): Strategy {
           },
           body: JSON.stringify(row)
         })
-      } catch {
-        /* analytics must not throw — Invariant 12 style: best-effort */
+        // P3.1: every attempt outcome feeds the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'clickhouse',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // analytics must not throw — best-effort (Invariant 12) — but DO record.
+        await recordDeliveryResult(ctx.host.kv, 'clickhouse', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

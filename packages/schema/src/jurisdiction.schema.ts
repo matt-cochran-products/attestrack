@@ -22,3 +22,18 @@ export const jurisdictionConsentRowSchema = z.object({
 export const consentConfigSchema = z.object({
   jurisdictions: z.record(z.string().min(1), jurisdictionConsentRowSchema)
 })
+
+/**
+ * Parse the operator `ConsentConfig` KV JSON, falling back to the given default
+ * on missing/invalid content. Shared by the jurisdiction strategy and the
+ * Worker `/consent/context` route so both resolve from the same document.
+ */
+export function parseConsentConfigJson<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback
+  try {
+    const parsed = consentConfigSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? (parsed.data as T) : fallback
+  } catch {
+    return fallback
+  }
+}

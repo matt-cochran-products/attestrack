@@ -44,6 +44,11 @@ export default function DestinationsPage() {
                   {dest.status === 'inactive' && (
                     <span className="font-mono text-[11px] text-[var(--text-muted)]">— Inactive</span>
                   )}
+                  {dest.status === 'no_data' && (
+                    <span className="font-mono text-[11px] text-[var(--text-muted)]">
+                      ◌ Configured — no deliveries recorded yet
+                    </span>
+                  )}
                 </td>
                 <td className="p-3 font-mono text-[11px] text-[var(--text-active)] text-right">
                   {dest.successRate > 0 ? `${dest.successRate}%` : '—'}

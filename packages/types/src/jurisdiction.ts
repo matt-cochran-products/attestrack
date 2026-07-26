@@ -139,6 +139,52 @@ function row(
  *
  * Only a few rows are prefilled; add per-state keys (see {@link US_STATE_AND_DC_ISO_CODES}) as needed.
  */
+/** EU member states (ISO 3166-1 alpha-2) for coarse `EU` row resolution. */
+export const EU_MEMBER_STATE_CODES = [
+  'AT',
+  'BE',
+  'BG',
+  'HR',
+  'CY',
+  'CZ',
+  'DK',
+  'EE',
+  'FI',
+  'FR',
+  'DE',
+  'GR',
+  'HU',
+  'IE',
+  'IT',
+  'LV',
+  'LT',
+  'LU',
+  'MT',
+  'NL',
+  'PL',
+  'PT',
+  'RO',
+  'SK',
+  'SI',
+  'ES',
+  'SE'
+] as const
+
+const EU_MEMBER_STATE_SET: ReadonlySet<string> = new Set(EU_MEMBER_STATE_CODES)
+
+/**
+ * Resolve the active jurisdiction key from a geo signal (ISO 3166-1 alpha-2)
+ * against a {@link ConsentConfig}: exact country row → coarse `EU` row → `DEFAULT`.
+ * Shared by the community jurisdiction strategy and the Worker consent-context route.
+ */
+export function resolveJurisdictionKey(geo: string | null, config: ConsentConfig): ConsentJurisdictionKey {
+  if (!geo) return 'DEFAULT'
+  const cc = geo.toUpperCase()
+  if (config.jurisdictions[cc]) return cc
+  if (EU_MEMBER_STATE_SET.has(cc) && config.jurisdictions.EU) return 'EU'
+  return 'DEFAULT'
+}
+
 export const COMMUNITY_DEFAULT_CONSENT_CONFIG: ConsentConfig = {
   jurisdictions: {
     'US-CA': row(

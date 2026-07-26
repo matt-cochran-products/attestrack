@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Mutation testing is scoped to the INV-B-15 Explore SQL gate — the single highest-value correctness surface in the repo. A surviving mutant here is a candidate allowlist/keyword-gate bypass the tests do not pin down. Not run per-PR (see .github/workflows/mutation.yml: nightly + workflow_dispatch); the fast unit suite remains the PR gate.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": ["src/explore-sql.ts"],
+  "thresholds": {
+    "high": 90,
+    "low": 85,
+    "break": 85
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

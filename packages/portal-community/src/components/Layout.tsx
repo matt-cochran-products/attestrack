@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { paths } from '../routes/paths';
 import { usePortalShell } from '../context/PortalShellContext';
+import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 
 const navSections = [
   {
@@ -47,7 +48,11 @@ export function Layout({ children }: LayoutProps) {
   const { siteConfig, modeShellLabel, isLiveWorker, dataSourceShellLabel } = usePortalShell();
   const [driftAlertDismissed, setDriftAlertDismissed] = useState(false);
 
-  const isDriftAlertActive = true;
+  // P3.1/P3.5: driven by REAL drift state from the Worker dashboard metrics
+  // (attestrack:drift:mismatch), never a hardcoded flag.
+  const { metrics: dashboardMetrics } = useDashboardMetrics();
+  const driftAlert = dashboardMetrics?.driftAlert ?? null;
+  const isDriftAlertActive = (dashboardMetrics?.driftAlertCount ?? 0) > 0;
 
   const modeChipClass = 'bg-[rgba(224,192,96,0.15)] border-[rgba(224,192,96,0.3)]';
 
@@ -143,7 +148,9 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex items-center justify-between">
               <div className="font-mono text-[11px] text-[var(--accent-amber)]">
                 <span className="mr-2">⚠</span>
-                1 drift alert — Unknown script: analytics.newvendor.com · 847 requests blocked · 2 days ago
+                {driftAlert
+                  ? `Config drift detected — consent config fingerprint changed (expected ${driftAlert.expected.slice(0, 8)}…, now ${driftAlert.current.slice(0, 8)}…) · ${driftAlert.at}`
+                  : `${dashboardMetrics?.driftAlertCount ?? 0} drift alert(s) — configuration no longer matches the deploy-time baseline`}
                 <Link to={paths.logs} className="ml-4 underline hover:text-[var(--text-active)]">
                   View logs →
                 </Link>

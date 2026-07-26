@@ -1,11 +1,13 @@
-import type { HostRuntime } from '@attestrue/host-contracts'
+import type { HostRuntime } from '@attestrack/host-contracts'
 import type {
+  ConsentGateResult,
   JurisdictionConsentRow,
+  PipelineSiteInfo,
   TrackingEventV1,
   StrategyManifest,
   StrategyStage,
   VerifiedPrivacyConsentToken
-} from '@attestrue/types'
+} from '@attestrack/types'
 
 /** Mutable pipeline context passed through mandatory and destination stages. */
 export interface StrategyPipelineContext {
@@ -16,6 +18,16 @@ export interface StrategyPipelineContext {
   /** Set by jurisdiction strategy from `ConsentConfig` + geo signals. */
   jurisdictionKey?: string
   jurisdictionRow?: JurisdictionConsentRow
+  /** Site config snapshot resolved ONCE per request by the Worker (mode, TTLs). */
+  site?: PipelineSiteInfo
+  /** Set by the mandatory consent strategy — the gate destinations must consult. */
+  consentGate?: ConsentGateResult
+  /**
+   * Set by the troll-shield strategy (P3.4) from honest heuristics (UA class,
+   * missing headers, optional host bot score). When `isBot`, destination
+   * strategies do not fire; analytics rows keep the request labeled instead.
+   */
+  botDetection?: { isBot: boolean; reasons: string[] }
 }
 
 export interface StrategyResult {

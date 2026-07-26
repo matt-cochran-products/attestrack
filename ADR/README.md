@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-**Repository:** attestrue (public reference copies)
+**Repository:** attestrack (public reference copies)
 **Date:** 2026-03-24
 **Context:** Closes open questions (Q1-Q3, Q5-Q8) from the Architecture Assessment (Phase 1)
 
@@ -19,12 +19,15 @@
 | [ADR-008](ADR-008-standards-publication-gates.md) | Standards Publication Gates | Q8 | Accepted |
 | [ADR-009](ADR-009-repo-boundary-enforcement.md) | Repository Boundary Enforcement | Audit | Accepted |
 | [ADR-010](ADR-010-attestrack-core-extension-cache.md) | Attestrack Core + Extension Artifact Edge Cache | ADR-010 | Accepted |
+| [ADR-011](ADR-011-kv-only-consent-event-storage.md) | KV-Only Consent Event Storage (No D1/R2 in OSS v1) | Plan P0.3 D1 | Accepted |
+| [ADR-012](ADR-012-consent-cookie-topology.md) | Consent Cookie Topology — Worker-Set Cookie with Configurable Domain | Plan P0.3 D2 | Accepted |
+| [ADR-013](ADR-013-warehouse-contract.md) | Warehouse Contract — Repo-Shipped Canonical `events` DDL | Plan P0.3 D3 | Accepted |
 
 ## Note
 
 - ADR-004 (Portal-API Remains Rust) affects only private infrastructure and is not reproduced here
-- Canonical versions of all ADRs are maintained in the private repository
-- Same numbering in both repos
+- ADR-001 through ADR-010: canonical versions are maintained in the private repository (same numbering in both repos)
+- ADR-011 onward are **OSS-native** decisions — canonical in this repository
 
 ## Format
 

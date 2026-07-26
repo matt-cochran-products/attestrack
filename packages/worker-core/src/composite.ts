@@ -1,5 +1,5 @@
-import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
-import type { StrategyStage } from '@attestrue/types'
+import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
+import type { StrategyStage } from '@attestrack/types'
 
 function applyStrategyResult(ctx: StrategyPipelineContext, r: StrategyResult): void {
   if (r.tracking !== undefined) ctx.tracking = r.tracking

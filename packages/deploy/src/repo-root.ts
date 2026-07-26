@@ -5,14 +5,14 @@ function isWorkerCorePackage(path: string): boolean {
   if (!existsSync(path)) return false
   try {
     const pkg = JSON.parse(readFileSync(path, 'utf8')) as { name?: string }
-    return pkg.name === '@attestrue/worker-core'
+    return pkg.name === '@attestrack/worker-core'
   } catch {
     return false
   }
 }
 
-/** Walks up from `start` looking for the attestrue monorepo root (packages/worker-core). */
-export function findAttestrueMonorepoRoot(start: string): string | null {
+/** Walks up from `start` looking for the Attestrack monorepo root (packages/worker-core). */
+export function findAttestrackMonorepoRoot(start: string): string | null {
   let dir = resolve(start)
   for (let i = 0; i < 10; i++) {
     const wc = join(dir, 'packages', 'worker-core', 'package.json')

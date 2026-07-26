@@ -1,10 +1,17 @@
 {
-  "name": "@attestrue/deploy",
+  "name": "@attestrack/deploy",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/deploy"
+  },
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
-    "attestrue-deploy": "dist/cli.js"
+    "attestrack-deploy": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -12,12 +19,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestrue/types": "workspace:*",
+    "@attestrack/types": "workspace:*",
     "wrangler": "^3.99.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "vitest": "^2.0.0"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -1,18 +1,33 @@
 {
-  "name": "@attestrue/sdk",
+  "name": "@attestrack/sdk",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/sdk"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.examples.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage.enabled"
   },
   "dependencies": {
-    "@attestrue/host-contracts": "workspace:*",
-    "@attestrue/types": "workspace:*",
-    "@attestrue/schema": "workspace:*"
+    "@attestrack/host-contracts": "workspace:*",
+    "@attestrack/schema": "workspace:*",
+    "@attestrack/types": "workspace:*"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "2.1.9"
+  }
 }

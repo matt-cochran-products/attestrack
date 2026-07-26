@@ -1,5 +1,5 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
+import { destinationsAllowed, recordDeliveryResult, type Strategy } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'google-mp',
@@ -15,7 +15,8 @@ export function createGoogleMpStrategy(): Strategy {
     manifest,
     async run(ctx) {
       if (!ctx.tracking) return { continuePipeline: true }
-      if (ctx.consent?.payload.decision !== 'granted') return { continuePipeline: true }
+      // P2.3: the consent gate (mode + mechanism + GPC) decides, not raw token state.
+      if (!destinationsAllowed(ctx)) return { continuePipeline: true }
       const secret = ctx.host.getSecret('GOOGLE_MP_API_SECRET')
       const id = ctx.host.getSecret('GOOGLE_MEASUREMENT_ID')
       if (!secret || !id) return { continuePipeline: true }
@@ -25,13 +26,23 @@ export function createGoogleMpStrategy(): Strategy {
         events: [{ name: ctx.tracking.eventName, params: { engagement_time_msec: 1 } }]
       }
       try {
-        await fetch(url, {
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body)
         })
-      } catch {
-        /* isolated */
+        // P3.1: record the outcome for the portal /destinations view (STR.4).
+        await recordDeliveryResult(
+          ctx.host.kv,
+          'google-mp',
+          res.ok ? { ok: true } : { ok: false, detail: `HTTP ${res.status}` }
+        )
+      } catch (err) {
+        // isolated — but DO record the failure.
+        await recordDeliveryResult(ctx.host.kv, 'google-mp', {
+          ok: false,
+          detail: err instanceof Error ? err.message : 'network error'
+        })
       }
       return { continuePipeline: true }
     }

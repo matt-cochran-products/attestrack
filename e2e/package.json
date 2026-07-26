@@ -1,17 +1,23 @@
 {
-  "name": "@attestrue/e2e",
+  "name": "@attestrack/e2e",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "test:install": "playwright install --with-deps"
+    "test": "playwright test --project=api-smoke",
+    "test:browser": "playwright test --project=browser-journeys",
+    "test:all": "playwright test",
+    "build:portal-live": "VITE_ATTESTRACK_API_BASE_URL=http://localhost:8788 pnpm --filter @attestrack/portal-community exec vite build --outDir ../../e2e/.portal-dist --emptyOutDir",
+    "test:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
-    "@attestrue/sdk": "workspace:*",
-    "@attestrue/strategies": "workspace:*",
-    "@attestrue/worker-core": "workspace:*"
+    "@attestrack/host-cloudflare-worker": "workspace:*",
+    "@attestrack/sdk": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
+    "@attestrack/worker-core": "workspace:*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.49.0",
+    "wrangler": "^3.99.0"
   }
 }

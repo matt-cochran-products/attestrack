@@ -5,6 +5,13 @@
 
 export type ConsentDecision = 'granted' | 'declined' | 'withdrawn'
 
+/**
+ * First-party cookie carrying the signed consent token. Set by the Worker on
+ * the consent-commit response (`Domain` from site config for cross-subdomain
+ * topologies); consent-js only writes it as a same-origin fallback.
+ */
+export const CONSENT_COOKIE_NAME = 'at_consent'
+
 /** Payload carried inside the signed community consent token (version 1). */
 export interface PrivacyConsentTokenPayloadV1 {
   v: 1
@@ -12,8 +19,18 @@ export interface PrivacyConsentTokenPayloadV1 {
   decision: ConsentDecision
   /** ISO 8601 timestamp when the token was minted */
   issuedAt: string
+  /**
+   * ISO 8601 expiry (derived from site config `state1TokenTTL` at mint time).
+   * Tokens without `expiresAt` never expire — mint with a TTL in production.
+   */
+  expiresAt?: string
   policyHash: string
   jurisdictionHint?: string
+  /**
+   * Ids of the IOA assertions ({@link IoaAssertion}) the visitor affirmatively accepted.
+   * Absent/empty when no checkbox flow was completed — consumers must treat that as "not attested".
+   */
+  ioa?: readonly string[]
 }
 
 export interface VerifiedPrivacyConsentToken {

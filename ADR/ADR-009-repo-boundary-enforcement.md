@@ -18,7 +18,7 @@ Enforce repository boundary through three mechanisms:
 - Renamed `routes/evidence/` to `routes/consent-log/` (per ADR-002)
 - Removed private repo name references from all public documentation
 - Replaced license key format examples with `<your-license-key>` placeholder
-- Updated dependency graphs to remove `@attestrue/merkle`
+- Updated dependency graphs to remove `@attestrack/merkle`
 
 ### 2. CI negative assertions (to be implemented)
 
@@ -26,7 +26,7 @@ When CI workflows are implemented, the following checks SHALL be added:
 - Build fails if `packages/merkle/` directory exists
 - Build fails if private repo name appears in public files
 - Build fails if license key format is exposed in website or documentation
-- Optional: fail if `@attestrue/types` public package exports consent/evidence types reserved for `@attestrue/types-extensions` (licensed)
+- Optional: fail if `@attestrack/types` public package exports consent/evidence types reserved for `@attestrack/types-extensions` (licensed)
 
 ### 3. Documentation update protocol
 

@@ -1,4 +1,4 @@
-import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrue/sdk'
+import type { Strategy, StrategyPipelineContext, StrategyResult } from '@attestrack/sdk'
 
 /**
  * Minimal destination adapter: no-op pass-through.

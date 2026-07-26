@@ -6,6 +6,7 @@
 **Scope: CLI deployment tool · Community portal · Worker runtime (community tier) · Analytics layer**
 **Audience: Product · Engineering · Design**
 
+**v1.4 changes (2026-07, ADR-011 / P0.2):** **CLI.6** amended — the CLI creates **Worker, KV, and Pages** resources only; D1/R2 are cut from OSS v1 ([ADR-011](../ADR/ADR-011-kv-only-consent-event-storage.md)). **EXP.5** amended — the enforced row limit is **500** for the KV-era community tier (revisitable; see EXP.5 note).
 **v1.3 changes (ADR-010):** Open-source **Attestrack** portal is **analytics-first**; consent/evidence/banner/policy/counsel **UI** is **not** specified here — use **Extensions** handoff and licensed product docs. **CE.*** and **EV.*** parts below remain **historical** reference for eventual licensed portal parity; community implementation defers to `/extensions`.
 **v1.2 changes:** Evidence disclaimer (**EC.1**) aligned with RFC 8785 **`record_id`**, Attestrue **`/verify`**, and **dual public `proof-anchors`** daily JSON (no Merkle / blockchain wording). **STR.1** and portal copy distinguish **Privacy Consent**, **Proof**, **Operating Agreement**, **Acknowledgment**, and dependencies per v9.2 §3.4–3.5. **CE.6** domain-scoped presentation for **`privacy_consent`** vs agreement/acknowledgment flows. Prior v1.1 analytics/migration/upgrade renumbering unchanged.
 
@@ -27,7 +28,7 @@ This spec covers three surfaces: the deployment CLI, the community portal, and t
 
 ### CLI.1 — Single entry point
 
-The entire deployment is initiated by a single command with no required flags. Running `npx @attestrue/deploy` with no arguments starts the interactive setup. No other command is required for a complete deployment.
+The entire deployment is initiated by a single command with no required flags. Running `npx @attestrack/deploy` with no arguments starts the interactive setup. No other command is required for a complete deployment.
 
 ### CLI.2 — Guided, not assumed
 
@@ -47,7 +48,9 @@ All credential input is masked at the terminal. Credentials are not echoed, not 
 
 ### CLI.6 — All Cloudflare resources created in the user's account
 
-The CLI creates resources (Worker, KV, D1, R2, Pages) in the user's own Cloudflare account. The CLI does not create resources in any Attestrue-controlled account. The user retains full ownership and control of every resource created.
+The CLI creates resources (Worker, KV, Pages) in the user's own Cloudflare account. The CLI does not create resources in any Attestrue-controlled account. The user retains full ownership and control of every resource created.
+
+> **Amended (v1.4, [ADR-011](../ADR/ADR-011-kv-only-consent-event-storage.md)):** D1 and R2 are out of OSS v1 scope — consent event records are KV-only with an operator-configurable TTL. The CLI creates a Worker, one KV namespace, and (optionally) a Pages project.
 
 ### CLI.7 — Portal deployed and accessible after CLI completes
 
@@ -80,6 +83,8 @@ The CLI completes a full community deployment without requiring a user account o
 ### PORTAL.1 — Authentication by Cloudflare Access only
 
 The portal does not implement its own authentication. Access to the portal is controlled by the Cloudflare Access policy configured during deployment. A user who can access the portal URL is authenticated. There is no login screen in the portal.
+
+> **Amended (P7.3, `docs/THREAT-MODEL.md`):** the Worker's portal API (`/__attestrack__/portal/v1/*`) is likewise unauthenticated and MUST sit behind the same Access policy — without Access it is a world-writable config API. As optional defense-in-depth, the Worker secret `PORTAL_API_SHARED_SECRET` gates every portal API request behind the `x-attestrack-portal-secret` header (no-op when unset).
 
 ### PORTAL.2 — All data from the customer's own infrastructure
 
@@ -359,7 +364,9 @@ The query proxy enforces a table allowlist. Queries may only reference tables th
 
 ### EXP.5 — Row limit is enforced server-side
 
-The query proxy enforces a maximum row count on all queries. The default limit is 10,000 rows. If a query would return more rows, the proxy appends or replaces the `LIMIT` clause to cap the result at 10,000. The user is informed when their result was truncated.
+The query proxy enforces a maximum row count on all queries. The enforced limit is **500** rows (`ATTESTRACK_EXPLORE_MAX_ROWS` in `@attestrack/types`). If a query would return more rows, the proxy appends or replaces the `LIMIT` clause to cap the result at 500. The user is informed when their result was truncated.
+
+> **Amended (v1.4, P0.2):** originally specified as 10,000; amended to **500** to match the implementation — appropriate for the KV-era community tier and the portal's table-first result view. Revisitable when curated analytics and charting mature (plan Phase 4).
 
 ### EXP.6 — Schema autocomplete is available
 

@@ -1,22 +1,42 @@
 {
-  "name": "@attestrue/worker-core",
+  "name": "@attestrack/worker-core",
   "version": "0.0.0",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/worker-core"
+  },
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "embed-consent-bundle": "node scripts/embed-consent-bundle.mjs",
+    "build": "node scripts/embed-consent-bundle.mjs && tsc",
+    "typecheck": "node scripts/embed-consent-bundle.mjs && tsc --noEmit",
+    "test": "node scripts/embed-consent-bundle.mjs && vitest run",
+    "test:coverage": "node scripts/embed-consent-bundle.mjs && vitest run --coverage.enabled",
+    "test:workers": "node scripts/embed-consent-bundle.mjs && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
-    "@attestrue/host-contracts": "workspace:*",
-    "@attestrue/schema": "workspace:*",
-    "@attestrue/sdk": "workspace:*",
-    "@attestrue/types": "workspace:*"
+    "@attestrack/host-contracts": "workspace:*",
+    "@attestrack/schema": "workspace:*",
+    "@attestrack/sdk": "workspace:*",
+    "@attestrack/types": "workspace:*"
   },
   "devDependencies": {
-    "@attestrue/strategies": "workspace:*",
+    "@attestrack/consent-js": "workspace:*",
+    "@attestrack/host-cloudflare-worker": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
+    "@cloudflare/vitest-pool-workers": "0.5.41",
+    "@cloudflare/workers-types": "^4.20250321.0",
+    "@vitest/coverage-v8": "2.1.9",
     "vitest": "^2.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

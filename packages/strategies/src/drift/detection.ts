@@ -1,6 +1,11 @@
-import type { Strategy } from '@attestrue/sdk'
-import type { StrategyManifest } from '@attestrue/types'
-import { KV_KEY_CONSENT_CONFIG, KV_KEY_DRIFT_CURRENT, KV_KEY_DRIFT_EXPECTED } from '@attestrue/types'
+import type { Strategy } from '@attestrack/sdk'
+import type { StrategyManifest } from '@attestrack/types'
+import {
+  KV_KEY_CONSENT_CONFIG,
+  KV_KEY_DRIFT_CURRENT,
+  KV_KEY_DRIFT_EXPECTED,
+  KV_KEY_DRIFT_MISMATCH
+} from '@attestrack/types'
 
 const manifest: StrategyManifest = {
   id: 'drift-detection',
@@ -26,7 +31,7 @@ export function createDriftDetectionStrategy(): Strategy {
       await ctx.host.kv.put(KV_KEY_DRIFT_CURRENT, hash)
       if (expected && hash !== expected) {
         await ctx.host.kv.put(
-          'attestrack:drift:mismatch',
+          KV_KEY_DRIFT_MISMATCH,
           JSON.stringify({
             at: new Date().toISOString(),
             expected,

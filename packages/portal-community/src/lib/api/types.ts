@@ -1,6 +1,8 @@
 /** DTOs for portal API responses (stubs + Worker contract target). */
 
-export type DestinationHealthStatus = 'healthy' | 'degraded' | 'inactive';
+import type { CuratedChartId, ExploreChartType } from '@attestrack/types';
+
+export type DestinationHealthStatus = 'healthy' | 'degraded' | 'inactive' | 'no_data';
 
 export interface DestinationRow {
   id: string;
@@ -29,12 +31,16 @@ export interface RequestLogRow {
   status: string;
 }
 
+/**
+ * P3.3 decision: signal-recovery comparisons are NOT measured in v1 (they
+ * require a client beacon Attestrack does not ship yet). The Worker reports
+ * `measured: false` + `reason: 'requires_beacon'`; the only real number is
+ * the troll-shield bot-filter counter.
+ */
 export interface SignalRecoveryMetrics {
-  eventsFromBlockers: number;
-  blockersPct: number;
-  eventsFromITP: number;
-  itpPct: number;
-  cookieIdsPreserved: number;
+  measured: boolean;
+  reason?: string;
+  message?: string;
   botRequestsFiltered: number;
 }
 
@@ -88,9 +94,18 @@ export interface PolicyVersionLists {
   termsOfUse: unknown[];
 }
 
+/** Drift mismatch detail recorded by the Worker's drift-detection strategy (P3.5). */
+export interface DriftAlertDetail {
+  at: string;
+  expected: string;
+  current: string;
+}
+
 export interface DashboardMetrics {
   eventsToday: number;
   driftAlertCount: number;
+  /** Present when a config-drift mismatch is currently recorded (P3.5). */
+  driftAlert?: DriftAlertDetail | null;
   strategyStatus: 'all_healthy' | 'degraded' | 'inactive';
   strategySummary: string;
   shadowModeLabel: string;
@@ -103,9 +118,48 @@ export interface ExploreQueryResult {
   truncated: boolean;
 }
 
+/** User-directed chart mapping stored with a pin (EXP.8/EXP.10). */
+export interface SavedQueryChartConfig {
+  chartType: ExploreChartType;
+  xColumn?: string;
+  yColumn?: string;
+  valueColumn?: string;
+}
+
 export interface SavedQueryEntry {
   id: string;
   name: string;
   sql: string;
   updatedAt: string;
+  /** True when the REQUESTING user pinned this query (pins are personal — EXP.10). */
+  pinned?: boolean;
+  pinnedChart?: SavedQueryChartConfig;
+}
+
+/** P4.3 curated analytics (computed server-side; see oss-http-contract.json). */
+export type CuratedChartState = 'ok' | 'empty' | 'not_configured' | 'error';
+
+export interface CuratedChartPoint {
+  label: string;
+  value: number;
+}
+
+export interface CuratedChartSeries {
+  name: string;
+  points: CuratedChartPoint[];
+}
+
+export interface CuratedChartDescriptor {
+  id: CuratedChartId;
+  title: string;
+  description: string;
+  unit: 'count' | 'percent';
+  source: 'warehouse' | 'delivery_stats';
+}
+
+export interface CuratedChart extends CuratedChartDescriptor {
+  state: CuratedChartState;
+  message?: string;
+  truncated?: boolean;
+  series: CuratedChartSeries[];
 }

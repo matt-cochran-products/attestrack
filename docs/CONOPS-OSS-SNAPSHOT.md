@@ -26,13 +26,13 @@ Implemented in [composite.ts](../packages/worker-core/src/composite.ts) and invo
 4. **Destination** — Parallel fan-out with per-strategy error isolation.
 5. **Analytics** — Analytics stage strategies after destinations.
 
-Context is `StrategyPipelineContext` from `@attestrue/sdk`.
+Context is `StrategyPipelineContext` from `@attestrack/sdk`.
 
 ---
 
 ## Background work
 
-`HostRuntime.scheduleBackground` queues async work. On Cloudflare, this maps to `waitUntil`-style continuation so the client response can return before destinations finish. Tests use `flushMockBackgroundTasks` from `@attestrue/sdk` to assert ordering.
+`HostRuntime.scheduleBackground` queues async work. On Cloudflare, this maps to `waitUntil`-style continuation so the client response can return before destinations finish. Tests use `flushMockBackgroundTasks` from `@attestrack/sdk` to assert ordering.
 
 ---
 
@@ -45,4 +45,4 @@ Premium strategies and consent-runtime enhancements load through **`StrategyLoad
 ## Intentional deltas vs premium ConOps
 
 - No in-tree documentation for operator counsel workflows, demand-letter packs, or witnessed record UI.
-- Explore proxy returns empty result sets until warehouse integration lands; validation is **not** yet allowlist-complete (see [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md) INV-B-15).
+- Explore proxy executes against the operator's Tinybird or ClickHouse when the corresponding secrets are configured ([explore-warehouse.ts](../packages/worker-core/src/explore-warehouse.ts)); the SQL gate enforces single-`SELECT`, a table allowlist (qualified-name aware), and a clamped `LIMIT` ([explore-sql.ts](../packages/schema/src/explore-sql.ts), INV-B-14/15 — see [OSS-SCOPE-MATRIX.md](OSS-SCOPE-MATRIX.md)). Unconfigured warehouses return `explore_warehouse_not_configured`, not empty results.

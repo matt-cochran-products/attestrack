@@ -1,4 +1,4 @@
-import type { HostKeyValue, HostRuntime } from '@attestrue/host-contracts'
+import type { HostKeyValue, HostRuntime } from '@attestrack/host-contracts'
 
 function kvNamespaceAdapter(ns: KVNamespace): HostKeyValue {
   return {
@@ -48,6 +48,14 @@ export function createCloudflareHostRuntime(options: CloudflareHostOptions): Hos
     },
     getSecret(name) {
       return secretValues[name] ?? staticSecrets[name]
+    },
+    botScore(request) {
+      // Cloudflare Bot Management score (Enterprise / Super Bot Fight Mode).
+      // Absent on plans without bot management — the port then returns null
+      // and the community troll-shield relies on UA/header heuristics only.
+      const cf = (request as Request & { cf?: { botManagement?: { score?: number } } }).cf
+      const score = cf?.botManagement?.score
+      return typeof score === 'number' && Number.isFinite(score) ? score : null
     }
   }
 }

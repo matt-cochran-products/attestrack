@@ -31,6 +31,9 @@ out/
 *.tsbuildinfo
 coverage/
 
+# --- Generated sources (rebuilt by package build scripts) ---
+*.generated.ts
+
 # --- Cloudflare Wrangler (local + generated state) ---
 .wrangler/
 .dev.vars
@@ -39,9 +42,14 @@ coverage/
 # --- Playwright ---
 playwright-report/
 test-results/
+e2e/.portal-dist/
 
 # --- IDE & editors ---
 .idea/
 *.swp
 *.swo
 *~
+
+# Stryker mutation testing
+.stryker-tmp/
+reports/mutation/

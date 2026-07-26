@@ -1,8 +1,8 @@
 # Attestrack
 
-[![CI](https://github.com/matt-cochran/attestrue/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/ci.yml)
-[![E2E](https://github.com/matt-cochran/attestrue/actions/workflows/e2e.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/e2e.yml)
-[![Release Please](https://github.com/matt-cochran/attestrue/actions/workflows/release-please.yml/badge.svg)](https://github.com/matt-cochran/attestrue/actions/workflows/release-please.yml)
+[![CI](https://github.com/matt-cochran/attestrack/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/ci.yml)
+[![E2E](https://github.com/matt-cochran/attestrack/actions/workflows/e2e.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/e2e.yml)
+[![Release Please](https://github.com/matt-cochran/attestrack/actions/workflows/release-please.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/release-please.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **First-party, server-side analytics and measurement on your Cloudflare account — MIT licensed.**  
@@ -12,11 +12,11 @@ This repository is the open-source **Attestrack** implementation, including **co
 
 ## Why Attestrack
 
-- **Your Cloudflare account, your credentials.** Workers, KV, D1, R2, and Pages run under your control. Warehouse and destination secrets stay in your environment.
+- **Your Cloudflare account, your credentials.** The Worker, KV, and Pages resources run under your control ([ADR-011](ADR/ADR-011-kv-only-consent-event-storage.md): v1 is KV-only — no D1/R2 required). Warehouse and destination secrets stay in your environment.
 - **First-party endpoint.** Events hit your subdomain; the Worker fans out server-side to Meta, Google, TikTok, Microsoft, and other strategies you enable.
-- **Canonical event schema** for ClickHouse (and Tinybird) so analytics stay **queryable and yours**.
+- **Canonical event schema** for ClickHouse ([`packages/schema/warehouse/clickhouse.sql`](packages/schema/warehouse/clickhouse.sql), [ADR-013](ADR/ADR-013-warehouse-contract.md)) so analytics stay **queryable and yours**; Tinybird is supported via its Events API.
 
-> **Product boundary (ADR-010):** Attestrack ships **analytics + server-side measurement + community consent** (`ConsentConfig` in your KV, mandatory Worker strategies, `@attestrue/consent-js`). **Attorney-maintained regulation rows, canonical witnessed evidence, and Proof** are **Attestrue extensions** (CDN artifacts on your Worker). See [`docs/COMMUNITY-CONSENT.md`](docs/COMMUNITY-CONSENT.md).
+> **Product boundary (ADR-010):** Attestrack ships **analytics + server-side measurement + community consent** (`ConsentConfig` in your KV, mandatory Worker strategies, `@attestrack/consent-js`). **Attorney-maintained regulation rows, canonical witnessed evidence, and Proof** are **Attestrue extensions** (CDN artifacts on your Worker). See [`docs/COMMUNITY-CONSENT.md`](docs/COMMUNITY-CONSENT.md).
 
 ### Self-hosted analytics layer
 
@@ -31,13 +31,24 @@ The community **operator portal** ([`packages/portal-community`](packages/portal
 
 ---
 
+## Demo
+
+<!-- DEMO-PLACEHOLDER: after recording per docs/DEMO-SCRIPT.md, embed the gif here:
+     ![Attestrack demo — deploy, consent, event, Explore](docs/assets/demo.gif)
+     followed by a link to the full screencast. -->
+
+A 5-minute **deploy → consent → event → Explore** screencast is being recorded for launch
+— storyboard and exact commands in [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
+---
+
 ## Quick start (from source)
 
 **Prerequisites:** [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+, and a [Cloudflare](https://www.cloudflare.com/) account when you deploy for real.
 
 ```bash
-git clone https://github.com/attestrue/attestrue.git
-cd attestrue
+git clone https://github.com/matt-cochran/attestrack.git
+cd attestrack
 pnpm install
 pnpm build
 pnpm test
@@ -47,8 +58,19 @@ pnpm boundary-check
 
 **Run locally**
 
-- Marketing site (separate repo): clone [attestrue-site](https://github.com/attestrue/attestrue-site), then `npm install` and `npm run dev` (or `pnpm` equivalents).
-- Community portal: `pnpm --filter @attestrue/portal-community dev`
+- Community portal: `pnpm --filter @attestrack/portal-community dev`
+
+**Then go end-to-end** — deploy to your Cloudflare account ([below](#deploy-to-cloudflare)),
+put `<script src="https://<your-worker-domain>/consent.js" defer></script>` on a page,
+`POST /t/event`, and query your warehouse in the portal's Explore. The full path with
+expected outputs: [`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md) and
+[`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md).
+
+> Verification status: every command above is verified against this tree in CI
+> (build/test/typecheck) or by parsing the deploy CLI; the live deploy → consent → event →
+> Explore loop requires Cloudflare (and, for standalone `npx`, npm) credentials and is a
+> maintainer-executed step pre-launch — tracked in
+> [`docs/GO-PUBLIC-CHECKLIST.md`](docs/GO-PUBLIC-CHECKLIST.md).
 
 ---
 
@@ -56,7 +78,12 @@ pnpm boundary-check
 
 | Location | Purpose |
 |----------|---------|
-| [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification |
+| [`docs/SELF-HOSTING.md`](docs/SELF-HOSTING.md) | Production self-host guide: warehouse DDL, secrets, CORS/cookies, Access, troubleshooting |
+| [`docs/API-REFERENCE.md`](docs/API-REFERENCE.md) | Worker HTTP routes, KV key registry, consent token format |
+| [`docs/PILOT-OSS.md`](docs/PILOT-OSS.md) | Self-hosted Cloudflare pilot: one-command deploy, Access, verification, rollback |
+| [`ADAPTER-DEVELOPMENT-GUIDE.md`](ADAPTER-DEVELOPMENT-GUIDE.md) | Write, test, and submit strategies (community strategy PRs — STR.5) |
+| [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) | 5-minute demo storyboard (maintainer-recorded at launch) |
+| [`docs/RELEASING.md`](docs/RELEASING.md) | Versioning, per-package release-please, npm publish with provenance |
 | [`docs/BEHAVORIAL-SPEC.md`](docs/BEHAVORIAL-SPEC.md) | Behavioural spec (CLI, portal, worker observability, analytics + Explore) |
 | [`docs/OSS-SCOPE-MATRIX.md`](docs/OSS-SCOPE-MATRIX.md) | OSS vs licensed traceability (Tier 1) + ADR-010 precedence |
 | [`docs/REPO-SPEC-OSS.md`](docs/REPO-SPEC-OSS.md) | Binding OSS Worker HTTP, KV, and JSON error contract |
@@ -66,6 +93,7 @@ pnpm boundary-check
 | [`docs/USER-JOURNEY.SPEC.md`](docs/USER-JOURNEY.SPEC.md) | User journey |
 | [`packages/portal-community/docs/`](packages/portal-community/docs/) | Portal-scoped notes |
 | [`ADR/`](ADR/) | Architecture decision records |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability reporting (GitHub Security Advisories) |
 | [`CONSENT-EVIDENCE-TOKEN-STANDARD.md`](CONSENT-EVIDENCE-TOKEN-STANDARD.md) | Pointer to licensed normative standard (ADR-010) |
 
 ---
@@ -73,19 +101,23 @@ pnpm boundary-check
 ## Repository layout
 
 ```
-attestrue/
+attestrack/
 ├── docs/
 ├── packages/
-│   ├── deploy/
-│   ├── portal-community/   # Operator UI — analytics-first (extensions handoff)
-│   ├── consent-js/         # First-party banner / GPC / token UX (stub → implementation)
-│   ├── schema/             # Public Zod — tracking, strategy, consent KV + events
-│   ├── sdk/
-│   ├── strategies/         # Ad-network + analytics + mandatory (incl. community consent)
-│   ├── types/              # Public types — tracking, strategy, consent contracts
-│   └── worker-core/
+│   ├── consent-js/             # First-party consent banner / GPC / token UX (served at GET /consent.js)
+│   ├── deploy/                 # Guided Cloudflare deploy CLI (Worker, KV seed, secrets, Pages)
+│   ├── host-contracts/         # Portable host port types (KV, geo, secrets, waitUntil)
+│   ├── host-cloudflare-worker/ # Default Cloudflare HostRuntime adapter
+│   ├── portal-community/       # Operator UI — analytics-first (extensions handoff)
+│   ├── schema/                 # Public Zod schemas + warehouse DDL (warehouse/clickhouse.sql)
+│   ├── sdk/                    # Strategy author SDK, consent token, test harness
+│   ├── strategies/             # Ad-network + analytics + mandatory (incl. community consent)
+│   ├── types/                  # Public types — tracking, strategy, consent contracts
+│   └── worker-core/            # Worker fetch handler, consent/CORS/portal/Explore routes
 ├── scripts/
-│   └── boundary-check.mjs  # ADR-009 — forbid packages/merkle only
+│   ├── boundary-check.mjs      # ADR-009 — forbid packages/merkle + licensed-sibling references
+│   └── check-oss-routes.mjs    # docs/oss-http-contract.json vs worker-core source
+├── e2e/                        # Playwright smoke tests (Node dev server wrapping the Worker handler)
 ├── tooling/
 ├── ADR/
 ├── pnpm-workspace.yaml
@@ -96,7 +128,20 @@ attestrue/
 
 ## Deploy to Cloudflare
 
-From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV seed, secrets, optional Pages portal). See [docs/PILOT-OSS.md](docs/PILOT-OSS.md).
+Guided CLI — Worker, KV namespace + seed, secrets, optional Pages portal, all in **your** Cloudflare account:
+
+```bash
+# Standalone (published packages) — from any empty directory:
+npx @attestrack/deploy          # add --dry-run to rehearse without touching Cloudflare
+npx @attestrack/deploy verify   # post-deploy checks: /health, DNS route, portal Access, consent commit
+
+# Dev mode — from this repository (uses local file: deps):
+pnpm --filter @attestrack/deploy exec attestrack-deploy
+```
+
+> Pre-launch: standalone mode requires the `@attestrack/*` packages on npm (first publish is a maintainer step — [docs/RELEASING.md](docs/RELEASING.md)); until then use dev mode.
+
+See [docs/PILOT-OSS.md](docs/PILOT-OSS.md) for the full checklist (flags, re-run diffs, Cloudflare Access, rollback).
 
 ---
 
@@ -104,16 +149,15 @@ From the repository root, use the guided `@attestrue/deploy` CLI (Worker, KV see
 
 | Package | Role |
 |---------|------|
-| [`attestrue-site`](https://github.com/attestrue/attestrue-site) (separate repo) | Attestrack marketing site (attestrack.dev) |
-| `@attestrue/deploy` | Deployment tooling |
-| `@attestrue/worker-core` | Worker fetch handler + strategy pipeline (uses `HostRuntime` only) |
-| `@attestrue/host-contracts` | Portable host port types |
-| `@attestrue/host-cloudflare-worker` | Default Cloudflare `HostRuntime` adapter |
-| `@attestrue/consent-js` | Browser consent commit + cookie helpers |
-| `@attestrue/strategies` | Bundled strategies (analytics + ads + community consent) |
-| `@attestrue/portal-community` | Operator UI |
-| `@attestrue/schema` / `@attestrue/types` | Shared public contracts |
-| `@attestrue/sdk` | Strategy author SDK + consent token + `resolveStrategiesWithReplaces` |
+| `@attestrack/deploy` | Deployment tooling |
+| `@attestrack/worker-core` | Worker fetch handler + strategy pipeline (uses `HostRuntime` only) |
+| `@attestrack/host-contracts` | Portable host port types |
+| `@attestrack/host-cloudflare-worker` | Default Cloudflare `HostRuntime` adapter |
+| `@attestrack/consent-js` | Browser consent banner, commit + cookie helpers |
+| `@attestrack/strategies` | Bundled strategies (analytics + ads + community consent) |
+| `@attestrack/portal-community` | Operator UI |
+| `@attestrack/schema` / `@attestrack/types` | Shared public contracts + warehouse DDL |
+| `@attestrack/sdk` | Strategy author SDK + consent token + `resolveStrategiesWithReplaces` |
 
 ---
 

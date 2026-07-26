@@ -16,6 +16,7 @@ runtime. If a layer is listed here, it exists in the repo and is wired into CI.
 | **Portal component** | `packages/portal-community/src/**/*.test.tsx` | jsdom (vitest + RTL) | UI behavior: Explore gating (EXP.13), results table, confirmation dialogs, empty states (PORTAL.5/8), client prefix alignment |
 | **A11y (component)** | `packages/consent-js/__tests__/banner-a11y.test.ts`, `packages/portal-community/src/**/ConfirmDialogs.test.tsx`, `logs-page.test.tsx` | jsdom (vitest-axe) | Banner region semantics, Escape dismissal, focus start point, non-modal contract; dialog `role="dialog"` + labeling; zero serious/critical axe violations |
 | **E2E api-smoke** | `e2e/smoke.spec.ts` (`pnpm --filter @attestrack/e2e test`) | **Real workerd** (`wrangler dev` on `e2e/worker/worker.ts` — the deploy-scaffold composition, seeded local KV) | Health + ingest against the runtime customers deploy. Part of the default `pnpm test`. |
+| **Warehouse integration (P1.5)** | `packages/worker-core/__tests__/warehouse/clickhouse-roundtrip.integration.test.ts` (`pnpm test:warehouse`, config `vitest.warehouse.config.ts`) | **Real ClickHouse** over HTTP (`clickhouse/clickhouse-server:24.3.18.7` — CI service container / local ephemeral docker; `CLICKHOUSE_TEST_HTTP_URL`, default `localhost:8123`, + `CLICKHOUSE_TEST_USER`/`_PASSWORD` Basic auth) | Ingest → warehouse against the **repo-shipped DDL** (`packages/schema/warehouse/clickhouse.sql`): live `DESCRIBE` column parity with `toClickHouseRow`; insert through the ACTUAL strategy (`INSERT INTO events FORMAT JSONEachRow` + `date_time_input_format=best_effort`, delivery stats recorded); read-back raw (`count()`) AND through `validateAndNormalizeExploreSql` → `executeExploreSql`; DateTime64(3) ms-exact `occurredAt`, real NULLs for absent optionals, UInt8/UInt32/Float64 numerics, `params` blob, consent honesty fields incl. boolean→UInt8. **Not** in the default `pnpm test` (needs a DB); fails loudly — never skips — when no ClickHouse answers. |
 | **E2E browser journeys** | `e2e/journeys/*.spec.ts` (`test:browser`, Chromium) | **Real workerd** + real browser; page origin `localhost:8788` ≠ worker origin `localhost:8791` (P2.1 cross-origin topology) | Consent grant/decline/GPC with real credentialed CORS + `Set-Cookie`; Explore query round-trip (portal UI → Worker SQL gate → mock ClickHouse `FORMAT JSON` endpoint → table); portal live-mode smoke; browser-level axe + keyboard-only banner run |
 
 **Rule:** Do not duplicate Worker HTTP assertions inside portal RTL tests. Portal
@@ -65,6 +66,17 @@ chase % on presentational or glue code — the include lists are the contract:
   `pnpm test` (includes e2e api-smoke **against workerd**) → `pnpm test:workers`
   (workerd runtime contracts) → `pnpm coverage` → route-contract-check → build →
   size-check (consent bundle + worker bundle) → boundary-check → egress-check.
+- `ci.yml` `warehouse` job (same triggers, parallel to the main job): starts a
+  `clickhouse/clickhouse-server:24.3.18.7` **service container** (health-gated
+  on `clickhouse-client SELECT 1`, throwaway CI-only credentials), then runs
+  `pnpm build` → `pnpm test:warehouse` with `CLICKHOUSE_TEST_HTTP_URL`
+  pointing at it — the P1.5 ingest → warehouse round-trip against the
+  repo-shipped DDL. Locally: start any ephemeral ClickHouse (e.g.
+  `docker run --rm -p 18123:8123 -e CLICKHOUSE_USER=attestrack -e
+  CLICKHOUSE_PASSWORD=attestrack-test clickhouse/clickhouse-server:24.3.18.7`)
+  and run `CLICKHOUSE_TEST_HTTP_URL=http://localhost:18123 pnpm test:warehouse`.
+  The suite creates/drops the `events` table itself — never point it at a
+  warehouse holding real data.
 - `e2e.yml` (every PR/push to `main`/`dev`): build → Playwright Chromium install
   → live-mode portal build → api-smoke → browser journeys (consent journeys,
   Explore round-trip, portal smoke, a11y).
@@ -72,10 +84,12 @@ chase % on presentational or glue code — the include lists are the contract:
 
 ### Known gaps (deliberate, tracked)
 
-- Warehouse integration against a real ClickHouse container (Phase 1 exit item)
-  is **not** covered here yet: e2e Explore round-trips use a protocol-faithful
-  mock (`FORMAT JSON`, exception mapping). The repo-shipped DDL is not yet
-  exercised in CI.
+- ClickHouse warehouse integration is now REAL (P1.5 closed — see the
+  Warehouse integration layer above); the e2e browser Explore round-trip still
+  uses its protocol-faithful mock, which is fine: the DDL/insert/gate/executor
+  contract is proven against a live ClickHouse in the `warehouse` CI job.
+  **Tinybird** remains covered by unit-level contract tests only (no
+  containerized Tinybird exists to run in CI).
 - Firefox/WebKit journeys are not run; Chromium only.
 - The portal axe gate excludes the `color-contrast` rule
   (`e2e/journeys/portal-a11y.spec.ts`): the terminal theme's muted text

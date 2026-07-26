@@ -36,3 +36,44 @@ jobs:
       - run: pnpm size-check
       - run: pnpm boundary-check
       - run: pnpm egress-check
+
+  # P1.5 — ingest → warehouse round-trip against a REAL ClickHouse: applies the
+  # repo-shipped DDL (packages/schema/warehouse/clickhouse.sql), inserts through
+  # the actual strategy path (INSERT INTO events FORMAT JSONEachRow +
+  # date_time_input_format=best_effort, Basic auth), reads back both raw and
+  # through the Explore SQL gate → executor. Kept out of `pnpm test` on purpose:
+  # the default pipeline needs no ClickHouse; this job provides one.
+  warehouse:
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.3.18.7
+        env:
+          # The image only admits the passwordless `default` user from
+          # localhost; the runner connects over the mapped port (remote), so a
+          # real user is required — and it exercises the Worker's Basic-auth
+          # path. Throwaway CI-only credentials, not secrets.
+          CLICKHOUSE_USER: attestrack
+          CLICKHOUSE_PASSWORD: attestrack-test
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user attestrack --password attestrack-test --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The integration test imports built workspace deps (strategies/schema/sdk).
+      - run: pnpm build
+      - run: pnpm test:warehouse
+        env:
+          CLICKHOUSE_TEST_HTTP_URL: http://localhost:8123
+          CLICKHOUSE_TEST_USER: attestrack
+          CLICKHOUSE_TEST_PASSWORD: attestrack-test

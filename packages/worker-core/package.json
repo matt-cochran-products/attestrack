@@ -16,7 +16,8 @@
     "typecheck": "node scripts/embed-consent-bundle.mjs && tsc --noEmit",
     "test": "node scripts/embed-consent-bundle.mjs && vitest run",
     "test:coverage": "node scripts/embed-consent-bundle.mjs && vitest run --coverage.enabled",
-    "test:workers": "node scripts/embed-consent-bundle.mjs && vitest run --config vitest.workers.config.ts"
+    "test:workers": "node scripts/embed-consent-bundle.mjs && vitest run --config vitest.workers.config.ts",
+    "test:warehouse": "node scripts/embed-consent-bundle.mjs && vitest run --config vitest.warehouse.config.ts"
   },
   "dependencies": {
     "@attestrack/host-contracts": "workspace:*",

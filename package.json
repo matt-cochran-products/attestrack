@@ -6,6 +6,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:workers": "pnpm --filter @attestrack/worker-core test:workers",
+    "mutation": "turbo run build && pnpm --workspace-concurrency=1 -r run mutation",
     "test:warehouse": "pnpm --filter @attestrack/worker-core test:warehouse",
     "coverage": "turbo run test:coverage",
     "lint": "eslint .",

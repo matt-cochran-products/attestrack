@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Mutation testing for the SDK's consent-critical logic: token mint/verify (HMAC, canonical base64url, expiry, site binding — a surviving mutant here is a candidate consent-evidence forgery), the pure consent-gate semantics, destination gating, delivery/counter recording, and strategy replace-resolution. Excluded: index.ts (re-exports), interfaces.ts (types only), testing.ts (test helper, not shipped logic). Not run per-PR (see .github/workflows/mutation.yml: nightly + workflow_dispatch). Residual survivors (score achieved: 93.8) are all equivalent or unreachable-defensive, verified by hand: [consent-token.ts] the crypto_error/bad_encoding/bad_payload_encoding branches are defensive belts that cannot fire (empty keyring secrets short-circuit to unknown_key before importKey; both token segments pass the canonicality decode before those decodes re-run; TextDecoder without fatal never throws); base64url padding mutants are equivalent because WHATWG forgiving-base64 atob accepts unpadded input (verified on Node + workerd spec); /=+$/ vs /=+/ equivalent (btoa emits '=' only trailing); the k-prefix regex '$' removal is equivalent under the /s flag (greedy .+ reaches end); loop '<' vs '<=' equivalent (typed-array OOB writes are no-ops; XOR of two undefineds is 0 after the length guard); importKey extractable flag unobservable; the mint-time conditional spreads are equivalent because zod keeps undefined-valued optional keys but the stable JSON.stringify drops them — identical signing bytes (verified). [delivery.ts] the two `if (!raw)` fast paths and the null-object guard are equivalent (JSON.parse(null)/property access on null route to the same fallback via catch); `typeof === 'number' && Number.isFinite` — the typeof arm is redundant because Number.isFinite is type-strict, kept for readability.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/consent-token.ts",
+    "src/consent-gate.ts",
+    "src/delivery.ts",
+    "src/strategy-resolution.ts",
+    "src/helpers.ts"
+  ],
+  "thresholds": {
+    "high": 93,
+    "low": 90,
+    "break": 90
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

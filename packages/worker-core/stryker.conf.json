@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Mutation testing scoped to worker-core's highest-value request-path logic (P7 threat model): the consent pipeline gating + routes in create-fetch-handler.ts, the credentialed-CORS allowlist (cors.ts), the portal API incl. the shared-secret constant-time check (portal.ts), the Explore warehouse executor, curated-analytics honesty logic, observability counters/log-ring, and the enabled-strategies allowlist + composite pipeline semantics. Deliberately OUT of scope: index.ts/registry.ts/loader.ts/constants.ts (re-export/glue), consent-bundle.generated.js (generated). Runs against the default Node vitest project only (__tests__/workers/** stays in workerd via test:workers). Not run per-PR (see .github/workflows/mutation.yml). Residual survivors (score achieved: 96.7) fall into hand-verified equivalent/unreachable families: (1) `if (!raw)`-style fast-path guards ahead of fail-safe JSON.parse/URL-parse+catch fallbacks that reach the identical result (enabled-strategies.ts line 8-12 cluster, observability parseLogArray/readDriftMismatch, explore-warehouse clickhouseQueryBase, cors resolveCorsOrigin — new URL('null'|null) throws either way, portal alert-rules/toggle catch bodies that re-assign the initial value); (2) slice(-cap) idempotence — `len > cap ? list.slice(-cap) : list` mutants are content-equal because slice(-cap) of a shorter list is the whole list (log ring, pins cap); (3) conditional spreads of undefined-valued keys that a downstream guard or JSON.stringify drops again (pipelineSiteInfo ttl, commit hint/ioa — the minter re-guards, policyRefs — Response.json drops undefined); (4) redundant-but-intentional belts: portal constantTimeEquals Math.max loop bound (diff is pre-seeded with the length XOR) and `?? 0` padding, `.trim()` before WHATWG URL parsing (the parser strips whitespace itself), typeof guards subsumed by type-strict comparisons (Number.isFinite, Array.includes SameValueZero, String(v)===v for strings), readRecentLogs inner-loop limit guard duplicated in the outer condition, `_PREVIOUS` keyring breadth at MINT time (only the current key signs); (5) unreachable defensive code: curated-analytics' gate-rejection branch (canned SQL is authored to pass its own gate; destination-success-rate never reaches cannedSql) and the basePayload 'ok' state every consumer overrides explicitly. None is a live behavior gap; each killable neighbor is pinned by the hardening suites.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/create-fetch-handler.ts",
+    "src/cors.ts",
+    "src/portal.ts",
+    "src/explore-warehouse.ts",
+    "src/curated-analytics.ts",
+    "src/observability.ts",
+    "src/enabled-strategies.ts",
+    "src/composite.ts",
+    "src/config.ts"
+  ],
+  "thresholds": {
+    "high": 96,
+    "low": 92,
+    "break": 92
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

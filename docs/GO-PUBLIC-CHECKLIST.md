@@ -9,8 +9,13 @@ accepted by the maintainer.
 **MAINTAINER** (requires live credentials or an irreversible action only the maintainer
 can take).
 
-*Last audited: 2026-07-25 (P8.6, branch `feature/p8-docs`). PR numbers refer to this
-repository.*
+*Last audited: 2026-07-26 (refresh after PRs #15, #16, #17, #31 + gitleaks run). PR
+numbers refer to this repository.*
+
+**Release status:** the full P0–P8 plan is merged to `dev` **and released to `main`**
+(PR #17, `dev`→`main`). Every core-path and gate row below is now **DONE**; the only
+remaining items are the irreversible, credentialed **MAINTAINER** actions listed at the
+bottom. The repo does not flip public until those are complete.
 
 ---
 
@@ -22,10 +27,10 @@ repository.*
 | §1.2 defect 2 — mode/mechanism semantics | **DONE** (P2, PR #8) | SHADOW never blocks + would-be decision recorded; opt-out rows honored; GPC per row. Regression: `consent-matrix.contract.test.ts`, `packages/sdk/__tests__/consent-gate.test.ts` |
 | §1.2 defect 3 — SQL-gate qualified-name bypass | **DONE** (PR #4, P4.1) | Qualified `db.table` rejected, `default` de-listed; adversarial + hardening suites in `packages/schema/__tests__/explore-sql.test.ts`; nightly Stryker mutation run (PR #7, 89.9%) |
 | §1.2 defect 4 — quickstart / `/consent.js` | **DONE** (P0 PR #9, P2 PR #8, P8) | `GET /consent.js` served (embedded IIFE, contract-tested); README identity/clone URL fixed; quickstart re-verified against the tree in P8 |
-| `config.ts` / `degraded.ts` implemented or deleted; no "to be implemented"/TODO files | **OPEN** (one small PR) | `config.ts` is fully implemented (P2/P3). `grep -ri "to be implemented\|TODO" packages/` finds exactly two files: `packages/worker-core/src/degraded.ts` and `packages/worker-core/src/policy-server.ts` — both are dead placeholder stubs, **not imported or exported anywhere** → delete both files (verified safe; deletion was blocked by sandbox permissions in the P8 session). `d1-schema.sql` already deleted (ADR-011); `publish.yml` is real (P5.4) |
+| `config.ts` / `degraded.ts` implemented or deleted; no "to be implemented"/TODO files | **DONE** (PR #16) | `config.ts` fully implemented (P2/P3); the two dead stubs `degraded.ts` + `policy-server.ts` deleted — `grep -ri "to be implemented" packages/**/*.ts` (source, excl. `dist/`) is now clean. `d1-schema.sql` already deleted (ADR-011); `publish.yml` is real (P5.4) |
 | `troll-shield` real or removed | **DONE** (P3.4, PR #10) | Honest heuristics + optional host bot score; bots never fire destinations; rows relabeled. `packages/strategies/__tests__/troll-shield.test.ts` |
-| Ingest → warehouse against repo-shipped DDL, verified in CI | **OPEN** (Phase 6, in flight) | Column-projection parity with `clickhouse.sql` is unit-tested (`packages/strategies/__tests__/clickhouse.test.ts` — exact column set, JSONEachRow shape); a live ClickHouse-container CI job does not exist yet. Tinybird path is mock-tested only |
-| Consent matrix under **workerd** + cross-subdomain browser e2e | **OPEN** (Phase 6, in flight) | The matrix suite exists and passes under Node vitest (`consent-matrix.contract.test.ts`); current e2e is Playwright against a Node dev server (`e2e/`), not workerd; no cross-subdomain browser e2e yet |
+| Ingest → warehouse against repo-shipped DDL, verified in CI | **DONE** (PR #31) | Live-ClickHouse round-trip: a `warehouse` CI job runs a `clickhouse/clickhouse-server:24.3.18.7` service container, applies `packages/schema/warehouse/clickhouse.sql`, inserts via the real strategy path, and reads back via raw `SELECT` **and** the Explore gate+executor (`packages/worker-core/__tests__/warehouse/clickhouse-roundtrip.integration.test.ts`, 5 tests; `pnpm test:warehouse`). Green in CI + verified locally against real ClickHouse. Tinybird stays unit-level (no containerized Tinybird — documented in TEST-STRATEGY) |
+| Consent matrix under **workerd** + cross-subdomain browser e2e | **DONE** (PR #15) | `test:workers` runs the consent/runtime contracts in actual workerd (`@cloudflare/vitest-pool-workers`); `e2e.yml` runs 15 cross-origin Chromium journeys (page origin ≠ worker origin) incl. grant/decline/GPC + Explore round-trip |
 | Portal live data on fresh deploy; stub views labeled/de-scoped | **DONE** (P3, PR #10; P4, PR #12) | Dashboard/destinations/logs computed from traffic (`portal-observability.contract.test.ts`; route-contract gate forbids seeded dashboard); `/signal*` honestly de-scoped (`requires_beacon`); stub-vs-live chip in the portal shell; accounting in `OSS-SCOPE-MATRIX.md` |
 
 ## Gates green
@@ -33,10 +38,10 @@ repository.*
 | Item | Status | Evidence / remaining work |
 |---|---|---|
 | typecheck/lint/test/build + route-contract + boundary + size + egress + audit gates green | **DONE** (recurring) | `ci.yml` runs all of them on PR + push; re-verified green on this branch 2026-07-25 |
-| Coverage thresholds + a11y gates in CI | **OPEN** (Phase 6, in flight) | Not present in `ci.yml` yet |
+| Coverage thresholds + a11y gates in CI | **DONE** (PR #15) | `ci.yml` runs `pnpm coverage` (≥85% line on consent + explore paths — sdk 95.9%, schema 100%, strategies 87.0%, worker-core 92.3%) and vitest-axe suites (banner, portal dialogs/empty states); Playwright-axe on 4 portal routes in `e2e.yml`. Nightly Stryker mutation on the SQL gate (89.9%); core-package mutation coverage being extended |
 | Secret-echo test | **DONE** (P5) | `packages/deploy/__tests__/secret-masking.test.ts` (CLI output/diff masking, INV-B-10); worker never logs secret values (`egress-check` + threat model review) |
-| All gates **required on branch protection** | **MAINTAINER** | GitHub → Settings → Branches: require the CI + e2e checks on `main`/`dev`. Cannot be done from a working tree |
-| E2E (workerd + Playwright browser) green in CI | **OPEN** (Phase 6, in flight) | Node-server Playwright smoke exists (`e2e/smoke.spec.ts`, `e2e.yml`); workerd + real-browser cross-subdomain e2e pending |
+| All gates **required on branch protection** | **MAINTAINER** | GitHub → Settings → Branches. As of 2026-07-26 `main` requires only the `ci` check — **add `e2e` and `warehouse`** (and apply the same on `dev`). Cannot be done from a working tree |
+| E2E (workerd + Playwright browser) green in CI | **DONE** (PR #15) | `e2e.yml` runs `wrangler dev` (real workerd) + Chromium journeys on every PR/push to `dev`/`main`; green on #15/#16/#17/#31 |
 | `npx @attestrack/deploy` standalone from published packages; `publish.yml` proven (`next` dist-tag dry run) | **MAINTAINER** | Nothing is on npm (all packages 0.0.0). Local `publish --dry-run` proof for all 8 packages is recorded in `docs/RELEASING.md` (2026-07-25). Remaining: create `@attestrack` npm org + 2FA, `NPM_TOKEN`/trusted publishing, workflow dry-run rehearsal, then `--tag next` smoke of `npx @attestrack/deploy@next` |
 
 ## Trust & docs
@@ -44,7 +49,7 @@ repository.*
 | Item | Status | Evidence / remaining work |
 |---|---|---|
 | Threat model merged; token crypto reviewed; portal authn stance documented; SECURITY.md | **DONE** (P7, PR #11; P0, PR #9) | `docs/THREAT-MODEL.md`; P7.2 hardening + `consent-token-hardening.test.ts`; authn statement in `REPO-SPEC-OSS.md` + `PILOT-OSS.md` + `API-REFERENCE.md`; `SECURITY.md` |
-| Full-history secret + boundary scan; history curated if needed | **PART DONE / MAINTAINER** | P8.6 scan results below. Remaining: run **gitleaks** over full history (not installed in the audit environment), then decide history curation |
+| Full-history secret + boundary scan; history curated if needed | **DONE (scan) / MAINTAINER (curation)** | **gitleaks 8.21.2 run 2026-07-26 over full history: 77 commits scanned, 0 leaks** (confirms the manual P8.6 scan below). Boundary scan clean. History **curation** (optional — cosmetic early naming only, no secrets/premium code) remains the maintainer's irreversible call |
 | README/CLAUDE.md/docs zero false claims; premium links de-linked | **DONE** (P0 PR #9, P8) | Identity fixed (P0); "Miniflare" claim corrected (CLAUDE.md states Node dev server); consent scope per ADR-010; dashboards computed or labeled; sibling links are plain-text citations. Standing launch rule: no chart backed by invented numbers |
 | Quickstart re-executed on a clean machine by someone other than the author | **MAINTAINER** | P8 verified every quickstart command exists/parses against the tree; a genuine clean-machine run by a second person is still required |
 | Live demo deployment + screencast linked from README | **MAINTAINER** | Storyboard + exact commands ready: `docs/DEMO-SCRIPT.md`; README has the placeholder section |
@@ -77,8 +82,10 @@ Commands run from a clean checkout of `dev` (56a86f2):
    Google `AIza…`, `npm_…`, PEM private keys, JWTs) → **zero hits**. Credential-assignment
    grep → only the test fixture `'test-secret-32-chars-minimum!!'`. Working-tree secret
    grep → clean.
-5. **gitleaks:** **not run** — not installed in the audit environment. Maintainer must
-   run `gitleaks git .` (full history) and archive the report before flipping public.
+5. **gitleaks:** **RUN 2026-07-26** — gitleaks 8.21.2, `gitleaks git .` over full
+   history: **77 commits scanned, 0 leaks, exit 0.** Corroborates the manual pattern
+   scan above (only the test fixture `'test-secret-32-chars-minimum!!'` exists in-tree).
+   Maintainer may re-run + archive the report as part of the final pre-flip pass.
 
 **History-curation recommendation:** no secrets and no premium code are in history; the
 residual early-history naming (`@attestrue/` scope, marketing site) is cosmetic and
@@ -93,9 +100,11 @@ call.
 
 Deliberately **not** automated or performed by any agent/PR:
 
-1. Run gitleaks over full history; archive the clean report.
+1. gitleaks over full history — **already run clean 2026-07-26 (0 leaks, 77 commits)**;
+   optionally re-run + archive the report as the final pre-flip confirmation.
 2. Decide and (optionally) execute history curation; force-push only if chosen.
-3. Enable branch protection on `main` (and `dev`) with all CI + e2e checks required.
+3. Branch protection: `main` currently requires only `ci` — **add the `e2e` and
+   `warehouse` checks as required** on `main` (and mirror on `dev`).
 4. Create the npm org `@attestrack` (2FA), configure `NPM_TOKEN`/trusted publishing,
    rehearse `publish.yml` dry-run, first publish under `--tag next`, promote to `latest`
    after `npx @attestrack/deploy@next` smoke-passes.

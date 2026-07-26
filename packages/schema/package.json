@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage.enabled",
-    "mutation": "stryker run"
+    "mutation": "pnpm run mutation:gate && pnpm run mutation:schemas",
+    "mutation:gate": "stryker run",
+    "mutation:schemas": "stryker run stryker.schemas.conf.json"
   },
   "dependencies": {
     "@attestrack/types": "workspace:*",

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Second mutation config for @attestrack/schema: the consent/tracking/portal validators and their parse helpers. Kept SEPARATE from stryker.conf.json so the INV-B-15 Explore SQL gate keeps its own high bar (break=85) while this broader validator surface gets its own honest threshold. `pnpm mutation` runs both. Excluded: index.ts (re-exports only) and the explore-sql gate (covered by stryker.conf.json). Known EQUIVALENT survivors (score achieved: 97.4): (1) jurisdiction.schema.ts `if (!raw) return fallback` -> `if (false)`: without the fast path, null coerces through JSON.parse to a schema-invalid value and ''/undefined throw — every branch still returns `fallback`; (2) portal-saved-queries.schema.ts `if (!raw) return []` — same shape, same result; (3) portal-saved-queries.schema.ts catch-body removal — `parsed` stays undefined, the following !Array.isArray check returns the same `[]`. These guards are intentional fast paths, kept for clarity; not refactorable without making behavior depend on JSON.parse coercion subtleties.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/consent.schema.ts",
+    "src/jurisdiction.schema.ts",
+    "src/tracking.schema.ts",
+    "src/consent-event-record.schema.ts",
+    "src/portal-saved-queries.schema.ts",
+    "src/strategy.schema.ts"
+  ],
+  "thresholds": {
+    "high": 95,
+    "low": 90,
+    "break": 90
+  },
+  "tempDirName": ".stryker-tmp-schemas",
+  "cleanTempDir": true
+}

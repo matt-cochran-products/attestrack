@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMockHostRuntime } from '@attestrack/sdk'
 import type { Strategy } from '@attestrack/sdk'
 import { EXPLORE_MAX_ROWS } from '@attestrack/schema'
-import { KV_KEY_OBS_DELIVERY_PREFIX, KV_KEY_OBS_LOG_PREFIX, KV_KEY_DRIFT_MISMATCH } from '@attestrack/types'
+import { KV_KEY_OBS_DELIVERY_PREFIX, KV_KEY_DRIFT_MISMATCH } from '@attestrack/types'
 import {
   runDestinationStrategiesParallel,
   runMandatoryStrategies,

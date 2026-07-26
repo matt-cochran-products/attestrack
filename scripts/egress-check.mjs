@@ -41,8 +41,9 @@ const allowedOriginFiles = new Set(
     'packages/portal-community/src/routes/extensions/index.tsx',
     'packages/portal-community/src/routes/migration/index.tsx',
     'packages/portal-community/src/routes/upgrade/index.tsx',
-    // Contract test asserting the 403 handoff payload.
+    // Contract tests asserting the 403 handoff payload.
     'packages/worker-core/__tests__/contract/create-fetch-handler.contract.test.ts',
+    'packages/worker-core/__tests__/contract/mutation-hardening.contract.test.ts',
     // Portal route map documenting the upgrade handoff targets.
     'packages/portal-community/docs/ROUTES.md',
     // Docs whose job is to document the boundary / upgrade handoff.

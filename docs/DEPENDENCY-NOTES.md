@@ -37,6 +37,21 @@ Vite plugin (see packages/worker-core/vitest.workers.config.ts) and **removed
 per-test isolated storage** — KV state now persists across tests within a file,
 so the workerd suite wipes the namespace in a `beforeEach`.
 
+## size-limit held at 11.x (node 20 floor)
+
+**Held:** `size-limit` + `@size-limit/preset-small-lib` at `^11.2.0`
+(packages/consent-js) instead of the 13.0.1 that the 2026-07 sweep first tried.
+
+**Why:** size-limit 13 imports `glob` from `node:fs/promises`, which only exists
+on **node 22+**. On node 20 (this repo's target) the `size-check` gate throws
+`SyntaxError: The requested module 'node:fs/promises' does not provide an export
+named 'glob'` — it passes on a newer local node but fails in CI (node 20). 11.x
+uses its own glob and is node-20 clean. Same node-20 constraint as the wrangler
+hold-back above.
+
+**Unblock condition:** when the repo raises its node floor to 22, move
+`size-limit`/`@size-limit/preset-small-lib` to latest (13.x).
+
 ## react-router-dom at 7.x with an allowlisted advisory
 
 `react-router-dom 7.18.1` (latest; no 7.x patch exists) is subject to

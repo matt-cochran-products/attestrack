@@ -2,7 +2,7 @@ export type ScaffoldPackageJsonOptions = {
   workerCore: string
   hostCloudflareWorker: string
   strategies: string
-  /** e.g. "^3.99.0" */
+  /** e.g. "~4.86.0" */
   wranglerSemver: string
 }
 

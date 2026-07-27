@@ -17,18 +17,20 @@
 import { execFileSync } from 'node:child_process'
 
 /**
- * Accepted advisories. Every entry MUST have a rationale. All current entries
- * are transitive dependencies of `wrangler` (packages/deploy) — operator-side
+ * Accepted advisories. Every entry MUST have a rationale. Most entries are
+ * transitive dependencies of `wrangler` (packages/deploy) — operator-side
  * deploy-time CLI tooling that never runs in the Worker or in any published
  * runtime bundle. Remove entries as wrangler upgrades land.
  */
 const ALLOWLIST = new Map([
-  ['GHSA-vrm6-8vpv-qv8q', 'undici via wrangler>miniflare — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-v9p9-hfj2-hcw8', 'undici via wrangler>miniflare — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-vxpw-j846-p89q', 'undici via wrangler>miniflare — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-737v-mqg7-c878', 'defu via wrangler>unenv — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-96hv-2xvq-fx4p', 'ws via wrangler>miniflare — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-f88m-g3jw-g9cj', 'sharp via wrangler — deploy-time CLI only, not Worker runtime']
+  [
+    'GHSA-qwww-vcr4-c8h2',
+    'react-router RSC-mode CSRF (action execution before 400) via react-router-dom@7 in ' +
+      'portal-community — the portal is a client-only Vite SPA (BrowserRouter, no SSR, no RSC, ' +
+      'no server actions), so the vulnerable server-mode code path never executes; first ' +
+      'patched release is react-router 8.3.0 (next major, no react-router-dom@8 exists) — ' +
+      'revisit on the react-router 8 migration'
+  ]
 ])
 
 const GATED_SEVERITIES = new Set(['high', 'critical'])

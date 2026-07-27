@@ -14,7 +14,7 @@
  *
  * Run with: pnpm --filter @attestrack/worker-core test:workers
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { createCloudflareHostRuntime } from '@attestrack/host-cloudflare-worker'
 import {
@@ -32,6 +32,16 @@ import { createAttestrackFetchHandler } from '../../src/create-fetch-handler.js'
 import { TRACKING_EVENT_PATH } from '../../src/constants.js'
 
 const SECRET = 'workerd-suite-secret-32-chars!!!'
+
+// vitest-pool-workers 0.13+ (vitest 4 line) removed the per-test isolated
+// storage the 0.5.x pool provided implicitly — KV state now persists across
+// tests in a file. Restore the hermetic-per-test semantics these contracts
+// were written against (e.g. "anonymous ingest writes NO record" must not see
+// the record a previous test wrote) by wiping the namespace before each test.
+beforeEach(async () => {
+  const { keys } = await env.ATTESTRACK_KV.list()
+  await Promise.all(keys.map((k) => env.ATTESTRACK_KV.delete(k.name)))
+})
 
 function siteConfigJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({

@@ -110,9 +110,9 @@ function readWranglerSemverFromDeployPackage(): string {
   try {
     const p = fileURLToPath(new URL('../package.json', import.meta.url))
     const j = JSON.parse(readFileSync(p, 'utf8')) as { dependencies?: { wrangler?: string } }
-    return j.dependencies?.wrangler ?? '^3.99.0'
+    return j.dependencies?.wrangler ?? '~4.86.0'
   } catch {
-    return '^3.99.0'
+    return '~4.86.0'
   }
 }
 

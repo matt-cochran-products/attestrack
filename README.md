@@ -44,7 +44,7 @@ A 5-minute **deploy → consent → event → Explore** screencast is being reco
 
 ## Quick start (from source)
 
-**Prerequisites:** [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/) 9+, and a [Cloudflare](https://www.cloudflare.com/) account when you deploy for real.
+**Prerequisites:** [Node.js](https://nodejs.org/) 22+, [pnpm](https://pnpm.io/) 9+, and a [Cloudflare](https://www.cloudflare.com/) account when you deploy for real.
 
 ```bash
 git clone https://github.com/matt-cochran/attestrack.git

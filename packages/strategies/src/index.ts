@@ -33,7 +33,11 @@ export { createMetaCapiStrategy } from './ad-networks/meta.js'
 export { createGoogleMpStrategy } from './ad-networks/google.js'
 export { createTikTokEventsStrategy } from './ad-networks/tiktok.js'
 export { createMicrosoftUetStrategy } from './ad-networks/microsoft.js'
-export { createClickHouseStrategy } from './analytics/clickhouse.js'
+export {
+  buildClickHouseInsertUrl,
+  createClickHouseStrategy,
+  toClickHouseRow
+} from './analytics/clickhouse.js'
 export { createOtelStrategy } from './analytics/otel.js'
 export { createTinybirdStrategy } from './analytics/tinybird.js'
 export { createDriftDetectionStrategy } from './drift/detection.js'

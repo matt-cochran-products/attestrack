@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/api/schema/stryker-core.json",
+  "_comment": "Mutation testing for the consent/correctness-critical strategies: the mandatory consent pipeline (cookie verify + gate, evidence-log KV write-amp dedup, jurisdiction resolution, troll-shield heuristics), the analytics sinks' row projection + delivery recording (clickhouse/otel/tinybird), the ad-network destinationsAllowed gating, and drift detection. Excluded: index.ts (manifest/re-export glue only). Not run per-PR (see .github/workflows/mutation.yml: nightly + workflow_dispatch). Residual survivors (score achieved: 99.7) are 2 equivalent mutants in troll-shield.ts: `ua.trim() === ''` vs `ua === ''` — unobservable because the WHATWG Headers implementation strips leading/trailing HTTP whitespace at set/get time, so a whitespace-only User-Agent already reads back as ''; and `botScore !== null && botScore > 0` — the null guard is subsumed by `null > 0 === false`, kept as an explicit type guard for readability.",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "reporters": ["clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/mandatory/consent.ts",
+    "src/mandatory/consent-log.ts",
+    "src/mandatory/jurisdiction.ts",
+    "src/mandatory/troll-shield.ts",
+    "src/analytics/clickhouse.ts",
+    "src/analytics/otel.ts",
+    "src/analytics/tinybird.ts",
+    "src/ad-networks/google.ts",
+    "src/ad-networks/meta.ts",
+    "src/ad-networks/microsoft.ts",
+    "src/ad-networks/tiktok.ts",
+    "src/drift/detection.ts"
+  ],
+  "thresholds": {
+    "high": 99,
+    "low": 95,
+    "break": 95
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

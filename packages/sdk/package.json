@@ -14,7 +14,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.examples.json",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage.enabled"
+    "test:coverage": "vitest run --coverage.enabled",
+    "mutation": "stryker run"
   },
   "dependencies": {
     "@attestrack/host-contracts": "workspace:*",
@@ -28,6 +29,8 @@
     "access": "public"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/vitest-runner": "^8.7.1",
     "@vitest/coverage-v8": "2.1.9"
   }
 }

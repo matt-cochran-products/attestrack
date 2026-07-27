@@ -55,8 +55,12 @@ export default function SqlEditor({ value, onChange, onRun, ariaLabel }: SqlEdit
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onRunRef = useRef(onRun);
-  onChangeRef.current = onChange;
-  onRunRef.current = onRun;
+  // "Latest ref" sync — done in an effect (not during render) per the React 19
+  // ref rules enforced by eslint-plugin-react-hooks 7.1 (react-hooks/refs).
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onRunRef.current = onRun;
+  }, [onChange, onRun]);
 
   useEffect(() => {
     if (!hostRef.current) return;

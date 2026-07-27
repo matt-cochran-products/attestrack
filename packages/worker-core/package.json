@@ -30,7 +30,7 @@
     "@attestrack/consent-js": "workspace:*",
     "@attestrack/host-cloudflare-worker": "workspace:*",
     "@attestrack/strategies": "workspace:*",
-    "@cloudflare/vitest-pool-workers": "0.5.41",
+    "@cloudflare/vitest-pool-workers": "0.18.8",
     "@stryker-mutator/core": "^8.7.1",
     "@stryker-mutator/vitest-runner": "^8.7.1",
     "@cloudflare/workers-types": "^4.20250321.0",

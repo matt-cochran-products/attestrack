@@ -3,54 +3,42 @@
 Decisions that pin or hold a dependency below its latest release, with the
 reasoning. Re-evaluate each entry when its stated condition changes.
 
-## wrangler held at 4.86.x (node 20 floor)
+> **Node floor: 22; CI runs node 24.** The repo requires node >=22
+> (`engines.node` in the root package.json — the real dependency floor:
+> wrangler 4.87+ and size-limit 13 need >=22, and 22 is a supported LTS) since
+> the `chore/node-22` bump. Node 20 reached EOL in April 2026. CI workflows
+> pin `node-version: 24` (the active LTS) as the runtime they exercise.
 
-**Held:** `wrangler ~4.86.0` (packages/deploy, e2e) instead of latest 4.x
-(4.114.0 at the time of the 2026-07 dependency sweep).
+## Resolved: wrangler hold at 4.86.x (was: node 20 floor)
 
-**Why:** wrangler 4.87.0 raised `engines.node` from `>=20.3.0` to `>=22.0.0`.
-This repo targets node 20 (`engines.node >= 20` in the root package.json; every
-CI workflow pins `node-version: 20`). 4.86.0 is the last wrangler release whose
-engines allow node 20.
+**Resolved by the node-22 bump (`chore/node-22`).** wrangler was held at
+`~4.86.0` because 4.87.0 raised `engines.node` to `>=22.0.0` while this repo
+still targeted node 20. With the node floor now at 22:
 
-**Coupled pins that follow from it:**
-
-- `@cloudflare/vitest-pool-workers` is pinned `0.15.1` — the release that
-  bundles exactly `wrangler 4.86.0` + `miniflare 4.20260426.0` (both still
-  node-20 compatible; miniflare dropped node 20 at `4.20260430.0`). The
-  pool-workers 0.16+ line bundles wrangler >=4.88 (node 22 only).
-- The tilde range (`~4.86.0`, not `^4.86.0`) is deliberate: a caret would
-  resolve to 4.114.x and silently break node 20 installs.
-- Two undici advisories (GHSA-vmh5-mc38-953g, GHSA-hm92-r4w5-c3mj, both
-  SOCKS5-proxy-related, deploy-time CLI reach only) are fixed in undici 7.28.0,
-  which miniflare only picks up in the wrangler >=4.87 line. They are
-  allowlisted in `scripts/audit-gate.mjs` with rationale until then.
-
-**Unblock condition:** when the repo raises its node floor to 22 (engines +
-all workflow `node-version` pins), move wrangler to latest 4.x, bump
-`@cloudflare/vitest-pool-workers` to the current 0.18+ line, and delete the two
-undici allowlist entries.
+- `wrangler` is at `^4.114.0` (packages/deploy, e2e).
+- `@cloudflare/vitest-pool-workers` moved from the pinned `0.15.1` to `0.18.8`
+  (bundles wrangler 4.114.0 + miniflare 4.20260722.0). Kept pinned exact so the
+  bundled wrangler/miniflare/workerd stay deterministic.
+- `@cloudflare/workers-types` moved to `^5.20260722.1`, matching the workerd
+  runtime (1.20260722.1) bundled by wrangler 4.114.0.
+- The two undici SOCKS5 advisories (GHSA-vmh5-mc38-953g, GHSA-hm92-r4w5-c3mj)
+  are fixed by undici 7.28.0, which miniflare 4.20260722.0 ships; their
+  allowlist entries were removed from `scripts/audit-gate.mjs`.
 
 Note: `@cloudflare/vitest-pool-workers` 0.13+ (the vitest 4 line) replaced
 `defineWorkersConfig`/`test.poolOptions.workers` with the `cloudflareTest()`
 Vite plugin (see packages/worker-core/vitest.workers.config.ts) and **removed
 per-test isolated storage** — KV state now persists across tests within a file,
-so the workerd suite wipes the namespace in a `beforeEach`.
+so the workerd suite wipes the namespace in a `beforeEach`. This is unchanged
+in the 0.18 line.
 
-## size-limit held at 11.x (node 20 floor)
+## Resolved: size-limit hold at 11.x (was: node 20 floor)
 
-**Held:** `size-limit` + `@size-limit/preset-small-lib` at `^11.2.0`
-(packages/consent-js) instead of the 13.0.1 that the 2026-07 sweep first tried.
-
-**Why:** size-limit 13 imports `glob` from `node:fs/promises`, which only exists
-on **node 22+**. On node 20 (this repo's target) the `size-check` gate throws
-`SyntaxError: The requested module 'node:fs/promises' does not provide an export
-named 'glob'` — it passes on a newer local node but fails in CI (node 20). 11.x
-uses its own glob and is node-20 clean. Same node-20 constraint as the wrangler
-hold-back above.
-
-**Unblock condition:** when the repo raises its node floor to 22, move
-`size-limit`/`@size-limit/preset-small-lib` to latest (13.x).
+**Resolved by the node-22 bump (`chore/node-22`).** size-limit 13 imports
+`glob` from `node:fs/promises`, which only exists on node 22+; on node 20 the
+`size-check` gate threw at import time. With the node floor now at 22,
+`size-limit` + `@size-limit/preset-small-lib` are at `^13.0.1`
+(packages/consent-js).
 
 ## react-router-dom at 7.x with an allowlisted advisory
 

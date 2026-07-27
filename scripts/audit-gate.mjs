@@ -21,32 +21,8 @@ import { execFileSync } from 'node:child_process'
  * transitive dependencies of `wrangler` (packages/deploy) — operator-side
  * deploy-time CLI tooling that never runs in the Worker or in any published
  * runtime bundle. Remove entries as wrangler upgrades land.
- *
- * wrangler is held at 4.86.0 — the last release whose engines allow node 20
- * (4.87.0+ requires node >=22; this repo targets node 20, see
- * docs/DEPENDENCY-NOTES.md). The undici entries below are fixed in
- * undici 7.28.0, which arrives via miniflare only with wrangler >=4.87 —
- * i.e. they drop out when the repo moves its node floor to 22.
  */
 const ALLOWLIST = new Map([
-  [
-    'GHSA-vxpw-j846-p89q',
-    'undici via wrangler>miniflare — deploy-time CLI only, not Worker runtime'
-  ],
-  [
-    'GHSA-vmh5-mc38-953g',
-    'undici SOCKS5 ProxyAgent TLS bypass via wrangler>miniflare — deploy-time CLI only, no ' +
-      'SOCKS5 proxying in the deploy path, not Worker runtime; fixed in undici 7.28.0 which ' +
-      'ships with wrangler >=4.87 (requires node >=22)'
-  ],
-  [
-    'GHSA-hm92-r4w5-c3mj',
-    'undici SOCKS5 proxy-pool cross-origin routing via wrangler>miniflare — deploy-time CLI ' +
-      'only, no SOCKS5 proxying in the deploy path, not Worker runtime; fixed in undici 7.28.0 ' +
-      'which ships with wrangler >=4.87 (requires node >=22)'
-  ],
-  ['GHSA-96hv-2xvq-fx4p', 'ws via wrangler>miniflare — deploy-time CLI only, not Worker runtime'],
-  ['GHSA-f88m-g3jw-g9cj', 'sharp via wrangler — deploy-time CLI only, not Worker runtime'],
   [
     'GHSA-qwww-vcr4-c8h2',
     'react-router RSC-mode CSRF (action execution before 400) via react-router-dom@7 in ' +

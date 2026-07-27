@@ -39,7 +39,7 @@ body:
       label: Environment
       description: Node version, pnpm version, OS, and (if deployed) wrangler version.
       placeholder: |
-        Node 20.x / pnpm 9.x / Ubuntu 24.04 / wrangler 3.x
+        Node 22.x / pnpm 9.x / Ubuntu 24.04 / wrangler 3.x
     validations:
       required: false
   - type: textarea

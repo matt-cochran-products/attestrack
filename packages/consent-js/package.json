@@ -16,7 +16,7 @@
   "devDependencies": {
     "@rollup/plugin-typescript": "^11.1.6",
     "@size-limit/preset-small-lib": "^11.1.4",
-    "happy-dom": "^15.11.0",
+    "happy-dom": "^20.11.1",
     "jsdom": "^25.0.1",
     "rollup": "^4.28.1",
     "size-limit": "^11.1.4",

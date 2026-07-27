@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@attestrack/types": "workspace:*",
-    "wrangler": "^3.99.0"
+    "wrangler": "^4.114.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

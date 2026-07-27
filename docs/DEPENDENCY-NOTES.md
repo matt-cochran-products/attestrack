@@ -3,9 +3,11 @@
 Decisions that pin or hold a dependency below its latest release, with the
 reasoning. Re-evaluate each entry when its stated condition changes.
 
-> **Node floor: 22.** The repo requires node >=22 (`engines.node` in the root
-> package.json; every CI workflow pins `node-version: 22`) since the
-> `chore/node-22` bump. Node 20 reached EOL in April 2026.
+> **Node floor: 22; CI runs node 24.** The repo requires node >=22
+> (`engines.node` in the root package.json — the real dependency floor:
+> wrangler 4.87+ and size-limit 13 need >=22, and 22 is a supported LTS) since
+> the `chore/node-22` bump. Node 20 reached EOL in April 2026. CI workflows
+> pin `node-version: 24` (the active LTS) as the runtime they exercise.
 
 ## Resolved: wrangler hold at 4.86.x (was: node 20 floor)
 

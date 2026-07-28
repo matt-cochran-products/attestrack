@@ -1,0 +1,79 @@
+name: CI
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit-gate
+      - run: pnpm typecheck
+      - run: pnpm lint
+      # `pnpm test` includes the e2e api-smoke project, which runs against REAL
+      # workerd via `wrangler dev` (e2e/worker). A11y component suites
+      # (vitest-axe: consent banner, portal dialogs/empty states) run here too.
+      - run: pnpm test
+      # P6.1 — worker-core runtime contract tests inside actual workerd
+      # (@cloudflare/vitest-pool-workers): KV TTL semantics, waitUntil,
+      # cf-ipcountry, Set-Cookie.
+      - run: pnpm test:workers
+      # P6.4 — coverage thresholds (≥85% line) scoped to the consent + explore
+      # paths in sdk / schema / strategies / worker-core.
+      - run: pnpm coverage
+      - run: pnpm route-contract-check
+      - run: pnpm build
+      # size-check covers the consent bundle budget (size-limit) AND the
+      # scaffold worker bundle gzip budget (scripts/worker-size-check.mjs).
+      - run: pnpm size-check
+      - run: pnpm boundary-check
+      - run: pnpm egress-check
+
+  # P1.5 — ingest → warehouse round-trip against a REAL ClickHouse: applies the
+  # repo-shipped DDL (packages/schema/warehouse/clickhouse.sql), inserts through
+  # the actual strategy path (INSERT INTO events FORMAT JSONEachRow +
+  # date_time_input_format=best_effort, Basic auth), reads back both raw and
+  # through the Explore SQL gate → executor. Kept out of `pnpm test` on purpose:
+  # the default pipeline needs no ClickHouse; this job provides one.
+  warehouse:
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.3.18.7
+        env:
+          # The image only admits the passwordless `default` user from
+          # localhost; the runner connects over the mapped port (remote), so a
+          # real user is required — and it exercises the Worker's Basic-auth
+          # path. Throwaway CI-only credentials, not secrets.
+          CLICKHOUSE_USER: attestrack
+          CLICKHOUSE_PASSWORD: attestrack-test
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user attestrack --password attestrack-test --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The integration test imports built workspace deps (strategies/schema/sdk).
+      - run: pnpm build
+      - run: pnpm test:warehouse
+        env:
+          CLICKHOUSE_TEST_HTTP_URL: http://localhost:8123
+          CLICKHOUSE_TEST_USER: attestrack
+          CLICKHOUSE_TEST_PASSWORD: attestrack-test

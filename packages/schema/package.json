@@ -1,0 +1,38 @@
+{
+  "name": "@attestrack/schema",
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matt-cochran/attestrack.git",
+    "directory": "packages/schema"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage.enabled",
+    "mutation": "pnpm run mutation:gate && pnpm run mutation:schemas",
+    "mutation:gate": "stryker run",
+    "mutation:schemas": "stryker run stryker.schemas.conf.json"
+  },
+  "dependencies": {
+    "@attestrack/types": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "vitest": "^4.1.10"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "attestrack",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:workers": "pnpm --filter @attestrack/worker-core test:workers",
+    "mutation": "turbo run build && pnpm --workspace-concurrency=1 -r run mutation",
+    "test:warehouse": "pnpm --filter @attestrack/worker-core test:warehouse",
+    "coverage": "turbo run test:coverage",
+    "lint": "eslint .",
+    "typecheck": "turbo run typecheck",
+    "size-check": "turbo run size-check && node scripts/worker-size-check.mjs",
+    "boundary-check": "node scripts/boundary-check.mjs",
+    "route-contract-check": "node scripts/check-oss-routes.mjs",
+    "audit-gate": "node scripts/audit-gate.mjs",
+    "egress-check": "node scripts/egress-check.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^16.0.0",
+    "turbo": "^2.10.7",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=22"
+  }
+}

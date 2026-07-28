@@ -1,0 +1,41 @@
+name: Mutation (core packages)
+
+# Mutation testing is deeper (and slower) than the unit suite, so it does NOT
+# gate every PR — the fast `pnpm test` in ci.yml stays the PR gate. This runs
+# nightly and on demand across the security/correctness-critical packages:
+#   - schema: the INV-B-15 Explore SQL gate (its own high bar) + all
+#     consent/tracking/portal validators (stryker.schemas.conf.json)
+#   - sdk: consent token mint/verify, gate semantics, delivery recording
+#   - strategies: the mandatory consent pipeline, sinks and ad destinations
+#   - worker-core: request-path routing, portal API, CORS, warehouse executor
+# A surviving mutant on these surfaces is a candidate consent/gate bypass the
+# tests don't pin down; `stryker run` exits non-zero when the mutation score
+# drops below the per-package break threshold (see each stryker.conf.json,
+# which also documents the accepted equivalent survivors).
+on:
+  schedule:
+    - cron: '0 7 * * *' # 07:00 UTC nightly
+  workflow_dispatch: {}
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [schema, sdk, strategies, worker-core]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Stryker runs vitest directly against source, which resolves the
+      # workspace deps (@attestrack/types etc.) via their built dist — so the
+      # deps must be built first (turbo's normal `pnpm test` does this
+      # implicitly; this job does not go through turbo).
+      - run: pnpm --filter @attestrack/${{ matrix.package }}^... build
+      - name: Stryker — ${{ matrix.package }}
+        run: pnpm --filter @attestrack/${{ matrix.package }} mutation

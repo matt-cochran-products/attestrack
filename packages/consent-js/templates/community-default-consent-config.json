@@ -1,0 +1,45 @@
+{
+  "jurisdictions": {
+    "US-CA": {
+      "profile": "elevated",
+      "mechanism": "opt-in",
+      "ioa_assertions": [
+        {
+          "id": "primary",
+          "text": "I have had the opportunity to review the Privacy Policy and I agree.",
+          "required": true
+        }
+      ],
+      "documents": ["privacy_policy", "terms"],
+      "gpc_honor": true,
+      "applies_regulations": ["us_ca_cpra"]
+    },
+    "EU": {
+      "profile": "standard",
+      "mechanism": "opt-in",
+      "ioa_assertions": [
+        {
+          "id": "primary",
+          "text": "I consent to the use of cookies and tracking technologies.",
+          "required": true
+        }
+      ],
+      "documents": ["privacy_policy", "cookie_notice"],
+      "gpc_honor": true,
+      "applies_regulations": ["gdpr", "eea"]
+    },
+    "DEFAULT": {
+      "profile": "standard",
+      "mechanism": "opt-out",
+      "ioa_assertions": [
+        {
+          "id": "primary",
+          "text": "By continuing to use this site you agree to our Privacy Policy.",
+          "required": true
+        }
+      ],
+      "documents": ["privacy_policy"],
+      "gpc_honor": true
+    }
+  }
+}

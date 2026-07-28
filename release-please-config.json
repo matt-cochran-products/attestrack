@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "separate-pull-requests": false,
+  "plugins": ["node-workspace"],
+  "packages": {
+    "packages/types": { "release-type": "node", "component": "types" },
+    "packages/schema": { "release-type": "node", "component": "schema" },
+    "packages/sdk": { "release-type": "node", "component": "sdk" },
+    "packages/host-contracts": { "release-type": "node", "component": "host-contracts" },
+    "packages/host-cloudflare-worker": { "release-type": "node", "component": "host-cloudflare-worker" },
+    "packages/strategies": { "release-type": "node", "component": "strategies" },
+    "packages/worker-core": { "release-type": "node", "component": "worker-core" },
+    "packages/deploy": { "release-type": "node", "component": "deploy" }
+  }
+}

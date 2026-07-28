@@ -1,0 +1,105 @@
+# Per-package npm publish (plan P5.4).
+#
+# Trigger: release-please tags `<component>-v<version>` (e.g. `worker-core-v0.1.0`)
+# created when a release PR merges to main. Each tag publishes exactly one
+# package with npm provenance (`id-token: write` + NPM_CONFIG_PROVENANCE).
+#
+# Maintainer prerequisites (one-time, live-credential steps — cannot be tested here):
+#   1. Create the npm org/scope `@attestrack` (2FA required — plan P7.4).
+#   2. Add an automation token as the `NPM_TOKEN` repository secret
+#      (or configure npm Trusted Publishing for this repo/workflow, then the
+#      NODE_AUTH_TOKEN env line can be removed).
+#   3. Dry-run rehearsal without tags: run this workflow via workflow_dispatch
+#      with `dry_run: true`, or locally `pnpm --filter <pkg> publish --dry-run --no-git-checks`.
+#
+# Actions pinned by commit SHA (plan P7.4 supply-chain convention).
+name: Publish
+on:
+  push:
+    tags:
+      - '*-v*'
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Package directory name under packages/ (e.g. worker-core)'
+        required: true
+        type: string
+      dry_run:
+        description: 'npm publish --dry-run (no credentials consumed, nothing published)'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: Resolve package from tag / input
+        id: pkg
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMPONENT: ${{ inputs.component }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            COMPONENT="$INPUT_COMPONENT"
+            VERSION=""
+            DRY_RUN="$INPUT_DRY_RUN"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            COMPONENT="${TAG%-v*}"
+            VERSION="${TAG##*-v}"
+            DRY_RUN="false"
+          fi
+          case "$COMPONENT" in
+            types|schema|sdk|host-contracts|host-cloudflare-worker|strategies|worker-core|deploy) ;;
+            *)
+              echo "'$COMPONENT' is not a publishable package — nothing to do."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          PKG_VERSION="$(node -p "require('./packages/${COMPONENT}/package.json').version")"
+          if [ -n "$VERSION" ] && [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "Tag version $VERSION does not match packages/${COMPONENT} version $PKG_VERSION" >&2
+            exit 1
+          fi
+          {
+            echo "skip=false"
+            echo "component=$COMPONENT"
+            echo "name=@attestrack/${COMPONENT}"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+      - name: Install
+        if: steps.pkg.outputs.skip == 'false'
+        run: pnpm install --frozen-lockfile
+      - name: Build (turbo builds workspace dependencies first)
+        if: steps.pkg.outputs.skip == 'false'
+        run: pnpm build
+      - name: Publish ${{ steps.pkg.outputs.name }}
+        if: steps.pkg.outputs.skip == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: |
+          set -euo pipefail
+          EXTRA=""
+          if [ "${{ steps.pkg.outputs.dry_run }}" = "true" ]; then
+            EXTRA="--dry-run"
+          fi
+          # pnpm publish rewrites workspace:* deps to the released versions.
+          pnpm --filter "${{ steps.pkg.outputs.name }}" publish --access public --no-git-checks $EXTRA

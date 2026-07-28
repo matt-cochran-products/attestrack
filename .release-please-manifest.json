@@ -1,0 +1,10 @@
+{
+  "packages/types": "0.0.0",
+  "packages/schema": "0.0.0",
+  "packages/sdk": "0.0.0",
+  "packages/host-contracts": "0.0.0",
+  "packages/host-cloudflare-worker": "0.0.0",
+  "packages/strategies": "0.0.0",
+  "packages/worker-core": "0.0.0",
+  "packages/deploy": "0.0.0"
+}

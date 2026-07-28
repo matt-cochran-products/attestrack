@@ -1,0 +1,15 @@
+{
+  "name": "@attestrack/local-dev",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local self-host dev Worker + ClickHouse DDL for attestrack tracking.",
+  "scripts": {
+    "worker": "node dev-worker.mjs"
+  },
+  "dependencies": {
+    "@attestrack/worker-core": "workspace:*",
+    "@attestrack/strategies": "workspace:*",
+    "@attestrack/sdk": "workspace:*"
+  }
+}

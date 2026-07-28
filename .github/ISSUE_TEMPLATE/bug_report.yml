@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in Attestrack does not behave as documented
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Security issues do not belong here** — use the
+        [private advisory flow](https://github.com/matt-cochran/attestrack/security/advisories/new) instead (see SECURITY.md).
+  - type: input
+    id: package
+    attributes:
+      label: Affected package(s)
+      description: e.g. @attestrack/worker-core, @attestrack/consent-js, @attestrack/deploy, portal-community
+      placeholder: "@attestrack/worker-core"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead? Include exact commands/requests where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce (fresh clone → commands). For Worker issues, include the route and request shape (no secrets).
+      placeholder: |
+        1. pnpm install && pnpm build
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, pnpm version, OS, and (if deployed) wrangler version.
+      placeholder: |
+        Node 22.x / pnpm 9.x / Ubuntu 24.04 / wrangler 3.x
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output / logs
+      description: Redact secrets and tokens before pasting.
+      render: shell
+    validations:
+      required: false

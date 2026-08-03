@@ -14,7 +14,7 @@
     "@attestrack/types": "workspace:*"
   },
   "devDependencies": {
-    "@rollup/plugin-typescript": "^11.1.6",
+    "@rollup/plugin-typescript": "^12.3.0",
     "@size-limit/preset-small-lib": "^13.0.1",
     "happy-dom": "^20.11.1",
     "jsdom": "^25.0.1",

@@ -16,8 +16,8 @@
     "@attestrack/worker-core": "workspace:*"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
-    "@playwright/test": "^1.62.0",
-    "wrangler": "^4.114.0"
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
+    "wrangler": "^4.123.0"
   }
 }

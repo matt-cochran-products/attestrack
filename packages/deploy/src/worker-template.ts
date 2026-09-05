@@ -1,6 +1,7 @@
 export interface WorkerTemplateOptions {
   siteId: string
   kvNamespaceBinding: string
+  clickhouseVpcServiceId?: string
 }
 
 export function buildWranglerToml(opts: WorkerTemplateOptions): string {
@@ -20,6 +21,16 @@ compatibility_date = "2024-12-01"
 [[kv_namespaces]]
 binding = "ATTESTRACK_KV"
 id = "${opts.kvNamespaceBinding}"
+${
+  opts.clickhouseVpcServiceId
+    ? `
+[[vpc_services]]
+binding = "CLICKHOUSE_PRIVATE"
+service_id = "${opts.clickhouseVpcServiceId}"
+remote = true
+`
+    : ''
+}
 
 [vars]
 SITE_ID = "${opts.siteId}"
@@ -33,6 +44,7 @@ import { allBundledStrategies } from '@attestrack/strategies'
 
 interface Env {
   ATTESTRACK_KV: KVNamespace
+  CLICKHOUSE_PRIVATE?: Fetcher
   CONSENT_TOKEN_SECRET: string
   SITE_ID: string
 }
@@ -53,7 +65,10 @@ function stringBindings(env: Env): Record<string, string | undefined> {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const host = createCloudflareHostRuntime({
-      bindings: { kv: env.ATTESTRACK_KV },
+      bindings: {
+        kv: env.ATTESTRACK_KV,
+        outbound: { CLICKHOUSE_PRIVATE: env.CLICKHOUSE_PRIVATE }
+      },
       executionCtx: ctx,
       secretValues: stringBindings(env)
     })

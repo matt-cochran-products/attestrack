@@ -62,6 +62,8 @@ export type ScriptedDeployAnswers = {
   kvNamespaceId?: string
   pagesProjectName?: string
   consentSecretForPut?: string
+  /** Cloudflare Workers VPC service used for private ClickHouse HTTP traffic. */
+  clickhouseVpcServiceId?: string
   /**
    * When `attestrack-deploy/wrangler.toml` exists with a real KV id, skip `kv namespace create`
    * and reuse that id (BEH CLI.11 update path).
@@ -77,6 +79,8 @@ export type RunInteractiveDeployOptions = {
   /** Skip KV re-seed (re-runs where the operator edited config via the portal). */
   skipSeed?: boolean
   dryRun?: boolean
+  /** Cloudflare Workers VPC service used for private ClickHouse HTTP traffic. */
+  clickhouseVpcServiceId?: string
   runCommand?: RunCommandFn
   /**
    * Non-interactive: if `attestrack-deploy/wrangler.toml` already has a KV id, reuse it (no new namespace).
@@ -344,7 +348,12 @@ export async function runInteractiveDeploy(options?: RunInteractiveDeployOptions
 
     const wranglerSemver = readWranglerSemverFromDeployPackage()
     const plan: ScaffoldFilePlan = {
-      wranglerToml: buildWranglerToml({ siteId, kvNamespaceBinding: kvNamespaceId }),
+      wranglerToml: buildWranglerToml({
+        siteId,
+        kvNamespaceBinding: kvNamespaceId,
+        clickhouseVpcServiceId:
+          options?.clickhouseVpcServiceId ?? scripted?.clickhouseVpcServiceId
+      }),
       workerEntry: buildWorkerEntry(),
       kvSeedJson: JSON.stringify(initialKvSeed(siteId, domain), null, 2)
     }

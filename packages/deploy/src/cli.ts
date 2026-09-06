@@ -15,6 +15,8 @@ Deploy flags:
   --skip-seed       Do not re-write KV seed keys (keep portal-edited config)
   --reuse-kv        Non-interactive reuse of an existing scaffold's KV namespace
   --dry-run         Print every step without touching Cloudflare (also: ATTESTRACK_DEPLOY_DRY_RUN=1)
+  --clickhouse-vpc-service-id <id>
+                     Bind private ClickHouse through a Cloudflare Workers VPC service
 
 Verify flags (defaults come from attestrack-deploy/deploy-state.json when present):
   --worker-url <url>   Worker URL (e.g. https://attestrack-x.y.workers.dev)
@@ -66,13 +68,15 @@ async function main(): Promise<void> {
   const skipSeed = args.includes('--skip-seed')
   const reuseExistingKvWhenPresent = args.includes('--reuse-kv')
   const dryRun = args.includes('--dry-run')
+  const clickhouseVpcServiceId = parseFlagValue(args, '--clickhouse-vpc-service-id')
 
   await runInteractiveDeploy({
     scaffoldOnly,
     skipPortal,
     skipSeed,
     reuseExistingKvWhenPresent,
-    dryRun
+    dryRun,
+    ...(clickhouseVpcServiceId ? { clickhouseVpcServiceId } : {})
   })
 }
 

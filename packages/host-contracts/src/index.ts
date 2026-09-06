@@ -18,6 +18,12 @@ export interface HostRuntime {
   /** Named secrets from the host environment (never logged). */
   getSecret(name: string): string | undefined
   /**
+   * Optional named outbound transport supplied by the host. Cloudflare Workers
+   * uses this for Workers VPC service bindings; other hosts fall back to their
+   * normal network fetch when the port is absent.
+   */
+  fetchOutbound?(binding: string, input: RequestInfo | URL, init?: RequestInit): Promise<Response>
+  /**
    * Optional host bot score for a request (P3.4 troll-shield passthrough).
    * Cloudflare Bot Management convention: 1–29 = likely automated, 30+ human,
    * `null` when the host/plan provides no score. Hosts without bot detection

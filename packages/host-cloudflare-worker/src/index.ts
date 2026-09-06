@@ -18,6 +18,7 @@ function kvNamespaceAdapter(ns: KVNamespace): HostKeyValue {
 export interface CloudflareHostBindings {
   kv: KVNamespace
   secrets?: Record<string, string | undefined>
+  outbound?: Record<string, Fetcher | undefined>
 }
 
 export interface CloudflareHostOptions {
@@ -48,6 +49,11 @@ export function createCloudflareHostRuntime(options: CloudflareHostOptions): Hos
     },
     getSecret(name) {
       return secretValues[name] ?? staticSecrets[name]
+    },
+    async fetchOutbound(binding, input, init) {
+      const transport = options.bindings.outbound?.[binding]
+      if (!transport) return fetch(input, init)
+      return transport.fetch(input, init)
     },
     botScore(request) {
       // Cloudflare Bot Management score (Enterprise / Super Bot Fight Mode).

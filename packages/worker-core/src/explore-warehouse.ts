@@ -82,14 +82,17 @@ async function runClickHouse(
   const url = `${base}/`
   let res: Response
   try {
-    res = await fetch(url, {
+    const requestInit: RequestInit = {
       method: 'POST',
       headers: {
         ...(auth ? { Authorization: auth } : {}),
         'content-type': 'text/plain; charset=utf-8'
       },
       body: `${sqlNormalized}\nFORMAT JSON\n`
-    })
+    }
+    res = host.fetchOutbound
+      ? await host.fetchOutbound('CLICKHOUSE_PRIVATE', url, requestInit)
+      : await fetch(url, requestInit)
   } catch (e) {
     return {
       ok: false,

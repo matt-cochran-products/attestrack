@@ -30,10 +30,10 @@
     "@attestrack/consent-js": "workspace:*",
     "@attestrack/host-cloudflare-worker": "workspace:*",
     "@attestrack/strategies": "workspace:*",
-    "@cloudflare/vitest-pool-workers": "0.18.8",
+    "@cloudflare/vitest-pool-workers": "0.22.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
-    "@cloudflare/workers-types": "^5.20260722.1",
+    "@cloudflare/workers-types": "^5.20260911.1",
     "@vitest/coverage-v8": "4.1.10",
     "vitest": "^4.1.10"
   },

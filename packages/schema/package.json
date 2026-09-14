@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@attestrack/types": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",

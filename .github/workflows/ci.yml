@@ -1,11 +1,23 @@
 name: CI
 on:
-  push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
+    branches:
+    - staging
+    - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: build-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +56,7 @@ jobs:
   # through the Explore SQL gate → executor. Kept out of `pnpm test` on purpose:
   # the default pipeline needs no ClickHouse; this job provides one.
   warehouse:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     services:
       clickhouse:
@@ -77,3 +90,17 @@ jobs:
           CLICKHOUSE_TEST_HTTP_URL: http://localhost:8123
           CLICKHOUSE_TEST_USER: attestrack
           CLICKHOUSE_TEST_PASSWORD: attestrack-test
+
+  build-gate:
+    name: Build gate
+    needs:
+    - ci
+    - warehouse
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft != true) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BUILD_RESULTS: ${{ toJSON(needs) }}
+    steps:
+    - name: Require successful build checks
+      run: "python3 - <<'PY'\nimport json, os, sys\nresults = json.loads(os.environ[\"BUILD_RESULTS\"])\nbad = {name: job[\"result\"] for name, job in results.items() if job[\"result\"] not in (\"success\", \"skipped\")}\nif bad or not any(job[\"result\"] == \"success\" for job in results.values()):\n    print(\"Build gate failed:\", bad or \"all checks skipped\")\n    sys.exit(1)\nprint(\"All applicable build checks passed\")\nPY\n"

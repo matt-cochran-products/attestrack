@@ -1,11 +1,23 @@
 name: E2E Tests
 on:
-  push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
+    branches:
+    - staging
+    - main
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: build-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

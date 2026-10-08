@@ -13,9 +13,11 @@ name: Mutation (core packages)
 # drops below the per-package break threshold (see each stryker.conf.json,
 # which also documents the accepted equivalent survivors).
 on:
-  schedule:
-    - cron: '0 7 * * *' # 07:00 UTC nightly
   workflow_dispatch: {}
+
+concurrency:
+  group: build-mutation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mutation:

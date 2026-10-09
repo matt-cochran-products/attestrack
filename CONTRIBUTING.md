@@ -6,7 +6,7 @@ Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues go thro
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 24 LTS (pinned in `.nvmrc`)
 - pnpm 9 (`packageManager` is pinned in the root `package.json`)
 
 ## Setup

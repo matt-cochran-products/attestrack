@@ -104,3 +104,7 @@ and live application acceptance are separate steps. Never infer a contract or
 reuse the fleet boundary merely because the service needs a password.
 
 See the versioned [OPV usage guide](https://github.com/matt-cochran/1password-vault/blob/v0.14.0/docs/usage.md).
+
+Use the OPV version pinned by the operator's infra repository. Older examples
+using `.opv`, `init`, `add` or `check` are not the 0.14 contract interface;
+do not combine their setup steps with a current structure/apply plan.

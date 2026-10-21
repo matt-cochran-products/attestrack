@@ -70,7 +70,8 @@ values.
 | `PORTAL_API_SHARED_SECRET` | Recommended | Defense-in-depth auth for the portal API (§5) |
 | `CLICKHOUSE_HTTP_URL` | ClickHouse sink | Insert endpoint for the `clickhouse` strategy |
 | `CLICKHOUSE_QUERY_URL` | ClickHouse Explore | Query base for the Explore proxy (falls back to `CLICKHOUSE_HTTP_URL`'s origin) |
-| `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | If your ClickHouse requires auth | Basic auth on both paths |
+| `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | ClickHouse ingestion auth | INSERT-only Worker identity; legacy Explore fallback only if neither dedicated query key is declared |
+| `CLICKHOUSE_QUERY_USER`, `CLICKHOUSE_QUERY_PASSWORD` | Dedicated Explore auth | Set both to a SELECT-only identity; partial or empty configuration refuses queries without falling back to ingest credentials |
 | `TINYBIRD_TOKEN` | Tinybird sink/Explore | Events API + SQL API |
 | `TINYBIRD_DATASOURCE` | Tinybird sink | Target datasource name (default `events`) |
 | `TINYBIRD_API_URL` | Optional | Region override for the Explore query path (default `https://api.tinybird.co`) |

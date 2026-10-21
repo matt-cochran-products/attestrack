@@ -93,6 +93,7 @@ describe('executeExploreSql — ClickHouse', () => {
       CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only',
       CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only'
     }), SQL)
+    expect(isExploreWarehouseConfigured(host({ CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' }))).toBe(true)
     const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
     expect((init.headers as Record<string, string>).Authorization)
       .toBe(`Basic ${btoa('fixture_reader:fixture_select_only')}`)
@@ -112,6 +113,12 @@ describe('executeExploreSql — ClickHouse', () => {
       ...host({ CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only', ...secrets }),
       fetchOutbound: privateFetch
     }, SQL)
+    expect(isExploreWarehouseConfigured(host({
+      CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only', ...secrets
+    }))).toBe(false)
+    expect(isExploreWarehouseConfigured(host({
+      ...secrets, TINYBIRD_TOKEN: 'fixture_tinybird'
+    }))).toBe(true)
     expect(res).toMatchObject({ ok: false, status: 503,
       error: 'explore_warehouse_query_credentials_incomplete' })
     expect(JSON.stringify(res)).not.toContain('fixture_insert_only')

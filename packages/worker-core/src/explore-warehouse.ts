@@ -16,8 +16,16 @@ export type ExploreWarehouseErr = {
   details: Record<string, unknown>
 }
 
+function completeQueryPair(user: string | undefined, pass: string | undefined): boolean {
+  return (user === undefined && pass === undefined) || !!(user?.trim() && pass)
+}
+
 export function isExploreWarehouseConfigured(host: HostRuntime): boolean {
-  return !!(host.getSecret('TINYBIRD_TOKEN') || clickhouseQueryBase(host))
+  return !!(host.getSecret('TINYBIRD_TOKEN') || (
+    clickhouseQueryBase(host) && completeQueryPair(
+      host.getSecret('CLICKHOUSE_QUERY_USER'), host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
+    )
+  ))
 }
 
 function clickhouseQueryBase(host: HostRuntime): string {
@@ -78,7 +86,7 @@ async function runClickHouse(
   const queryUser = host.getSecret('CLICKHOUSE_QUERY_USER')
   const queryPass = host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
   const dedicated = queryUser !== undefined || queryPass !== undefined
-  if (dedicated && (!queryUser?.trim() || !queryPass)) {
+  if (!completeQueryPair(queryUser, queryPass)) {
     return {
       ok: false,
       status: 503,

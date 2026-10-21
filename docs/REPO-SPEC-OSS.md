@@ -65,6 +65,7 @@ Worker JSON responses use stable `error` string codes and optional structured `d
 | `invalid_body` | 400 | Schema validation failed; `details` present |
 | `invalid_sql` | 400 | Explore proxy rejected SQL; top-level `reason` + `details.code` / `details.reason` (triage) |
 | `explore_warehouse_not_configured` | 503 | No `TINYBIRD_TOKEN` or ClickHouse query base |
+| `explore_warehouse_query_credentials_incomplete` | 503 | Dedicated ClickHouse query credentials are partial or empty; set both query keys. No request or ingestion-credential fallback occurs |
 | `explore_warehouse_http_error` | 4xx/502 | Upstream warehouse error; `details.reason` truncated |
 | `explore_warehouse_fetch_failed` | 502 | Network failure calling warehouse |
 | `explore_warehouse_rejected` | 400 | ClickHouse returned `exception` in JSON body |

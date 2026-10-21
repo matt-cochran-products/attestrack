@@ -146,6 +146,7 @@ Symptom-first:
 | 400 on ingest | `invalid_body` (+ Zod `details`) | Body must match `trackingEventV1Schema` — `v: 1`, `eventName`, `siteId`, ISO `occurredAt`; unknown fields are stripped |
 | Explore returns 400 | `invalid_sql` (+ `details.code`) | Single `SELECT`, bare allowlisted tables (`events`, `attestrack_events`), no `UNION`/subquery-`FROM`; `LIMIT` clamped to 500 |
 | Explore returns 503 | `explore_warehouse_not_configured` | Set `TINYBIRD_TOKEN` or `CLICKHOUSE_QUERY_URL`/`CLICKHOUSE_HTTP_URL` |
+| Explore returns 503 | `explore_warehouse_query_credentials_incomplete` | Set both `CLICKHOUSE_QUERY_USER` and `CLICKHOUSE_QUERY_PASSWORD` to the SELECT-only identity; neither may be empty. Queries refuse before network access and do not fall back to ingestion credentials |
 | Explore 4xx/502 | `explore_warehouse_http_error`, `_fetch_failed`, `_rejected`, `_bad_response` | Upstream warehouse problem — check credentials, URL, and that the DDL was applied; `details.reason` carries the upstream message |
 | Saving a query returns 400 | `saved_queries_limit` | 100-entry cap — remove one first |
 | Portal API returns 401 | `portal_unauthorized` | `PORTAL_API_SHARED_SECRET` is set — send the `x-attestrack-portal-secret` header |

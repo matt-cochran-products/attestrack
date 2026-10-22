@@ -86,6 +86,25 @@ describe('executeExploreSql — ClickHouse', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa('u:p')}`)
   })
 
+  it('routes ClickHouse queries through the named private transport when the host provides it', async () => {
+    const privateFetch = vi.fn(async () => new Response(chJson(), { status: 200 }))
+    const privateHost = {
+      ...host(),
+      fetchOutbound: privateFetch
+    }
+    const globalFetch = vi.fn()
+    vi.stubGlobal('fetch', globalFetch)
+
+    await executeExploreSql(privateHost, SQL)
+
+    expect(privateFetch).toHaveBeenCalledWith(
+      'CLICKHOUSE_PRIVATE',
+      'https://ch.example/',
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(globalFetch).not.toHaveBeenCalled()
+  })
+
   it('omits Authorization without credentials', async () => {
     const fetchSpy = vi.fn(async () => new Response(chJson(), { status: 200 }))
     vi.stubGlobal('fetch', fetchSpy)

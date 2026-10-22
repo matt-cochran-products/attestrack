@@ -11,6 +11,16 @@ describe('worker-template', () => {
     expect(src).toContain('allBundledStrategies')
   })
 
+  it('emits a Workers VPC binding when a private ClickHouse service is supplied', () => {
+    const toml = buildWranglerToml({
+      siteId: 'acme:staging',
+      kvNamespaceBinding: 'abc',
+      clickhouseVpcServiceId: 'service-123'
+    })
+    expect(toml).toContain('binding = "CLICKHOUSE_PRIVATE"')
+    expect(toml).toContain('service_id = "service-123"')
+  })
+
   it('hands ALL string bindings to the host (P6 regression: warehouse/destination secrets must reach host.getSecret)', () => {
     const src = buildWorkerEntry()
     // A scaffold that only forwards CONSENT_TOKEN_SECRET silently disables

@@ -144,6 +144,21 @@ describe('createClickHouseStrategy', () => {
     expect(body.consentDecision).toBe('granted')
   })
 
+  it('uses the named host transport so Workers VPC can reach private ClickHouse', async () => {
+    const privateFetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    const host = {
+      ...createMockHostRuntime({ secrets: { CLICKHOUSE_HTTP_URL: 'https://private.clickhouse:8443' } }),
+      fetchOutbound: privateFetch
+    }
+    await createClickHouseStrategy().run({
+      host,
+      request: new Request('https://x/'),
+      tracking
+    } as never)
+    expect(privateFetch).toHaveBeenCalledOnce()
+    expect(privateFetch.mock.calls[0]?.[0]).toBe('CLICKHOUSE_PRIVATE')
+  })
+
   it('records a delivery error on a non-2xx response (best-effort, never throws)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }))
     const host = createMockHostRuntime({

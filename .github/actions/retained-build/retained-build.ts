@@ -84,7 +84,7 @@ export function verifyStagingPr(evidence: Evidence, run: Run, repository: string
     throw new Error('Retained build provenance does not name a same-repository staging PR for this run');
   }
   const match = prs.find(pr => pr.base.ref === 'staging' && pr.head.sha === run.head_sha && pr.head.ref === run.head_branch
-    && pr.base.repo.full_name === repository && pr.head.repo?.full_name === repository && pr.base.repo.id === pr.head.repo.id
+    && pr.base.repo.full_name === repository && pr.head.repo?.full_name === repository && pr.base.repo.id === pr.head.repo?.id
     && (!recorded || (pr.number === recorded.number && pr.base.repo.id === recorded.base_repo_id)));
   if (!match) throw new Error('Build did not validate a same-repository staging PR');
   return match;
@@ -103,10 +103,37 @@ function stagingPrCandidates(evidence: Evidence, run: Run, repository: string): 
   return prs;
 }
 
+/**
+ * Yields this workflow's successful staging-candidate runs, newest first.
+ *
+ * The list is fetched unfiltered: `runs?status=success` has been observed to
+ * return total_count 0 while the unfiltered list holds the successful staging
+ * run (infra#939). Success is therefore enforced locally, exactly
+ * status == completed and conclusion == success, before any candidate check or
+ * artifact operation. Bounded to 10 pages of 100.
+ */
+export function* candidateRuns(repository: string, workflow: string, runId: number,
+    list: (path: string) => any = api): Generator<Run> {
+  for (let page = 1; page <= 10; page++) {
+    const runs: Run[] = list(`repos/${repository}/actions/workflows/${workflow}/runs?per_page=100&page=${page}`).workflow_runs;
+    for (const run of runs) {
+      if (run.status !== 'completed' || run.conclusion !== 'success') continue;
+      // A closed PR's run lists no pull_requests; provenance is verified by the caller.
+      if (run.id === runId || run.head_repository?.full_name !== repository
+          || (run.event === 'pull_request'
+            ? run.pull_requests.length > 0 && !run.pull_requests.some(pr => pr.base.ref === 'staging')
+            : run.head_branch !== 'staging')) continue;
+      yield run;
+    }
+    if (runs.length < 100) break;
+  }
+}
+
 export function mustReuse(eventName: string, event: any, ref: string, repository: string): boolean {
   if (eventName === 'pull_request' && event.pull_request.base.ref === 'main') {
     const pr = event.pull_request;
-    if (pr.head.repo.full_name !== repository) throw new Error('Production promotion cannot come from a fork');
+    // head.repo is null when the source fork has been deleted.
+    if (pr.head.repo?.full_name !== repository) throw new Error('Production promotion cannot come from a fork');
     // Main never rebuilds, including hotfixes: validate and promote through staging.
     if (pr.head.ref !== 'staging') throw new Error('Production promotion must come from staging');
     return true;
@@ -130,7 +157,7 @@ export function main(): void {
     const evidence: Evidence = { schema: 2, repository, workflow, run_id: runId,
       run_attempt: Number(env.GITHUB_RUN_ATTEMPT), head_sha: run.head_sha, built_sha: builtSha, tree,
       pull_request: pr && { number: pr.number, base_ref: pr.base.ref, base_repo_id: pr.base.repo.id,
-        head_ref: pr.head.ref, head_repo_id: pr.head.repo.id, head_sha: pr.head.sha } };
+        head_ref: pr.head.ref, head_repo_id: pr.head.repo?.id ?? 0, head_sha: pr.head.sha } };
     const dir = join(env.RUNNER_TEMP!, 'retained-build');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'build-result.json'), JSON.stringify(evidence, null, 2) + '\n');
@@ -146,40 +173,46 @@ export function main(): void {
   }
   // Include the full tree, including workflow files and lockfiles. A merge commit
   // changes the commit id even when every source byte is unchanged.
-  for (let page = 1; page <= 10; page++) {
-    const runs: Run[] = api(`repos/${repository}/actions/workflows/${workflow}/runs?status=success&per_page=100&page=${page}`).workflow_runs;
-    for (const run of runs) {
-      // A closed PR's run lists no pull_requests; provenance is verified below.
-      if (run.id === runId || run.head_repository?.full_name !== repository
-          || (run.event === 'pull_request'
-            ? run.pull_requests.length > 0 && !run.pull_requests.some(pr => pr.base.ref === 'staging')
-            : run.head_branch !== 'staging')) continue;
-      const artifacts = api(`repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`).artifacts;
-      const name = `retained-build-${workflow}-${run.run_attempt}`;
-      if (!artifacts.some((a: any) => a.name === name && !a.expired)) continue;
-      const dir = mkdtempSync(join(env.RUNNER_TEMP!, 'retained-source-'));
+  for (const run of candidateRuns(repository, workflow, runId)) {
+    const name = `retained-build-${workflow}-${run.run_attempt}`;
+    // One unreadable candidate (an artifact that expired after listing, a
+    // malformed evidence file) must not end the search: skip it, say why,
+    // and keep looking for an older run with the same tree.
+    const skip = (why: string) => console.log(`::warning::Skipping candidate run ${run.id}: ${why}`);
+    let artifacts: any[];
+    try { artifacts = api(`repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`).artifacts; }
+    catch (error) { skip(`cannot list artifacts (${(error as Error).message})`); continue; }
+    if (!artifacts.some((a: any) => a.name === name && !a.expired)) continue;
+    const dir = mkdtempSync(join(env.RUNNER_TEMP!, 'retained-source-'));
+    try {
+      let evidence: Evidence;
       try {
         text(['gh', 'run', 'download', String(run.id), '--repo', repository, '--name', name, '--dir', dir]);
-        const evidence: Evidence = JSON.parse(readFileSync(join(dir, 'build-result.json'), 'utf8'));
-        try { validate(evidence, run, repository, workflow, tree); } catch { continue; }
-        if (run.event === 'pull_request') {
-          // An unreadable pulls API must fail loudly, not silently look like "no build".
-          let prs: PullRequest[];
-          try { prs = stagingPrCandidates(evidence, run, repository); } catch (error) {
-            throw new Error(`Cannot read pull requests to verify staging build ${run.id}; the resolve job needs `
-              + `permissions: pull-requests: read (${(error as Error).message})`);
-          }
-          try { verifyStagingPr(evidence, run, repository, prs); } catch { continue; }
+        evidence = JSON.parse(readFileSync(join(dir, 'build-result.json'), 'utf8'));
+      } catch (error) { skip(`cannot read evidence (${(error as Error).message})`); continue; }
+      try { validate(evidence, run, repository, workflow, tree); } catch { continue; }
+      if (run.event === 'pull_request') {
+        // An unreadable pulls API must fail loudly, not silently look like "no build".
+        let prs: PullRequest[];
+        try { prs = stagingPrCandidates(evidence, run, repository); } catch (error) {
+          throw new Error(`Cannot read pull requests to verify staging build ${run.id}; the resolve job needs `
+            + `permissions: pull-requests: read (${(error as Error).message})`);
         }
-        const commit = api(`repos/${repository}/git/commits/${evidence.built_sha}`);
-        if (commit.tree.sha !== tree) throw new Error('Build commit tree does not match retained evidence');
-        output('build-required', 'false');
-        output('run-id', String(run.id));
-        appendFileSync(env.GITHUB_STEP_SUMMARY!, `Reusing [staging build ${run.id}](https://github.com/${repository}/actions/runs/${run.id}) for tree \`${tree}\`. No compilation.\n`);
-        return;
-      } finally { rmSync(dir, { recursive: true, force: true }); }
-    }
-    if (runs.length < 100) break;
+        try { verifyStagingPr(evidence, run, repository, prs); } catch { continue; }
+      }
+      // A pull_request build's built_sha is the refs/pull/N/merge commit,
+      // which GitHub may garbage-collect after the PR closes. An unreadable
+      // commit cannot be verified, so skip it; a readable commit whose tree
+      // contradicts the evidence is tampering and still fails loudly.
+      let commit: any;
+      try { commit = api(`repos/${repository}/git/commits/${evidence.built_sha}`); }
+      catch (error) { skip(`built commit ${evidence.built_sha} is unreadable (${(error as Error).message})`); continue; }
+      if (commit.tree.sha !== tree) throw new Error('Build commit tree does not match retained evidence');
+      output('build-required', 'false');
+      output('run-id', String(run.id));
+      appendFileSync(env.GITHUB_STEP_SUMMARY!, `Reusing [staging build ${run.id}](https://github.com/${repository}/actions/runs/${run.id}) for tree \`${tree}\`. No compilation.\n`);
+      return;
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   }
   if (!required) {
     output('build-required', 'true');

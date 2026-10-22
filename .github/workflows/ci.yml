@@ -45,7 +45,6 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.build-required == 'true'
     uses: ./.github/workflows/ci-checks.yml
-    secrets: inherit
   build-gate:
     name: Build gate
     needs: [resolve, checks]

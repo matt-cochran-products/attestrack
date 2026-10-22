@@ -2,19 +2,27 @@ name: CI
 on:
   workflow_call:
 
+# Reusable workflow: `github.*` is the caller's original event context. Source
+# builds run only for non-draft PRs into dev/staging, or dispatch/push on
+# refs/heads/dev or refs/heads/staging — never main and never an unknown event.
+# Tested by scripts/retained-workflow.test.ts.
 jobs:
   ci:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false && (github.event.pull_request.base.ref == 'dev' || github.event.pull_request.base.ref == 'staging')) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'push') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')) }}
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/validate-ci-runner
+        with:
+          mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+          runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node --test scripts/retained-build.test.ts
+      - run: node --test scripts/retained-build.test.ts scripts/retained-workflow.test.ts
       - run: pnpm audit-gate
       - run: pnpm typecheck
       - run: pnpm lint
@@ -44,8 +52,8 @@ jobs:
   # through the Explore SQL gate → executor. Kept out of `pnpm test` on purpose:
   # the default pipeline needs no ClickHouse; this job provides one.
   warehouse:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false && (github.event.pull_request.base.ref == 'dev' || github.event.pull_request.base.ref == 'staging')) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'push') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')) }}
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     services:
       clickhouse:
         image: clickhouse/clickhouse-server:24.3.18.7
@@ -65,6 +73,10 @@ jobs:
           --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/validate-ci-runner
+        with:
+          mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+          runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -84,11 +96,37 @@ jobs:
     needs:
     - ci
     - warehouse
-    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft != true) }}
-    runs-on: ubuntu-latest
+    # Always evaluates; an ineligible context, or anything but success from
+    # both ci and warehouse (missing, skipped, cancelled, failure), fails.
+    if: ${{ always() }}
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     env:
       BUILD_RESULTS: ${{ toJSON(needs) }}
+      BUILD_ELIGIBLE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false && (github.event.pull_request.base.ref == 'dev' || github.event.pull_request.base.ref == 'staging')) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'push') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')) }}
     steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: ./.github/actions/validate-ci-runner
+      with:
+        mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+        runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
     - name: Require successful build checks
-      run: "python3 - <<'PY'\nimport json, os, sys\nresults = json.loads(os.environ[\"BUILD_RESULTS\"])\nbad = {name: job[\"result\"] for name, job in results.items() if job[\"result\"] not in (\"success\", \"skipped\")}\nif bad or not any(job[\"result\"] == \"success\" for job in results.values()):\n    print(\"Build gate failed:\", bad or \"all checks skipped\")\n    sys.exit(1)\nprint(\"All applicable build checks passed\")\nPY\n"
+      run: |
+        python3 - <<'PY'
+        import json, os, sys
+        if os.environ.get("BUILD_ELIGIBLE") != "true":
+            print("Build gate failed: ineligible event context for source build checks")
+            sys.exit(1)
+        results = json.loads(os.environ["BUILD_RESULTS"])
+        required = ("ci", "warehouse")
+        if not isinstance(results, dict) or set(results) != set(required):
+            print("Build gate failed: expected exactly", required, "got", results)
+            sys.exit(1)
+        outcome = {name: results[name].get("result") if isinstance(results[name], dict) else None for name in required}
+        if any(result != "success" for result in outcome.values()):
+            print("Build gate failed:", outcome)
+            sys.exit(1)
+        print("ci and warehouse succeeded")
+        PY

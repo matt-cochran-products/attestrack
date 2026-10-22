@@ -1,0 +1,43 @@
+# Consolidated dependency updates
+
+- #64: e2e/package.json @axe-core/playwright ^4.14.0 -> ^4.14.0
+- #64: e2e/package.json @playwright/test ^1.64.1 -> ^1.64.1
+- #64: e2e/package.json wrangler ^4.151.1 -> ^4.151.1
+- #64: package.json esbuild ^0.28.2 -> ^0.28.2
+- #64: package.json turbo ^2.11.8 -> ^2.11.8
+- #64: package.json typescript-eslint ^8.71.2 -> ^8.71.2
+- #64: packages/consent-js/package.json rollup ^4.64.7 -> ^4.64.7
+- #64: packages/deploy/package.json wrangler keep newer current ^4.152.0; supersedes ^4.151.1
+- #64: packages/host-cloudflare-worker/package.json @cloudflare/workers-types ^5.20260722.1 -> ^5.20261016.1
+- #64: packages/portal-community/package.json @codemirror/commands ^6.10.4 -> ^6.11.1
+- #64: packages/portal-community/package.json @codemirror/language ^6.12.4 -> ^6.13.1
+- #64: packages/portal-community/package.json @codemirror/state ^6.7.1 -> ^6.7.6
+- #64: packages/portal-community/package.json @codemirror/view ^6.43.6 -> ^6.43.14
+- #64: packages/portal-community/package.json react ^19.2.8 -> ^19.3.1
+- #64: packages/portal-community/package.json react-dom ^19.2.8 -> ^19.3.1
+- #64: packages/portal-community/package.json react-router-dom ^7.18.1 -> ^7.18.4
+- #64: packages/portal-community/package.json sonner ^2.0.7 -> ^2.0.8
+- #64: packages/portal-community/package.json @testing-library/react ^16.0.1 -> ^16.3.3
+- #64: packages/portal-community/package.json @types/react ^19.2.17 -> ^19.3.0
+- #64: packages/portal-community/package.json @types/react-dom ^19.2.3 -> ^19.3.0
+- #64: packages/portal-community/package.json @vitejs/plugin-react ^6.0.4 -> ^6.1.2
+- #64: packages/portal-community/package.json autoprefixer ^10.5.4 -> ^10.6.1
+- #64: packages/portal-community/package.json postcss ^8.5.23 -> ^8.5.30
+- #64: packages/portal-community/package.json vite ^8.1.5 -> ^8.3.4
+- #64: packages/schema/package.json zod ^4.4.3 -> ^4.6.7
+- #64: packages/worker-core/package.json @cloudflare/vitest-pool-workers 0.18.8 -> 0.23.0
+- #64: packages/worker-core/package.json @cloudflare/workers-types ^5.20260722.1 -> ^5.20261016.1
+- #45: package.json globals ^16.0.0 -> ^17.8.0
+- #44: package.json @types/node ^22.0.0 -> ^26.1.2
+- #44: packages/deploy/package.json @types/node ^22.0.0 -> ^26.1.2
+- #43: packages/portal-community/package.json @testing-library/jest-dom ^6.6.3 -> ^7.0.0
+- #42: packages/portal-community/package.json tailwindcss ^3.4.12 -> ^4.3.3
+- #41: package.json typescript ^5.5.0 -> ^6.0.3
+- #41: packages/consent-js/package.json typescript ^5.5.0 -> ^6.0.3
+- #41: packages/portal-community/package.json typescript ^5.5.0 -> ^6.0.3
+- #40: packages/consent-js/package.json jsdom ^25.0.1 -> ^30.0.1
+- #40: packages/portal-community/package.json jsdom ^25.0.1 -> ^30.0.1
+- #39: packages/consent-js/package.json @rollup/plugin-typescript ^11.1.6 -> ^12.3.0
+- #62: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+- #61: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+- #54: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0

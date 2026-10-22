@@ -490,8 +490,8 @@ test('retained tests run exactly once, in the source ci job', () => {
 
 test('original commands, action pins, services and env are preserved', () => {
   const describe = (name: string) => stepsOf(job(name)).map((s) => (s.has('uses') ? value(s, 'uses') : value(s, 'run')));
-  const setup = [CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
-    'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', 'pnpm install --frozen-lockfile'];
+  const setup = [CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
+    'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1', 'pnpm install --frozen-lockfile'];
   assert.deepEqual(describe('ci'), [...setup, 'node --test scripts/retained-build.test.ts scripts/retained-workflow.test.ts',
     'pnpm audit-gate', 'pnpm typecheck', 'pnpm lint', 'pnpm test', 'pnpm test:workers', 'pnpm coverage',
     'pnpm route-contract-check', 'pnpm build', 'pnpm size-check', 'pnpm boundary-check', 'pnpm egress-check']);
@@ -513,8 +513,8 @@ test('original commands, action pins, services and env are preserved', () => {
 test('original e2e commands, action pins and browser projects are preserved', () => {
   const steps = stepsOf(e2eJob('e2e'));
   assert.deepEqual(steps.map((s) => (s.has('uses') ? value(s, 'uses') : value(s, 'run'))), [
-    CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
-    'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', 'pnpm install --frozen-lockfile', 'pnpm build',
+    CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
+    'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1', 'pnpm install --frozen-lockfile', 'pnpm build',
     'pnpm --filter @attestrack/e2e exec playwright install --with-deps chromium',
     'pnpm --filter @attestrack/e2e build:portal-live',
     'pnpm --filter @attestrack/e2e test', 'pnpm --filter @attestrack/e2e test:browser']);
@@ -583,8 +583,8 @@ test('original mutation matrix commands, pins and strategy are preserved', () =>
   assert.equal(value(sub(get(strategy, 'matrix')), 'package'), '[schema, sdk, strategies, worker-core]');
   const steps = stepsOf(matrix);
   assert.deepEqual(steps.map((s) => (s.has('uses') ? value(s, 'uses') : value(s, 'run'))), [
-    CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
-    'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', 'pnpm install --frozen-lockfile',
+    CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
+    'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1', 'pnpm install --frozen-lockfile',
     'pnpm --filter @attestrack/${{ matrix.package }}^... build', 'pnpm --filter @attestrack/${{ matrix.package }} mutation']);
   assert.deepEqual(withOf(steps[3]), { 'node-version': '24', cache: 'pnpm' });
   assert.equal(value(steps[6], 'name'), 'Stryker — ${{ matrix.package }}');

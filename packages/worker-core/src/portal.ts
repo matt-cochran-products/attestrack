@@ -14,7 +14,7 @@ import {
   type SavedQueryChartConfig,
   type SavedQueryEntryV1
 } from '@attestrack/schema'
-import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
+import { executeExploreSql, exploreWarehouseStatus, isExploreWarehouseConfigured } from './explore-warehouse.js'
 import {
   computeCuratedChart,
   isCuratedChartId,
@@ -428,14 +428,8 @@ export async function handlePortalRequest(request: Request, host: HostRuntime): 
     }
 
     if (sub === '/analytics/warehouse-status') {
-      const configured = isExploreWarehouseConfigured(host)
       return Response.json(
-        {
-          configured,
-          message: configured
-            ? 'Warehouse credentials detected for Explore.'
-            : 'Configure TINYBIRD_TOKEN or CLICKHOUSE_QUERY_URL (or CLICKHOUSE_HTTP_URL) on the Worker.'
-        },
+        exploreWarehouseStatus(host),
         { headers: { 'cache-control': 'no-store' } }
       )
     }

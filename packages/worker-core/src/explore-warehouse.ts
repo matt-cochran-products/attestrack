@@ -20,12 +20,34 @@ function completeQueryPair(user: string | undefined, pass: string | undefined): 
   return (user === undefined && pass === undefined) || !!(user?.trim() && pass)
 }
 
+export function exploreWarehouseStatus(host: HostRuntime): {
+  configured: boolean
+  message: string
+  error?: string
+} {
+  const tinybird = host.getSecret('TINYBIRD_TOKEN')
+  const base = clickhouseQueryBase(host)
+  const complete = completeQueryPair(
+    host.getSecret('CLICKHOUSE_QUERY_USER'), host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
+  )
+  if (tinybird || (base && complete)) {
+    return { configured: true, message: 'Warehouse credentials detected for Explore.' }
+  }
+  if (base && !complete) {
+    return {
+      configured: false,
+      error: 'explore_warehouse_query_credentials_incomplete',
+      message: 'Set both CLICKHOUSE_QUERY_USER and CLICKHOUSE_QUERY_PASSWORD to the SELECT-only identity; neither may be empty.'
+    }
+  }
+  return {
+    configured: false,
+    message: 'Configure TINYBIRD_TOKEN or CLICKHOUSE_QUERY_URL (or CLICKHOUSE_HTTP_URL) on the Worker.'
+  }
+}
+
 export function isExploreWarehouseConfigured(host: HostRuntime): boolean {
-  return !!(host.getSecret('TINYBIRD_TOKEN') || (
-    clickhouseQueryBase(host) && completeQueryPair(
-      host.getSecret('CLICKHOUSE_QUERY_USER'), host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
-    )
-  ))
+  return exploreWarehouseStatus(host).configured
 }
 
 function clickhouseQueryBase(host: HostRuntime): string {

@@ -4,7 +4,8 @@ on:
 
 # Reusable workflow: `github.*` is the caller's original event context. Source
 # builds run only for non-draft PRs into dev/staging, or dispatch/push on
-# refs/heads/dev or refs/heads/staging — never main and never an unknown event.
+# refs/heads/dev or refs/heads/staging — never main and never an unknown event
+# (the reused e2e.yml applies the same expression to its own job).
 # Tested by scripts/retained-workflow.test.ts.
 jobs:
   ci:
@@ -91,13 +92,21 @@ jobs:
           CLICKHOUSE_TEST_USER: attestrack
           CLICKHOUSE_TEST_PASSWORD: attestrack-test
 
+  # Playwright against workerd (api-smoke + Chromium browser journeys). The
+  # reused workflow gates its own job on the same event context; it takes no
+  # inputs and receives no secrets.
+  e2e:
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft == false && (github.event.pull_request.base.ref == 'dev' || github.event.pull_request.base.ref == 'staging')) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'push') && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')) }}
+    uses: ./.github/workflows/e2e.yml
+
   build-gate:
     name: Build gate
     needs:
     - ci
     - warehouse
+    - e2e
     # Always evaluates; an ineligible context, or anything but success from
-    # both ci and warehouse (missing, skipped, cancelled, failure), fails.
+    # each of ci, warehouse and e2e (missing, skipped, cancelled, failure), fails.
     if: ${{ always() }}
     runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
@@ -120,7 +129,7 @@ jobs:
             print("Build gate failed: ineligible event context for source build checks")
             sys.exit(1)
         results = json.loads(os.environ["BUILD_RESULTS"])
-        required = ("ci", "warehouse")
+        required = ("ci", "warehouse", "e2e")
         if not isinstance(results, dict) or set(results) != set(required):
             print("Build gate failed: expected exactly", required, "got", results)
             sys.exit(1)
@@ -128,5 +137,5 @@ jobs:
         if any(result != "success" for result in outcome.values()):
             print("Build gate failed:", outcome)
             sys.exit(1)
-        print("ci and warehouse succeeded")
+        print("ci, warehouse and e2e succeeded")
         PY

@@ -13,7 +13,7 @@ test.describe('Stage4-shadow — worker smoke', () => {
       data: JSON.stringify({
         v: 1,
         eventName: 'e2e',
-        siteId: 'e2e',
+        siteId: 'site_e2e',
         occurredAt: new Date().toISOString()
       })
     })

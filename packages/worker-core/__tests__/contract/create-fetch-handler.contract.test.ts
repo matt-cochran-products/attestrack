@@ -127,7 +127,7 @@ describe('createAttestrackFetchHandler (contract)', () => {
     const body = {
       v: 1 as const,
       eventName: 'page_view',
-      siteId: 's',
+      siteId: 'local',
       occurredAt: new Date().toISOString()
     }
     const res = await handler(
@@ -163,7 +163,7 @@ describe('createAttestrackFetchHandler (contract)', () => {
     const body = {
       v: 1 as const,
       eventName: 'page_view',
-      siteId: 's',
+      siteId: 'local',
       occurredAt: new Date().toISOString()
     }
     const res = await handler(

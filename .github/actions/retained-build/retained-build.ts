@@ -42,9 +42,34 @@ export interface Run {
   conclusion: string;
   pull_requests: { number: number; base: { ref: string; repo: { id: number } }; head: { sha: string; repo: { id: number } } }[];
 }
+/** The `actions/workflows/{workflow}/runs` list envelope. */
+export interface WorkflowRuns {
+  workflow_runs: Run[];
+}
+/** An entry of the `actions/runs/{id}/artifacts` list. */
+interface Artifact {
+  name: string;
+  expired: boolean;
+}
+/** The fields of `git/commits/{sha}` this action reads. */
+interface GitCommit {
+  tree: { sha: string };
+}
+/** The event payload fields mustReuse reads; pull_request is absent for other events. */
+export interface ReuseEvent {
+  pull_request?: { base: { ref: string }; head: { ref: string; repo: { full_name: string } | null } };
+}
+/** The pull_request webhook payload fields this action reads; absent for other events. */
+interface PullRequestEvent {
+  pull_request?: {
+    number: number;
+    base: { ref: string; repo: { id: number } };
+    head: { ref: string; sha: string; repo: { id: number; full_name: string } | null };
+  };
+}
 const sha = /^[a-f0-9]{40}$/;
 const text = (args: string[]) => execFileSync(args[0], args.slice(1), { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).trim();
-const api = (path: string): any => JSON.parse(text(['gh', 'api', path]));
+const api = <T>(path: string): T => JSON.parse(text(['gh', 'api', path]));
 
 export function validate(evidence: Evidence, run: Run, repository: string, workflow: string, tree: string): void {
   if (run.status !== 'completed' || run.conclusion !== 'success'
@@ -91,12 +116,12 @@ export function verifyStagingPr(evidence: Evidence, run: Run, repository: string
 }
 
 function stagingPrCandidates(evidence: Evidence, run: Run, repository: string): PullRequest[] {
-  if (evidence.pull_request) return [api(`repos/${repository}/pulls/${evidence.pull_request.number}`)];
+  if (evidence.pull_request) return [api<PullRequest>(`repos/${repository}/pulls/${evidence.pull_request.number}`)];
   const owner = repository.split('/')[0];
   const head = encodeURIComponent(`${owner}:${run.head_branch}`);
   const prs: PullRequest[] = [];
   for (let page = 1; page <= 10; page++) {
-    const batch: PullRequest[] = api(`repos/${repository}/pulls?state=all&base=staging&head=${head}&sort=updated&direction=desc&per_page=100&page=${page}`);
+    const batch: PullRequest[] = api<PullRequest[]>(`repos/${repository}/pulls?state=all&base=staging&head=${head}&sort=updated&direction=desc&per_page=100&page=${page}`);
     prs.push(...batch);
     if (batch.some(pr => pr.head.sha === run.head_sha) || batch.length < 100) break;
   }
@@ -113,7 +138,7 @@ function stagingPrCandidates(evidence: Evidence, run: Run, repository: string): 
  * artifact operation. Bounded to 10 pages of 100.
  */
 export function* candidateRuns(repository: string, workflow: string, runId: number,
-    list: (path: string) => any = api): Generator<Run> {
+    list: (path: string) => WorkflowRuns = api): Generator<Run> {
   for (let page = 1; page <= 10; page++) {
     const runs: Run[] = list(`repos/${repository}/actions/workflows/${workflow}/runs?per_page=100&page=${page}`).workflow_runs;
     for (const run of runs) {
@@ -129,9 +154,9 @@ export function* candidateRuns(repository: string, workflow: string, runId: numb
   }
 }
 
-export function mustReuse(eventName: string, event: any, ref: string, repository: string): boolean {
-  if (eventName === 'pull_request' && event.pull_request.base.ref === 'main') {
-    const pr = event.pull_request;
+export function mustReuse(eventName: string, event: ReuseEvent, ref: string, repository: string): boolean {
+  if (eventName === 'pull_request' && event.pull_request!.base.ref === 'main') {
+    const pr = event.pull_request!;
     // head.repo is null when the source fork has been deleted.
     if (pr.head.repo?.full_name !== repository) throw new Error('Production promotion cannot come from a fork');
     // Main never rebuilds, including hotfixes: validate and promote through staging.
@@ -146,13 +171,13 @@ export function main(): void {
   const repository = env.GITHUB_REPOSITORY!;
   const workflow = env.RETAINED_BUILD_WORKFLOW!;
   if (!/^[\w.-]+\.ya?ml$/.test(workflow)) throw new Error('Expected a workflow filename');
-  const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH!, 'utf8'));
+  const event: PullRequestEvent = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH!, 'utf8'));
   const builtSha = text(['git', 'rev-parse', 'HEAD']);
   const tree = text(['git', 'rev-parse', 'HEAD^{tree}']);
   const output = (key: string, value: string) => appendFileSync(env.GITHUB_OUTPUT!, `${key}=${value}\n`);
   const runId = Number(env.GITHUB_RUN_ID);
   if (env.RETAINED_BUILD_MODE === 'record') {
-    const run: Run = api(`repos/${repository}/actions/runs/${runId}`);
+    const run: Run = api<Run>(`repos/${repository}/actions/runs/${runId}`);
     const pr = env.GITHUB_EVENT_NAME === 'pull_request' ? event.pull_request : null;
     const evidence: Evidence = { schema: 2, repository, workflow, run_id: runId,
       run_attempt: Number(env.GITHUB_RUN_ATTEMPT), head_sha: run.head_sha, built_sha: builtSha, tree,
@@ -166,7 +191,7 @@ export function main(): void {
   if (env.RETAINED_BUILD_MODE !== 'resolve') throw new Error('Expected resolve or record mode');
   const required = mustReuse(env.GITHUB_EVENT_NAME!, event, env.GITHUB_REF!, repository);
   const staging = env.GITHUB_REF === 'refs/heads/staging'
-    || (env.GITHUB_EVENT_NAME === 'pull_request' && event.pull_request.base.ref === 'staging');
+    || (env.GITHUB_EVENT_NAME === 'pull_request' && event.pull_request!.base.ref === 'staging');
   if (!required && !staging) {
     output('build-required', 'true');
     return;
@@ -179,10 +204,10 @@ export function main(): void {
     // malformed evidence file) must not end the search: skip it, say why,
     // and keep looking for an older run with the same tree.
     const skip = (why: string) => console.log(`::warning::Skipping candidate run ${run.id}: ${why}`);
-    let artifacts: any[];
-    try { artifacts = api(`repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`).artifacts; }
+    let artifacts: Artifact[];
+    try { artifacts = api<{ artifacts: Artifact[] }>(`repos/${repository}/actions/runs/${run.id}/artifacts?per_page=100`).artifacts; }
     catch (error) { skip(`cannot list artifacts (${(error as Error).message})`); continue; }
-    if (!artifacts.some((a: any) => a.name === name && !a.expired)) continue;
+    if (!artifacts.some((a: Artifact) => a.name === name && !a.expired)) continue;
     const dir = mkdtempSync(join(env.RUNNER_TEMP!, 'retained-source-'));
     try {
       let evidence: Evidence;
@@ -204,8 +229,8 @@ export function main(): void {
       // which GitHub may garbage-collect after the PR closes. An unreadable
       // commit cannot be verified, so skip it; a readable commit whose tree
       // contradicts the evidence is tampering and still fails loudly.
-      let commit: any;
-      try { commit = api(`repos/${repository}/git/commits/${evidence.built_sha}`); }
+      let commit: GitCommit;
+      try { commit = api<GitCommit>(`repos/${repository}/git/commits/${evidence.built_sha}`); }
       catch (error) { skip(`built commit ${evidence.built_sha} is unreadable (${(error as Error).message})`); continue; }
       if (commit.tree.sha !== tree) throw new Error('Build commit tree does not match retained evidence');
       output('build-required', 'false');

@@ -280,6 +280,17 @@ export function createAttestrackFetchHandler(options: AttestrackWorkerOptions) {
           corsOrigin
         )
       }
+      // Issue #70: the event must belong to the configured site — consent
+      // context (site config, token binding) is evaluated for that site only.
+      if (parsed.data.siteId !== siteConfig.siteId) {
+        return withCors(
+          Response.json(
+            { error: 'invalid_body', details: { code: 'tracking_site_mismatch' } },
+            { status: 400 }
+          ),
+          corsOrigin
+        )
+      }
 
       const site = pipelineSiteInfo(siteConfig)
       const startedAt = Date.now()

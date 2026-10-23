@@ -79,6 +79,25 @@ describe('portal explore/query contract', () => {
     expect(json.details?.code).toBe('explore_warehouse_not_configured')
   })
 
+  it('reports the missing query credential pair in dashboard readiness without network access', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const res = await handler(createMockHostRuntime({ secrets: {
+      CLICKHOUSE_QUERY_URL: 'https://ch.example',
+      CLICKHOUSE_QUERY_USER: 'fixture_reader',
+      CLICKHOUSE_PASSWORD: 'fixture_ingest_password'
+    } }))(new Request('https://x/__attestrack__/portal/v1/analytics/warehouse-status', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+    }))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const status = await res.json() as { configured: boolean; error?: string; message: string }
+    expect(status.configured).toBe(false)
+    expect(status.error).toBe('explore_warehouse_query_credentials_incomplete')
+    expect(status.message).toContain('CLICKHOUSE_QUERY_PASSWORD')
+    expect(JSON.stringify(status)).not.toContain('fixture_ingest_password')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
   it('executes ClickHouse when CLICKHOUSE_QUERY_URL is set', async () => {
     vi.stubGlobal(
       'fetch',

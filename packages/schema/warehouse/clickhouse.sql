@@ -13,7 +13,7 @@
 -- LEAST PRIVILEGE (recommended): create TWO ClickHouse users —
 --   * an INSERT-only user for the Worker (CLICKHOUSE_USER/PASSWORD secret) with
 --     grants: INSERT ON <db>.events;
---   * a read-only user for Explore (CLICKHOUSE_EXPLORE_USER) with SELECT ON
+--   * a read-only user for Explore (CLICKHOUSE_QUERY_USER/CLICKHOUSE_QUERY_PASSWORD) with SELECT ON
 --     <db>.events only — never SELECT on system.* or other databases (the
 --     Explore SQL gate enforces bare allowlisted tables, but DB grants are the
 --     real backstop).

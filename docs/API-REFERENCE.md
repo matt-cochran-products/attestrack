@@ -76,13 +76,13 @@ wrong methods return `405 method_not_allowed`.
 
 | Subpath | Purpose | Errors |
 |---|---|---|
-| `/explore/query` | Run one gated SQL statement (`{ sql }`) against the operator warehouse (Tinybird, else ClickHouse) | `invalid_sql`, `explore_warehouse_not_configured`, `explore_warehouse_http_error`, `explore_warehouse_fetch_failed`, `explore_warehouse_rejected`, `explore_warehouse_bad_response` |
+| `/explore/query` | Run one gated SQL statement (`{ sql }`) against the operator warehouse (Tinybird, else ClickHouse) | `invalid_sql`, `explore_warehouse_not_configured`, `explore_warehouse_query_credentials_incomplete` (503; incomplete dedicated query pair), `explore_warehouse_http_error`, `explore_warehouse_fetch_failed`, `explore_warehouse_rejected`, `explore_warehouse_bad_response` |
 | `/explore/saved-queries` | Save a query (`{ name, sql }`; SQL passes the same gate) | `invalid_body`, `invalid_sql`, `saved_queries_limit` |
 | `/explore/saved-queries/remove` | Remove a saved query (`{ id }`) | `invalid_body` |
 | `/explore/saved-queries/pin` | Pin/unpin to Analytics (`{ id, pinned, chart? }`) — personal per Access identity | `invalid_body` |
 | `/site-config/trusted-domains` | Replace the trusted-domains list (`{ domains }`) — feeds the CORS allowlist | `invalid_domains` |
 | `/analytics/curated` | Compute ONE curated chart (`{ chartId, dateFrom, dateTo }`) through the same Explore gate | `invalid_body`, warehouse errors as above |
-| `/analytics/warehouse-status` | Probe warehouse configuration — `{ configured, message }` | — |
+| `/analytics/warehouse-status` | Probe warehouse configuration — `{ configured, message, error? }`; incomplete dedicated ClickHouse credentials return `configured: false` with `error: explore_warehouse_query_credentials_incomplete` and a corrective message | — |
 | `/strategies/toggle` | Enable/disable a destination/analytics strategy id | `invalid_body` |
 
 #### Licensed-only subpaths — `403 requires_attestrue`

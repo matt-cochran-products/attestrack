@@ -76,6 +76,23 @@ describe('portal analytics/curated contract (P4.3)', () => {
     expect(json.message).toMatch(/warehouse/i)
   })
 
+  it('incomplete query credentials give curated charts a corrective message without network access', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const res = await handler(createMockHostRuntime({ secrets: {
+      CLICKHOUSE_QUERY_URL: 'https://ch.example',
+      CLICKHOUSE_QUERY_USER: 'fixture_reader',
+      CLICKHOUSE_PASSWORD: 'fixture_ingest_password'
+    } }))(post({ chartId: 'events-volume', ...range }))
+    expect(res.status).toBe(200)
+    const chart = await res.json() as { state: string; series: unknown[]; message: string }
+    expect(chart.state).toBe('not_configured')
+    expect(chart.series).toEqual([])
+    expect(chart.message).toContain('CLICKHOUSE_QUERY_PASSWORD')
+    expect(JSON.stringify(chart)).not.toContain('fixture_ingest_password')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('events-volume runs canned SQL through the gate + ClickHouse executor', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

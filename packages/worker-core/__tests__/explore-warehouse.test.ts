@@ -86,10 +86,51 @@ describe('executeExploreSql — ClickHouse', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa('u:p')}`)
   })
 
+  it('uses dedicated query credentials instead of ingestion credentials', async () => {
+    const fetchSpy = vi.fn(async () => new Response(chJson(), { status: 200 }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await executeExploreSql(host({
+      CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only',
+      CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only'
+    }), SQL)
+    expect(isExploreWarehouseConfigured(host({ CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' }))).toBe(true)
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    expect((init.headers as Record<string, string>).Authorization)
+      .toBe(`Basic ${btoa('fixture_reader:fixture_select_only')}`)
+  })
+
+  it.each([
+    { CLICKHOUSE_QUERY_USER: 'fixture_reader' },
+    { CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' },
+    { CLICKHOUSE_QUERY_USER: '', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' },
+    { CLICKHOUSE_QUERY_USER: ' ', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' },
+    { CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: '' }
+  ])('refuses incomplete dedicated credentials before any network request: %j', async (secrets) => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const privateFetch = vi.fn()
+    const res = await executeExploreSql({
+      ...host({ CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only', ...secrets }),
+      fetchOutbound: privateFetch
+    }, SQL)
+    expect(isExploreWarehouseConfigured(host({
+      CLICKHOUSE_USER: 'fixture_ingest', CLICKHOUSE_PASSWORD: 'fixture_insert_only', ...secrets
+    }))).toBe(false)
+    expect(isExploreWarehouseConfigured(host({
+      ...secrets, TINYBIRD_TOKEN: 'fixture_tinybird'
+    }))).toBe(true)
+    expect(res).toMatchObject({ ok: false, status: 503,
+      error: 'explore_warehouse_query_credentials_incomplete' })
+    expect(JSON.stringify(res)).not.toContain('fixture_insert_only')
+    expect(JSON.stringify(res)).not.toContain('fixture_select_only')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(privateFetch).not.toHaveBeenCalled()
+  })
+
   it('routes ClickHouse queries through the named private transport when the host provides it', async () => {
     const privateFetch = vi.fn(async () => new Response(chJson(), { status: 200 }))
     const privateHost = {
-      ...host(),
+      ...host({ CLICKHOUSE_QUERY_USER: 'fixture_reader', CLICKHOUSE_QUERY_PASSWORD: 'fixture_select_only' }),
       fetchOutbound: privateFetch
     }
     const globalFetch = vi.fn()
@@ -100,7 +141,9 @@ describe('executeExploreSql — ClickHouse', () => {
     expect(privateFetch).toHaveBeenCalledWith(
       'CLICKHOUSE_PRIVATE',
       'https://ch.example/',
-      expect.objectContaining({ method: 'POST' })
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({
+        Authorization: `Basic ${btoa('fixture_reader:fixture_select_only')}`
+      }) })
     )
     expect(globalFetch).not.toHaveBeenCalled()
   })

@@ -70,7 +70,8 @@ values.
 | `PORTAL_API_SHARED_SECRET` | Recommended | Defense-in-depth auth for the portal API (§5) |
 | `CLICKHOUSE_HTTP_URL` | ClickHouse sink | Insert endpoint for the `clickhouse` strategy |
 | `CLICKHOUSE_QUERY_URL` | ClickHouse Explore | Query base for the Explore proxy (falls back to `CLICKHOUSE_HTTP_URL`'s origin) |
-| `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | If your ClickHouse requires auth | Basic auth on both paths |
+| `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | ClickHouse ingestion auth | INSERT-only Worker identity; legacy Explore fallback only if neither dedicated query key is declared |
+| `CLICKHOUSE_QUERY_USER`, `CLICKHOUSE_QUERY_PASSWORD` | Dedicated Explore auth | Set both to a SELECT-only identity; partial or empty configuration refuses queries without falling back to ingest credentials |
 | `TINYBIRD_TOKEN` | Tinybird sink/Explore | Events API + SQL API |
 | `TINYBIRD_DATASOURCE` | Tinybird sink | Target datasource name (default `events`) |
 | `TINYBIRD_API_URL` | Optional | Region override for the Explore query path (default `https://api.tinybird.co`) |
@@ -145,6 +146,7 @@ Symptom-first:
 | 400 on ingest | `invalid_body` (+ Zod `details`) | Body must match `trackingEventV1Schema` — `v: 1`, `eventName`, `siteId`, ISO `occurredAt`; unknown fields are stripped |
 | Explore returns 400 | `invalid_sql` (+ `details.code`) | Single `SELECT`, bare allowlisted tables (`events`, `attestrack_events`), no `UNION`/subquery-`FROM`; `LIMIT` clamped to 500 |
 | Explore returns 503 | `explore_warehouse_not_configured` | Set `TINYBIRD_TOKEN` or `CLICKHOUSE_QUERY_URL`/`CLICKHOUSE_HTTP_URL` |
+| Explore returns 503 | `explore_warehouse_query_credentials_incomplete` | Set both `CLICKHOUSE_QUERY_USER` and `CLICKHOUSE_QUERY_PASSWORD` to the SELECT-only identity; neither may be empty. Queries refuse before network access and do not fall back to ingestion credentials |
 | Explore 4xx/502 | `explore_warehouse_http_error`, `_fetch_failed`, `_rejected`, `_bad_response` | Upstream warehouse problem — check credentials, URL, and that the DDL was applied; `details.reason` carries the upstream message |
 | Saving a query returns 400 | `saved_queries_limit` | 100-entry cap — remove one first |
 | Portal API returns 401 | `portal_unauthorized` | `PORTAL_API_SHARED_SECRET` is set — send the `x-attestrack-portal-secret` header |

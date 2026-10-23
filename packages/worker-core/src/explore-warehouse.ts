@@ -16,8 +16,38 @@ export type ExploreWarehouseErr = {
   details: Record<string, unknown>
 }
 
+function completeQueryPair(user: string | undefined, pass: string | undefined): boolean {
+  return (user === undefined && pass === undefined) || !!(user?.trim() && pass)
+}
+
+export function exploreWarehouseStatus(host: HostRuntime): {
+  configured: boolean
+  message: string
+  error?: string
+} {
+  const tinybird = host.getSecret('TINYBIRD_TOKEN')
+  const base = clickhouseQueryBase(host)
+  const complete = completeQueryPair(
+    host.getSecret('CLICKHOUSE_QUERY_USER'), host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
+  )
+  if (tinybird || (base && complete)) {
+    return { configured: true, message: 'Warehouse credentials detected for Explore.' }
+  }
+  if (base && !complete) {
+    return {
+      configured: false,
+      error: 'explore_warehouse_query_credentials_incomplete',
+      message: 'Set both CLICKHOUSE_QUERY_USER and CLICKHOUSE_QUERY_PASSWORD to the SELECT-only identity; neither may be empty.'
+    }
+  }
+  return {
+    configured: false,
+    message: 'Configure TINYBIRD_TOKEN or CLICKHOUSE_QUERY_URL (or CLICKHOUSE_HTTP_URL) on the Worker.'
+  }
+}
+
 export function isExploreWarehouseConfigured(host: HostRuntime): boolean {
-  return !!(host.getSecret('TINYBIRD_TOKEN') || clickhouseQueryBase(host))
+  return exploreWarehouseStatus(host).configured
 }
 
 function clickhouseQueryBase(host: HostRuntime): string {
@@ -75,8 +105,21 @@ async function runClickHouse(
   base: string,
   sqlNormalized: string
 ): Promise<ExploreWarehouseOk | ExploreWarehouseErr> {
-  const user = host.getSecret('CLICKHOUSE_USER')
-  const pass = host.getSecret('CLICKHOUSE_PASSWORD')
+  const queryUser = host.getSecret('CLICKHOUSE_QUERY_USER')
+  const queryPass = host.getSecret('CLICKHOUSE_QUERY_PASSWORD')
+  const dedicated = queryUser !== undefined || queryPass !== undefined
+  if (!completeQueryPair(queryUser, queryPass)) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'explore_warehouse_query_credentials_incomplete',
+      details: { reason: 'Both dedicated ClickHouse query credentials are required.' }
+    }
+  }
+  // Keep existing installations compatible only when neither dedicated key is
+  // declared. A partial dedicated configuration must never fall back to ingest.
+  const user = dedicated ? queryUser : host.getSecret('CLICKHOUSE_USER')
+  const pass = dedicated ? queryPass : host.getSecret('CLICKHOUSE_PASSWORD')
   const auth =
     user && pass ? `Basic ${globalThis.btoa(`${user}:${pass}`)}` : undefined
   const url = `${base}/`

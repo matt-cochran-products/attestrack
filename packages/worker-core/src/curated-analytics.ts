@@ -1,7 +1,7 @@
 import type { HostRuntime } from '@attestrack/host-contracts'
 import { validateAndNormalizeExploreSql } from '@attestrack/schema'
 import { ATTESTRACK_CURATED_CHART_IDS, type CuratedChartId } from '@attestrack/types'
-import { executeExploreSql, isExploreWarehouseConfigured } from './explore-warehouse.js'
+import { executeExploreSql, exploreWarehouseStatus } from './explore-warehouse.js'
 import { buildDestinationRows } from './observability.js'
 
 /**
@@ -165,10 +165,15 @@ async function runCannedQuery(
   | { ok: false; payload: CuratedChartPayload }
 > {
   const payload = basePayload(chartId)
-  if (!isExploreWarehouseConfigured(host)) {
+  const warehouseStatus = exploreWarehouseStatus(host)
+  if (!warehouseStatus.configured) {
     return {
       ok: false,
-      payload: { ...payload, state: 'not_configured', message: NOT_CONFIGURED_MESSAGE }
+      payload: {
+        ...payload,
+        state: 'not_configured',
+        message: warehouseStatus.error ? warehouseStatus.message : NOT_CONFIGURED_MESSAGE
+      }
     }
   }
   const gated = validateAndNormalizeExploreSql(cannedSql(chartId, from, to))

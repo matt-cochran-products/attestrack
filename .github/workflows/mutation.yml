@@ -20,14 +20,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Manual source builds are admitted for refs/heads/dev and refs/heads/staging
+  # only; main or any other event/ref fails here, before any checkout or
+  # install, and the whole matrix needs it. No token permissions, no secrets.
+  # Tested by scripts/retained-workflow.test.ts.
+  admission:
+    name: Ref admission
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Admit dev or staging only
+        env:
+          ADMISSION_EVENT: ${{ github.event_name }}
+          ADMISSION_REF: ${{ github.ref }}
+        shell: bash
+        run: |
+          case "$ADMISSION_EVENT:$ADMISSION_REF" in
+            workflow_dispatch:refs/heads/dev|workflow_dispatch:refs/heads/staging)
+              echo "Mutation admitted for $ADMISSION_REF" ;;
+            *)
+              echo "Mutation admission failed: $ADMISSION_EVENT on $ADMISSION_REF is not dev/staging dispatch" >&2
+              exit 1 ;;
+          esac
+
   mutation:
-    runs-on: ubuntu-latest
+    needs: admission
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
         package: [schema, sdk, strategies, worker-core]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/validate-ci-runner
+        with:
+          mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+          runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:

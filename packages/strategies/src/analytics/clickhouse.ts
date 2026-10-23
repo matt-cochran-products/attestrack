@@ -84,14 +84,18 @@ export function createClickHouseStrategy(): Strategy {
       })
 
       try {
-        const res = await fetch(buildClickHouseInsertUrl(url), {
+        const request = buildClickHouseInsertUrl(url)
+        const init: RequestInit = {
           method: 'POST',
           headers: {
             ...(auth ? { Authorization: auth } : {}),
             'content-type': 'application/json'
           },
           body: JSON.stringify(row)
-        })
+        }
+        const res = ctx.host.fetchOutbound
+          ? await ctx.host.fetchOutbound('CLICKHOUSE_PRIVATE', request, init)
+          : await fetch(request, init)
         // P3.1: every attempt outcome feeds the portal /destinations view (STR.4).
         await recordDeliveryResult(
           ctx.host.kv,

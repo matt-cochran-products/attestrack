@@ -151,7 +151,8 @@ Symptom-first:
 | Saving a query returns 400 | `saved_queries_limit` | 100-entry cap — remove one first |
 | Portal API returns 401 | `portal_unauthorized` | `PORTAL_API_SHARED_SECRET` is set — send the `x-attestrack-portal-secret` header |
 | Portal API returns 403 | `requires_attestrue` | That surface (banner/policy/mode mutations) is a licensed extension — expected in OSS ([ADR-010](../ADR/ADR-010-attestrack-core-extension-cache.md)) |
-| Portal shows "Local stub data" | `VITE_ATTESTRACK_API_BASE_URL` unset at build | Rebuild/redeploy the portal with the Worker URL (the deploy CLI does this) |
+| Portal shows "Configuration error" | Production build with no (or an invalid) portal API config | Add `<meta name="attestrack-portal-api" content="same-origin">` to the served `index.html` (no rebuild — see [RUNTIME-CONFIG.md](../packages/portal-community/docs/RUNTIME-CONFIG.md) for the routing/Access prerequisites), or rebuild with a valid `VITE_ATTESTRACK_API_BASE_URL` (the deploy CLI does this) |
+| Portal shows "Local stub data" | Dev server with nothing configured | Expected for local UI development |
 | Dashboard/destinations empty on fresh deploy | No traffic yet | Views are computed from real traffic — send events; quiet-but-configured destinations honestly show `no_data` |
 | Drift banner in portal | `attestrack:drift:mismatch` set | Consent config changed vs the seeded fingerprint — re-seed or update the expected fingerprint after an intentional change |
 | Custom domain 404s after deploy | DNS propagation | Can take up to 24 h; `verify` reports it as **pending**, not failure |

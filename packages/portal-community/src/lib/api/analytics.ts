@@ -10,7 +10,8 @@ import type { CuratedChart } from './types';
  * chart from canned SQL through the gated Explore proxy or from recorded
  * delivery stats — never operator-seeded series.
  *
- * Stub mode (no `VITE_ATTESTRACK_API_BASE_URL`): plainly-labeled sample data
+ * Stub mode (local dev with nothing configured, or explicit demo meta — see
+ * `./runtime-config`): plainly-labeled sample data
  * only — every title carries a "sample data" suffix and the shell shows the
  * "Local stub data" source chip (REPO-SPEC stub-vs-live visibility).
  */
@@ -129,6 +130,6 @@ export async function getAnalyticsWarehouseStatus(): Promise<WarehouseStatus> {
   await stubDelay();
   return {
     configured: true,
-    message: 'Stub: ClickHouse connection assumed. Set VITE_ATTESTRACK_API_BASE_URL for live status.',
+    message: 'Stub: ClickHouse connection assumed. Configure the portal API (docs/RUNTIME-CONFIG.md) for live status.',
   };
 }

@@ -111,7 +111,7 @@ Do not treat the operator portal as safe without authentication. The deploy comp
 
 ## Verify the portal
 
-1. Open the Pages URL; the shell should show **Live worker** when `VITE_ATTESTRACK_API_BASE_URL` was set at build time
+1. Open the Pages URL; the shell should show **Live worker** when `VITE_ATTESTRACK_API_BASE_URL` was set at build time (or the served HTML carries the runtime `attestrack-portal-api` meta — [RUNTIME-CONFIG.md](../packages/portal-community/docs/RUNTIME-CONFIG.md)); **Configuration error** means neither is valid
 2. Site config and mode changes hit `/__attestrack__/portal/v1/...` on the Worker (see [REPO-SPEC-OSS.md](REPO-SPEC-OSS.md))
 
 ## Consent script and Explore

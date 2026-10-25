@@ -8,3 +8,5 @@ Use this folder for **portal SPA–only** notes: routing, UI architecture, Cloud
 - [`docs/USER-JOURNEY.SPEC.md`](../../../docs/USER-JOURNEY.SPEC.md)
 
 **Route map:** [ROUTES.md](./ROUTES.md) (paths ↔ spec sections).
+
+**Runtime API config & acceptance evidence:** [RUNTIME-CONFIG.md](./RUNTIME-CONFIG.md) (same-origin meta, fail-closed production, evidence contract).

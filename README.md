@@ -1,5 +1,7 @@
 # Attestrack
 
+Operators: [credential ownership and OPV operations](docs/VAULT-OPERATIONS.md).
+
 [![CI](https://github.com/matt-cochran/attestrack/actions/workflows/ci.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/ci.yml)
 [![E2E](https://github.com/matt-cochran/attestrack/actions/workflows/e2e.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/e2e.yml)
 [![Release Please](https://github.com/matt-cochran/attestrack/actions/workflows/release-please.yml/badge.svg)](https://github.com/matt-cochran/attestrack/actions/workflows/release-please.yml)

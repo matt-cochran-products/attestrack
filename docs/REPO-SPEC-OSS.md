@@ -97,7 +97,7 @@ Deploy seed shape: [packages/deploy/src/kv-schema.ts](../packages/deploy/src/kv-
 
 ## Portal operator UX — stub vs live
 
-When `VITE_ATTESTRACK_API_BASE_URL` is unset, the portal **must** use local stubs (see [packages/portal-community/src/lib/api/http.ts](../packages/portal-community/src/lib/api/http.ts)). The shell shows **Local stub data** vs **Live worker** next to the mode chip ([`Layout.tsx`](../packages/portal-community/src/components/Layout.tsx)).
+The portal resolves its data source at runtime ([`runtime-config.ts`](../packages/portal-community/src/lib/api/runtime-config.ts), [RUNTIME-CONFIG.md](../packages/portal-community/docs/RUNTIME-CONFIG.md)): a `<meta name="attestrack-portal-api" content="same-origin">` in the served HTML (no rebuild), else the legacy build-time `VITE_ATTESTRACK_API_BASE_URL`. With neither, the Vite dev server uses local stubs while a production build **must** fail closed (visible configuration error, no sample data); an invalid configuration never falls back to the legacy env or stubs. `content="stub"` is an explicit, labelled demo. The shell shows **Live worker**, **Local stub data**, **Demo — sample data** or **Configuration error** next to the mode chip ([`Layout.tsx`](../packages/portal-community/src/components/Layout.tsx)).
 
 ---
 

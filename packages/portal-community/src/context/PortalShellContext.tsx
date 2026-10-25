@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { getSiteConfig } from '../lib/api/configuration';
-import { isLiveApi } from '../lib/api/http';
+import { getPortalDataSource, type PortalDataSource } from '../lib/api/http';
 import type { SiteConfig } from '../lib/api/types';
 
 export interface AnalyticsDateRange {
@@ -36,8 +36,10 @@ export interface PortalShellValue {
   /** PORTAL.3 — human-readable mode for shell */
   modeShellLabel: string;
   modeTone: 'shadow' | 'enforcement' | 'amber';
-  /** True when VITE_ATTESTRACK_API_BASE_URL is set — portal calls the Worker. */
+  /** True when a valid runtime meta or legacy build env points the portal at the Worker. */
   isLiveWorker: boolean;
+  /** Resolved data source; `misconfigured` means every API call fails closed. */
+  dataSource: PortalDataSource;
   /** Operator-visible data source (REPO-SPEC-OSS stub vs live). */
   dataSourceShellLabel: string;
 }
@@ -78,8 +80,16 @@ export function PortalShellProvider({ children }: { children: ReactNode }) {
     };
   }, [siteConfig]);
 
-  const isLiveWorker = isLiveApi();
-  const dataSourceShellLabel = isLiveWorker ? 'Live worker' : 'Local stub data';
+  const dataSource = useMemo(() => getPortalDataSource(), []);
+  const isLiveWorker = dataSource.kind === 'live';
+  const dataSourceShellLabel =
+    dataSource.kind === 'live'
+      ? 'Live worker'
+      : dataSource.kind === 'misconfigured'
+        ? 'Configuration error'
+        : dataSource.reason === 'demo'
+          ? 'Demo — sample data'
+          : 'Local stub data';
 
   const value: PortalShellValue = {
     siteConfig,
@@ -91,6 +101,7 @@ export function PortalShellProvider({ children }: { children: ReactNode }) {
     modeShellLabel,
     modeTone,
     isLiveWorker,
+    dataSource,
     dataSourceShellLabel,
   };
 

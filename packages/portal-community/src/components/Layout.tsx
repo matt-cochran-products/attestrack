@@ -45,7 +45,8 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { siteConfig, modeShellLabel, isLiveWorker, dataSourceShellLabel } = usePortalShell();
+  const { siteConfig, modeShellLabel, isLiveWorker, dataSource, dataSourceShellLabel } = usePortalShell();
+  const isMisconfigured = dataSource.kind === 'misconfigured';
   const [driftAlertDismissed, setDriftAlertDismissed] = useState(false);
 
   // P3.1/P3.5: driven by REAL drift state from the Worker dashboard metrics
@@ -132,9 +133,17 @@ export function Layout({ children }: LayoutProps) {
               className={`px-3 py-1.5 rounded-full border font-mono text-[10px] uppercase tracking-wide ${
                 isLiveWorker
                   ? 'border-[rgba(76,175,125,0.35)] bg-[rgba(76,175,125,0.12)] text-[var(--accent-green)]'
-                  : 'border-[rgba(224,192,96,0.35)] bg-[rgba(224,192,96,0.1)] text-[var(--accent-amber)]'
+                  : isMisconfigured
+                    ? 'border-[var(--red)] bg-[rgba(255,80,80,0.12)] text-[var(--red)]'
+                    : 'border-[rgba(224,192,96,0.35)] bg-[rgba(224,192,96,0.1)] text-[var(--accent-amber)]'
               }`}
-              title="Set VITE_ATTESTRACK_API_BASE_URL in .env for live Worker data (see packages/portal-community/.env.example)."
+              title={
+                isLiveWorker
+                  ? 'Showing live data from your Attestrack Worker.'
+                  : isMisconfigured
+                    ? 'Live data is unavailable because the portal is not configured correctly.'
+                    : 'Showing sample data, not live data.'
+              }
             >
               {dataSourceShellLabel}
             </div>
@@ -142,6 +151,15 @@ export function Layout({ children }: LayoutProps) {
             <div className="font-mono text-[10px] text-[var(--text-label)]">{siteConfig?.siteId ?? '…'}</div>
           </div>
         </header>
+
+        {dataSource.kind === 'misconfigured' && (
+          <div
+            role="alert"
+            className="border-b border-[var(--red)] bg-[rgba(255,80,80,0.08)] px-6 py-3 font-mono text-[11px] text-[var(--red)]"
+          >
+            Data is unavailable: this portal has a configuration error. Contact your administrator.
+          </div>
+        )}
 
         {isDriftAlertActive && !driftAlertDismissed && (
           <div className="border-b border-[rgba(224,192,96,0.3)] bg-[rgba(224,192,96,0.08)] px-6 py-3">

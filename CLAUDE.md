@@ -144,8 +144,9 @@ attestrack/
 |   |-- portal-community/             # @attestrack/portal-community — React SPA (CF Pages)
 |   |   '-- src/: routes/ (dashboard, signal, destinations, logs, analytics,
 |   |             explore, strategies, configuration, migration, extensions,
-|   |             upgrade), hooks/, components/, lib/api/ (stub-vs-live switch
-|   |             per VITE_ATTESTRACK_API_BASE_URL)
+|   |             upgrade), hooks/, components/, lib/api/ (runtime-config.ts:
+|   |             same-origin meta > legacy VITE_ATTESTRACK_API_BASE_URL > dev
+|   |             stubs; prod fails closed), lib/acceptance/ (evidence contract)
 |   |
 |   '-- deploy/                       # @attestrack/deploy — guided CF deploy CLI
 |       '-- src/: index.ts (CLI flow), apply-cloudflare.ts (wrangler: KV create,

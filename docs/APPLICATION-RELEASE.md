@@ -190,6 +190,15 @@ secret/settings changes and partial commits require actual exclusion and
 reconciliation, not a claim that bookend GETs eliminate the race. Provider calls
 have30second deadlines and a10minute client lifetime; timeout remains unknown.
 
+The factory must select and durably persist a per-phase operation UUID before
+calling the writer. The writer never generates one internally. That UUID is in
+the write-ahead journal, Worker version tag/deployment message and Pages commit
+message; acknowledgement IDs and fresh byte/config/serving readbacks remain
+required. `inspectOperation` performs only GETs with complete bounded native
+pagination and stable bookends. It reports exact matches plus current active
+state; zero or multiple matches are unresolved and never authorize a replay,
+rollback or lease release. Correlation metadata is not acceptance authority.
+
 ### Mandatory immediate factory follow-on (issue103 stays open)
 
 This packet is source groundwork, not the whole release-source implementation.

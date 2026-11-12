@@ -135,13 +135,16 @@ export function validateTarget(raw: unknown): Target {
 }
 export const targetIdentity = (t: Target): string => digest(canonical(validateTarget(t)));
 
-export interface NativeHTTP { request(path: string, init?: RequestInit, assetToken?: string): Promise<unknown> }
+export interface NativeHTTP {
+  request(path: string, init?: RequestInit, assetToken?: string): Promise<unknown>;
+  page?(path: string): Promise<{ items: unknown[]; info: ObjectValue }>;
+}
 /** Future OPV child supplies token via run-only custody; never forwarded to hosted probes. */
 export class Cloudflare implements NativeHTTP {
   #token: string;
   #deadline = AbortSignal.timeout(10 * 60 * 1000);
   constructor(token: string) { if (!token || /[\r\n]/.test(token)) throw new Error('Missing provider credential'); this.#token = token; }
-  async request(path: string, init: RequestInit = {}, assetToken?: string): Promise<unknown> {
+  async #call(path: string, init: RequestInit = {}, assetToken?: string): Promise<ObjectValue> {
     if (!/^\/(accounts\/[a-f0-9]{32}\/(workers|pages)\/|pages\/assets\/)/.test(path) || path.includes('..')) throw new Error('Forbidden provider endpoint');
     const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, { ...init, redirect: 'error',
       headers: { ...(typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}), authorization: `Bearer ${assetToken ?? this.#token}` }, signal: AbortSignal.any([this.#deadline, AbortSignal.timeout(30000)]) });
@@ -150,12 +153,20 @@ export class Cloudflare implements NativeHTTP {
     for (;;) { const r = await reader.read(); if (r.done) break; size += r.value.length; if (size > 96 * 1024 * 1024) { await reader.cancel(); throw new Error('Native response too large'); } parts.push(Buffer.from(r.value)); }
     const r = object(JSON.parse(Buffer.concat(parts).toString()));
     if (r.success !== true || !Array.isArray(r.errors) || r.errors.length) throw new Error('Native Cloudflare request refused');
-    return r.result;
+    return r;
+  }
+  async request(path: string, init: RequestInit = {}, assetToken?: string): Promise<unknown> { return (await this.#call(path, init, assetToken)).result; }
+  async page(path: string): Promise<{ items: unknown[]; info: ObjectValue }> {
+    const r = await this.#call(path); return { items: array(r.result), info: object(r.result_info) };
   }
 }
 export interface Snapshot {
-  worker: { deployment_id: string; version_id: string; latest_version_id: string; configuration_sha256: string; version_configuration_sha256: string; module_sha256: string };
-  pages: { deployment_id: string; configuration_sha256: string } | null;
+  worker: { deployment_id: string; version_id: string; latest_version_id: string; configuration_sha256: string; version_configuration_sha256: string; module_sha256: string; operation_id: string | null; deployment_operation_id: string | null };
+  pages: { deployment_id: string; configuration_sha256: string; operation_id: string | null } | null;
+}
+const operationMarker = (id: string) => `attestrack:${uuid(id)}`;
+function operationId(value: unknown): string | null {
+  return typeof value === 'string' && value.startsWith('attestrack:') && UUID.test(value.slice(11)) ? value.slice(11) : null;
 }
 function bindings(raw: unknown): Binding[] {
   return array(raw).map(b => {
@@ -215,7 +226,7 @@ export class NativeWriter {
   #pages = () => `/accounts/${this.target.account_id}/pages/projects/${this.target.pages!.name}`;
   async #version(id: string): Promise<ObjectValue> {
     const v = object(await this.#http.request(`${this.#worker()}/versions/${uuid(id)}?include=modules`));
-    if (uuid(v.id) !== id || !Number.isSafeInteger(v.number)) throw new Error('Native version identity mismatch');
+    if (uuid(v.id) !== id || !Number.isSafeInteger(v.number) || Number(v.number) < 1) throw new Error('Native version identity mismatch');
     same(bindings(v.bindings), sortedBindings(this.target.worker.bindings), 'Existing runtime binding drift');
     runtime(v);
     return v;
@@ -234,7 +245,8 @@ export class NativeWriter {
     const versions = array(deployment.versions); if (versions.length !== 1) throw new Error('Mixed Worker traffic is unsupported');
     const active = object(versions[0]); if (active.percentage !== 100) throw new Error('Nonexclusive active Worker version');
     const version = await this.#version(uuid(active.version_id));
-    const latest = array(object(await this.#http.request(`${this.#script()}/versions?per_page=1&page=1`)).items);
+    const latestRecord = object(await this.#http.request(`${this.#script()}/versions?per_page=1&page=1`));
+    const latest = array(latestRecord.items);
     if (latest.length !== 1) throw new Error('Missing latest native Worker version');
     const latestId = uuid(object(latest[0]).id);
     // Refuse abandoned/unreviewed uploads rather than let implicit latest secrets enter the release.
@@ -243,10 +255,13 @@ export class NativeWriter {
     if (this.target.pages) {
       const project = await this.#project(), current = object(project.canonical_deployment);
       const p = await this.#pagesDeployment(uuid(current.id));
-      pages = { deployment_id: uuid(p.id), configuration_sha256: this.target.pages.configuration_sha256 };
+      pages = { deployment_id: uuid(p.id), configuration_sha256: this.target.pages.configuration_sha256,
+        operation_id: operationId(object(object(p.deployment_trigger).metadata).commit_message) };
     }
     return { worker: { deployment_id: uuid(deployment.id), version_id: uuid(version.id), latest_version_id: latestId,
-      configuration_sha256: this.target.worker.configuration_sha256, version_configuration_sha256: digest(canonical(runtime(version))), module_sha256: moduleHash(version) }, pages };
+      configuration_sha256: this.target.worker.configuration_sha256, version_configuration_sha256: digest(canonical(runtime(version))), module_sha256: moduleHash(version),
+      operation_id: operationId(version.annotations && object(version.annotations)['workers/tag']),
+      deployment_operation_id: operationId(deployment.annotations && object(deployment.annotations)['workers/message']) }, pages };
   }
   async #pagesDeployment(id: string): Promise<ObjectValue> {
     const p = object(await this.#http.request(`${this.#pages()}/deployments/${uuid(id)}`)); const t = this.target.pages!;
@@ -256,9 +271,70 @@ export class NativeWriter {
     return p;
   }
   async #unchanged(expected: Snapshot): Promise<void> { same(await this.observe(), expected, 'Native predecessor changed'); }
+  async #completeInventory(path: string): Promise<ObjectValue[]> {
+    const readPage = this.#http.page?.bind(this.#http);
+    if (!readPage) throw new Error('Native pagination envelope required for reconciliation');
+    const rows: ObjectValue[] = []; let count: number | undefined, pages: number | undefined;
+    let first: { items: unknown[]; info: ObjectValue } | undefined;
+    for (let page = 1; page <= 40; page++) {
+      const result = await readPage(`${path}${path.includes('?') ? '&' : '?'}per_page=25&page=${page}`), info = result.info;
+      if (!Number.isSafeInteger(info.total_count) || Number(info.total_count) < 0 || Number(info.total_count) > 1000
+          || info.page !== page || info.per_page !== 25 || info.count !== result.items.length
+          || (count !== undefined && info.total_count !== count) || (pages !== undefined && info.total_pages !== pages)) throw new Error('Incomplete/changing native operation inventory');
+      count = Number(info.total_count); pages = Number(info.total_pages);
+      if (!Number.isSafeInteger(pages) || (count === 0 ? ![0, 1].includes(pages) : pages !== Math.ceil(count / 25))
+          || result.items.length !== Math.min(25, count - rows.length)) throw new Error('Truncated native operation inventory');
+      first ??= structuredClone(result); rows.push(...result.items.map(object));
+      if (new Set(rows.map(r => uuid(r.id))).size !== rows.length) throw new Error('Duplicate native operation inventory identity');
+      if (rows.length === count) {
+        same(await readPage(`${path}${path.includes('?') ? '&' : '?'}per_page=25&page=1`), first, 'Native operation inventory changed after scan');
+        return rows;
+      }
+    }
+    throw new Error('Native operation inventory exceeds complete bounded scan');
+  }
+  /** READ ONLY. Zero/multiple matches are observations, never permission to replay. */
+  async inspectOperation(bundle: Bundle, operation: string): Promise<OperationObservation> {
+    if (!admittedBundles.has(bundle) || admittedBundles.get(bundle) !== digest(canonical(bundle))) throw new Error('Original native artifact admission required');
+    const marker = operationMarker(operation), current = object(await this.#http.request(this.#worker()));
+    if (current.id !== this.target.worker.id || current.name !== this.target.worker.name || workerConfiguration(current) !== this.target.worker.configuration_sha256) throw new Error('Native operation target/config changed');
+    const versions = await this.#completeInventory(`${this.#worker()}/versions`), matches = versions.filter(v => v.annotations && object(v.annotations)['workers/tag'] === marker);
+    const found: OperationObservation['worker']['versions'] = [];
+    for (const v of matches) {
+      const full = await this.#version(uuid(v.id));
+      if (object(full.annotations)['workers/tag'] !== marker) throw new Error('Native operation tag changed');
+      found.push({ id: uuid(full.id), module_sha256: moduleHash(full), version_configuration_sha256: digest(canonical(runtime(full))) });
+    }
+    const active = object(array(object(await this.#http.request(`${this.#script()}/deployments`)).deployments)[0]);
+    const latestRecord = object(await this.#http.request(`${this.#script()}/versions?per_page=1&page=1`));
+    const latest = array(latestRecord.items);
+    if (latest.length !== 1) throw new Error('Missing latest version during reconciliation');
+    let pages: OperationObservation['pages'] = null;
+    if (this.target.pages) {
+      const project = await this.#project(), deployments = await this.#completeInventory(`${this.#pages()}/deployments?env=production`);
+      const rows = deployments.filter(d => object(object(d.deployment_trigger).metadata).commit_message === marker);
+      pages = { canonical_deployment_id: uuid(object(project.canonical_deployment).id), deployments: [] };
+      for (const row of rows) {
+        const d = object(await this.#http.request(`${this.#pages()}/deployments/${uuid(row.id)}`)), meta = object(object(d.deployment_trigger).metadata);
+        if (d.id !== row.id || d.project_id !== this.target.pages.id || d.project_name !== this.target.pages.name || meta.commit_message !== marker) throw new Error('Native Pages operation identity changed');
+        pages.deployments.push({ id: uuid(d.id), environment: string(d.environment), branch: string(meta.branch), source_sha: string(meta.commit_hash), stage: string(object(d.latest_stage).name), status: string(object(d.latest_stage).status) });
+      }
+      same(object((await this.#project()).canonical_deployment).id, pages.canonical_deployment_id, 'Canonical Pages changed during reconciliation');
+    }
+    same(await this.#http.request(this.#worker()), current, 'Worker settings changed during reconciliation');
+    same(object(array(object(await this.#http.request(`${this.#script()}/deployments`)).deployments)[0]), active, 'Worker deployment changed during reconciliation');
+    same(await this.#http.request(`${this.#script()}/versions?per_page=1&page=1`), latestRecord, 'Latest upload changed during reconciliation');
+    return { schema: 'attestrack.native-operation-observation/v1', operation_id: operation, artifact: structuredClone(bundle.identity), target_sha256: targetIdentity(this.target),
+      worker: { active_deployment_id: uuid(active.id), active_versions: array(active.versions).map(v => {
+        const row = object(v); if (typeof row.percentage !== 'number' || !Number.isFinite(row.percentage) || row.percentage < 0 || row.percentage > 100) throw new Error('Invalid native traffic percentage');
+        return { version_id: uuid(row.version_id), percentage: row.percentage };
+      }),
+        deployment_operation_id: operationId(active.annotations && object(active.annotations)['workers/message']), latest_version_id: uuid(object(latest[0]).id), versions: found }, pages };
+  }
   /** No retry or automatic rollback after an unknown write. Caller must retain journal durably. */
   async deploy(bundle: Bundle, expectedPredecessor: Snapshot, tool: ReturnType<typeof loadTool>, journal: JournalSink): Promise<Journal> {
     if (!admittedBundles.has(bundle) || admittedBundles.get(bundle) !== digest(canonical(bundle))) throw new Error('Original native artifact admission required or admitted bytes drifted');
+    const operation = uuid(journal.operation_id), marker = operationMarker(operation);
     const predecessor = structuredClone(expectedPredecessor);
     const raw = validateContent(structuredClone(bundle.payload));
     // Detect mutation of admitted bytes/identity before dispatch; no materialized directory can replace them.
@@ -271,11 +347,11 @@ export class NativeWriter {
       const path = f.path.slice(7), type = contentType(path), key = assetHash(tool, path, Buffer.from(f.base64, 'base64'));
       manifest[`/${path}`] = key; assets.push({ key, value: f.base64, metadata: { contentType: type }, base64: true });
     }
-    const r: Journal = { schema: 'attestrack.native-write-journal/v1', artifact: structuredClone(bundle.identity), target_sha256: targetIdentity(this.target), tool_profile_sha256: TOOL_PROFILE,
+    const r: Journal = { schema: 'attestrack.native-write-journal/v1', operation_id: operation, artifact: structuredClone(bundle.identity), target_sha256: targetIdentity(this.target), tool_profile_sha256: TOOL_PROFILE,
       predecessor: structuredClone(predecessor), operations: [], after: null };
     const save = async () => { await journal.append(structuredClone(r)); };
     await this.#unchanged(predecessor); await save();
-    const operation = async <T>(name: Operation['name'], action: () => Promise<T>, identity: (r: T) => string): Promise<T> => {
+    const dispatch = async <T>(name: Operation['name'], action: () => Promise<T>, identity: (r: T) => string): Promise<T> => {
       const op: Operation = { name, state: 'unknown', native_id: null }; r.operations.push(op);
       // Write-ahead unknown record must be durable BEFORE dispatch. Crashes cannot turn it into a safe retry.
       await save(); const result = await action(); op.native_id = identity(result); op.state = 'confirmed'; await save(); return result;
@@ -283,48 +359,52 @@ export class NativeWriter {
     const workerFile = raw.files.find(f => f.path === 'worker/index.js')!;
     const priorVersion = await this.#version(predecessor.worker.version_id);
     if (digest(canonical(runtime(priorVersion))) !== predecessor.worker.version_configuration_sha256) throw new Error('Predecessor runtime settings changed');
-    const uploaded = object(await operation('worker-upload', () => this.#http.request(`${this.#worker()}/versions?deploy=false`, { method: 'POST', body: JSON.stringify({
+    const uploaded = object(await dispatch('worker-upload', () => this.#http.request(`${this.#worker()}/versions?deploy=false`, { method: 'POST', body: JSON.stringify({
       main_module: 'index.js', ...runtime(priorVersion),
+      annotations: { 'workers/tag': marker },
       bindings: this.target.worker.bindings.map(b => b.type === 'secret_text' ? { name: b.name, type: 'inherit', version_id: predecessor.worker.version_id } : b),
       modules: [{ name: 'index.js', content_type: 'application/javascript+module', content_base64: workerFile.base64 }],
     }) }), x => uuid(object(x).id)));
     const versionId = uuid(uploaded.id), native = await this.#version(versionId);
+    if (object(native.annotations)['workers/tag'] !== marker) throw new Error('Native uploaded operation identity mismatch');
     if (moduleHash(native) !== workerFile.sha256) throw new Error('Uploaded native module differs from retained bytes');
     same(runtime(native), runtime(priorVersion), 'Uploaded runtime settings differ from predecessor');
     // Upload itself changes latest but must NOT change active traffic/config/pages.
     const ready = await this.#observeAfterUpload(versionId, predecessor);
-    const switched = object(await operation('worker-switch', () => this.#http.request(`${this.#script()}/deployments`, { method: 'POST', body: JSON.stringify({ strategy: 'percentage', versions: [{ version_id: versionId, percentage: 100 }] }) }), x => uuid(object(x).id)));
+    const switched = object(await dispatch('worker-switch', () => this.#http.request(`${this.#script()}/deployments`, { method: 'POST', body: JSON.stringify({ strategy: 'percentage', versions: [{ version_id: versionId, percentage: 100 }], annotations: { 'workers/message': marker } }) }), x => uuid(object(x).id)));
     const active = await this.observe();
-    if (active.worker.deployment_id !== switched.id || active.worker.version_id !== versionId || active.worker.module_sha256 !== workerFile.sha256) throw new Error('Worker serving readback mismatch');
+    if (active.worker.deployment_id !== switched.id || active.worker.version_id !== versionId || active.worker.module_sha256 !== workerFile.sha256
+        || active.worker.operation_id !== operation || active.worker.deployment_operation_id !== operation) throw new Error('Worker serving readback mismatch');
     same(active.pages, ready.pages, 'Pages changed during Worker switch');
     r.after = active; await save();
     if (this.target.pages) {
       // A short-lived native token is for asset API only; not persisted in output or passed to browser.
       const jwt = string(object(await this.#http.request(`${this.#pages()}/upload-token`)).jwt);
       if (!jwt || /[\r\n]/.test(jwt)) throw new Error('Missing native Pages upload token');
-      await operation('pages-assets', async () => {
+      await dispatch('pages-assets', async () => {
         for (const a of assets) await this.#http.request('/pages/assets/upload', { method: 'POST', body: JSON.stringify([a]) }, jwt);
         await this.#http.request('/pages/assets/upsert-hashes', { method: 'POST', body: JSON.stringify({ hashes: [...new Set(Object.values(manifest))] }) }, jwt);
         return 'uploaded';
       }, () => digest(canonical(manifest)));
       await this.#unchanged(active); tool.assertUnchanged();
       const form = new FormData(); form.set('manifest', JSON.stringify(manifest)); form.set('branch', this.target.pages.production_branch);
-      form.set('commit_hash', raw.producer.source_sha); form.set('commit_dirty', 'false');
-      const result = object(await operation('pages-deploy', () => this.#http.request(`${this.#pages()}/deployments`, { method: 'POST', body: form }), x => uuid(object(x).id)));
+      form.set('commit_hash', raw.producer.source_sha); form.set('commit_dirty', 'false'); form.set('commit_message', marker);
+      const result = object(await dispatch('pages-deploy', () => this.#http.request(`${this.#pages()}/deployments`, { method: 'POST', body: form }), x => uuid(object(x).id)));
       const id = uuid(result.id); let successful = false;
       for (let i = 0; i < 20; i++) {
         const p = object(await this.#http.request(`${this.#pages()}/deployments/${id}`)); const status = object(p.latest_stage).status;
         if (status === 'failure' || status === 'canceled') throw new Error('Native Pages deployment failed');
         if (status === 'success' && object(p.latest_stage).name === 'deploy') {
           await this.#pagesDeployment(id);
-          if (object(object(p.deployment_trigger).metadata).commit_hash !== raw.producer.source_sha) throw new Error('Pages deployment source metadata drift');
+          if (object(object(p.deployment_trigger).metadata).commit_hash !== raw.producer.source_sha
+              || object(object(p.deployment_trigger).metadata).commit_message !== marker) throw new Error('Pages deployment source/operation metadata drift');
           successful = true; break;
         }
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       if (!successful) throw new Error('Native Pages completion unknown');
       const final = await this.observe();
-      if (final.pages?.deployment_id !== id) throw new Error('Pages canonical serving identity mismatch');
+      if (final.pages?.deployment_id !== id || final.pages.operation_id !== operation) throw new Error('Pages canonical serving identity mismatch');
       same(final.worker, active.worker, 'Worker changed during Pages deployment');
       r.after = final; await save();
     }
@@ -352,5 +432,11 @@ function contentType(path: string): string {
   const ext = path.split('.').at(-1)!; if (!types[ext]) throw new Error('Unsupported static portal type'); return types[ext];
 }
 export interface Operation { name: 'worker-upload' | 'worker-switch' | 'pages-assets' | 'pages-deploy'; state: 'unknown' | 'confirmed'; native_id: string | null }
-export interface Journal { schema: 'attestrack.native-write-journal/v1'; artifact: ArtifactIdentity; target_sha256: string; tool_profile_sha256: string; predecessor: Snapshot; operations: Operation[]; after: Snapshot | null }
-export interface JournalSink { append(record: Journal): Promise<void> }
+export interface Journal { schema: 'attestrack.native-write-journal/v1'; operation_id: string; artifact: ArtifactIdentity; target_sha256: string; tool_profile_sha256: string; predecessor: Snapshot; operations: Operation[]; after: Snapshot | null }
+export interface JournalSink { readonly operation_id: string; append(record: Journal): Promise<void> }
+export interface OperationObservation {
+  schema: 'attestrack.native-operation-observation/v1'; operation_id: string; artifact: ArtifactIdentity; target_sha256: string;
+  worker: { active_deployment_id: string; active_versions: { version_id: string; percentage: number }[]; deployment_operation_id: string | null; latest_version_id: string;
+    versions: { id: string; module_sha256: string; version_configuration_sha256: string }[] };
+  pages: { canonical_deployment_id: string; deployments: { id: string; environment: string; branch: string; source_sha: string; stage: string; status: string }[] } | null;
+}

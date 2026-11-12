@@ -15,6 +15,7 @@ import { upstreamTool } from './native-release-tool.test.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
+const OP = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 function input(): Payload {
   const files = [fileBytes('worker/index.js', Buffer.from('export default { fetch(){return new Response("retained")} };')), fileBytes('worker/entry.ts', Buffer.from(buildWorkerEntry())),
     fileBytes('portal/index.html', Buffer.from('<head><meta name="attestrack-portal-api" content="same-origin" /></head>')),
@@ -62,13 +63,14 @@ function nativeInput(payload = input(), originalFiles: Record<string, Buffer> = 
 }
 class FictionalCloudflare implements NativeHTTP {
   calls: { path: string; init: RequestInit; jwt?: string }[] = [];
-  latest = P; active = P; deployment = DP; pages = PP; failPages = false; corruptModule = false;
+  latest = P; active = P; deployment = DP; pages = PP; pagesMarker: string | undefined; deploymentMarker: string | undefined; failPages = false; corruptModule = false;
   worker: Record<string, unknown> = { id: W, name: 'fictional-worker', logpush: false, observability: {}, tags: [], tail_consumers: [], subdomain: {}, references: {} };
   bindings = [{ name: 'ATTESTRACK_KV', type: 'kv_namespace', namespace_id: 'c'.repeat(32) }, { name: 'CONSENT_TOKEN_SECRET', type: 'secret_text' }, { name: 'SITE_ID', type: 'plain_text', text: 'fictional-site' }];
   project: Record<string, unknown> = { id: PG, name: 'fictional-portal', production_branch: 'main', source: null, build_config: {}, deployment_configs: { production: {}, preview: {} }, domains: [] };
   versions = new Map([[P, { id: P, number: 1, main_module: 'index.js', compatibility_date: '2024-12-01', compatibility_flags: [], bindings: this.bindings,
     modules: [{ name: 'index.js', content_type: 'application/javascript+module', content_base64: Buffer.from('previous').toString('base64') }] }]]);
   before: ((path: string, init: RequestInit) => void) | null = null;
+  inventoryPatch: Record<string, unknown> = {};
   target(): Target { return { environment: 'staging', account_id: 'd'.repeat(32), worker: { id: W, name: 'fictional-worker', bindings: this.bindings as Target['worker']['bindings'], configuration_sha256: workerConfiguration(this.worker) },
     pages: { id: PG, name: 'fictional-portal', production_branch: 'main', configuration_sha256: pagesConfiguration(this.project) } }; }
   async request(path: string, init: RequestInit = {}, jwt?: string): Promise<unknown> {
@@ -84,8 +86,8 @@ class FictionalCloudflare implements NativeHTTP {
     }
     if (/\/versions\/.+\?include=modules$/.test(path)) return structuredClone(this.versions.get(path.split('/').at(-1)!.split('?')[0]));
     if (path.endsWith('/deployments') && path.includes('/workers/')) {
-      if (init.method === 'POST') { this.active = C; this.deployment = DC; return { id: DC }; }
-      return { deployments: [{ id: this.deployment, versions: [{ version_id: this.active, percentage: 100 }] }] };
+      if (init.method === 'POST') { this.active = C; this.deployment = DC; this.deploymentMarker = JSON.parse(init.body as string).annotations['workers/message']; return { id: DC }; }
+      return { deployments: [{ id: this.deployment, annotations: { 'workers/message': this.deploymentMarker }, versions: [{ version_id: this.active, percentage: 100 }] }] };
     }
     if (path.endsWith('/pages/projects/fictional-portal')) return { ...structuredClone(this.project), canonical_deployment: { id: this.pages } };
     if (path.endsWith('/upload-token')) return { jwt: 'fictional-assets-token' };
@@ -93,11 +95,17 @@ class FictionalCloudflare implements NativeHTTP {
     if (path.endsWith('/fictional-portal/deployments') && init.method === 'POST') {
       if (this.failPages) throw new Error('Fictional Pages ambiguous dispatch');
       assert.ok(init.body instanceof FormData); assert.equal(init.body.get('commit_hash'), source);
-      this.pages = PC; return { id: PC };
+      this.pages = PC; this.pagesMarker = String(init.body.get('commit_message')); return { id: PC };
     }
     if (path.includes('/fictional-portal/deployments/')) return { id: path.split('/').at(-1), project_id: PG, project_name: 'fictional-portal', environment: 'production', is_skipped: false,
-      latest_stage: { name: 'deploy', status: 'success' }, deployment_trigger: { metadata: { branch: 'main', commit_hash: source } } };
+      latest_stage: { name: 'deploy', status: 'success' }, deployment_trigger: { metadata: { branch: 'main', commit_hash: source, commit_message: path.split('/').at(-1) === PC ? this.pagesMarker : undefined } } };
     throw new Error(`Unrecognized fictional native endpoint ${path}`);
+  }
+  async page(path: string) {
+    let items: unknown[];
+    if (path.includes('/workers/workers/')) items = [...this.versions.values()];
+    else items = await Promise.all([PP, ...(this.pages === PC ? [PC] : [])].map(id => this.request(`/accounts/${'d'.repeat(32)}/pages/projects/fictional-portal/deployments/${id}`)));
+    return { items: structuredClone(items), info: { page: 1, per_page: 25, count: items.length, total_count: items.length, total_pages: 1, ...this.inventoryPatch } };
   }
   writes() { return this.calls.filter(c => c.init.method === 'POST'); }
 }
@@ -151,10 +159,11 @@ test('actual admitted artifact identity bridges to actual HTTP inspect validator
 });
 test('fictional native writer uploads exact original module/static bytes, separates version creation/switch and retains native serving readback', async () => withRuntime(async tool => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), f = nativeInput(), bundle = f.bundle(); const records: Journal[] = [];
-  const previous = await writer.observe(); const result = await writer.deploy(bundle, previous, tool, { async append(r) { records.push(r); } });
+  const previous = await writer.observe(); const result = await writer.deploy(bundle, previous, tool, { operation_id: OP, async append(r) { records.push(r); } });
   assert.equal(result.after!.worker.version_id, C); assert.equal(result.after!.pages!.deployment_id, PC);
   assert.deepEqual(result.artifact, bundle.identity); assert.equal(result.target_sha256, targetIdentity(cloud.target()));
   assert.equal(result.operations.length, 4); assert.ok(result.operations.every(o => o.state === 'confirmed'));
+  assert.equal(result.operation_id, OP); assert.equal(result.after!.worker.operation_id, OP); assert.equal(result.after!.pages!.operation_id, OP);
   const upload = JSON.parse(cloud.writes()[0].init.body as string);
   assert.equal(upload.modules[0].content_base64, bundle.payload.files.find(f => f.path === 'worker/index.js')!.base64);
   assert.equal(cloud.writes()[1].path.endsWith('/deployments'), true);
@@ -164,6 +173,28 @@ test('fictional native writer uploads exact original module/static bytes, separa
   assert.equal(JSON.stringify(result).includes('fictional-assets-token'), false);
   assert.equal(JSON.stringify(result).includes('accepted'), false);
 }));
+test('read-only native operation reconciliation finds exact tag plus bytes/config; absence/duplicates never dispatch a replay', async () => withRuntime(async tool => {
+  const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), bundle = nativeInput().bundle(), p = await writer.observe();
+  const records: Journal[] = [];
+  await writer.deploy(bundle, p, tool, { operation_id: OP, async append(r) { records.push(r); } });
+  const writes = cloud.writes().length, seen = await writer.inspectOperation(bundle, OP);
+  assert.equal(seen.worker.versions.length, 1); assert.equal(seen.worker.versions[0].id, C);
+  assert.equal(seen.worker.versions[0].module_sha256, bundle.payload.files.find(f => f.path === 'worker/index.js')!.sha256);
+  assert.equal(seen.pages!.deployments.length, 1); assert.equal(seen.pages!.deployments[0].id, PC);
+  const absent = await writer.inspectOperation(bundle, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  assert.equal(absent.worker.versions.length, 0); assert.equal(absent.pages!.deployments.length, 0);
+  cloud.versions.set(id(9), { ...cloud.versions.get(C)!, id: id(9), number: 3 });
+  const duplicate = await writer.inspectOperation(bundle, OP); assert.equal(duplicate.worker.versions.length, 2);
+  assert.equal(cloud.writes().length, writes); assert.equal('qualified' in duplicate, false);
+  assert.equal(records[0].operation_id, OP); assert.equal(records[0].operations.length, 0);
+}));
+test('incomplete/native-truncated operation inventories refuse read-only reconciliation without any write', async () => {
+  const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), bundle = nativeInput().bundle();
+  for (const patch of [{ total_count: 26, total_pages: 2 }, { total_count: 1001, total_pages: 41 }, { page: 2 }, { per_page: 100 }]) {
+    cloud.inventoryPatch = patch; await assert.rejects(() => writer.inspectOperation(bundle, OP), /inventory/);
+  }
+  assert.equal(cloud.writes().length, 0);
+});
 test('active/latest disagreement and wrong existing identity/config fail before any mutation', async () => withRuntime(async tool => {
   for (const defect of ['latest', 'worker', 'config', 'pages']) {
     const cloud = new FictionalCloudflare(), target = cloud.target();
@@ -176,16 +207,16 @@ test('active/latest disagreement and wrong existing identity/config fail before 
   }
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), p = await writer.observe();
   cloud.latest = C;
-  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { async append() {} })); assert.equal(cloud.writes().length, 0);
+  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { operation_id: OP, async append() {} })); assert.equal(cloud.writes().length, 0);
 }));
 test('unadmitted or mutated application bytes and invalid Pages controls cannot reach provider writes', async () => withRuntime(async tool => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), p = await writer.observe();
   const bundle = nativeInput().bundle();
-  await assert.rejects(() => writer.deploy(structuredClone(bundle) as Bundle, p, tool, { async append() {} }), /admission/);
+  await assert.rejects(() => writer.deploy(structuredClone(bundle) as Bundle, p, tool, { operation_id: OP, async append() {} }), /admission/);
   bundle.payload.files[0].base64 = '';
-  await assert.rejects(() => writer.deploy(bundle, p, tool, { async append() {} }), /drifted/);
+  await assert.rejects(() => writer.deploy(bundle, p, tool, { operation_id: OP, async append() {} }), /drifted/);
   const raw = input(); raw.files.push(fileBytes('portal/_worker.js', Buffer.from('forbidden function'))); raw.files.sort((a, b) => a.path.localeCompare(b.path)); raw.inventory_sha256 = inventory(raw.files);
-  await assert.rejects(() => writer.deploy(nativeInput(raw).bundle(), p, tool, { async append() {} }), /control file/);
+  await assert.rejects(() => writer.deploy(nativeInput(raw).bundle(), p, tool, { operation_id: OP, async append() {} }), /control file/);
   assert.equal(cloud.writes().length, 0);
 }));
 test('native code mismatch stops before traffic switch; newer upload/deployment refuses overwrite', async () => withRuntime(async tool => {
@@ -196,23 +227,23 @@ test('native code mismatch stops before traffic switch; newer upload/deployment 
       if (cloud.latest === C && path.endsWith('/versions?per_page=1&page=1') && defect === 'newer-upload') cloud.latest = id(9);
       if (cloud.latest === C && path.endsWith('/deployments') && defect === 'newer-deployment') cloud.deployment = id(9);
     };
-    await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { async append() {} }));
+    await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { operation_id: OP, async append() {} }));
     assert.equal(cloud.writes().filter(c => c.path.endsWith('/deployments')).length, 0); assert.equal(cloud.active, P);
   }
 }));
 test('Worker success/Pages unknown preserves partial journal; no hidden automatic rollback/replay', async () => withRuntime(async tool => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), p = await writer.observe(); cloud.failPages = true;
   const records: Journal[] = [];
-  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { async append(r) { records.push(r); } }), /ambiguous/);
+  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { operation_id: OP, async append(r) { records.push(r); } }), /ambiguous/);
   assert.equal(cloud.active, C); const last = records.at(-1)!;
   assert.equal(last.operations.at(-1)!.name, 'pages-deploy'); assert.equal(last.operations.at(-1)!.state, 'unknown');
   assert.equal(last.after!.worker.version_id, C); assert.equal(cloud.writes().filter(c => c.path.endsWith('/fictional-portal/deployments')).length, 1);
   // Replaying the stale predecessor cannot overwrite the confirmed Worker or a newer revision.
-  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { async append() {} }), /predecessor changed/);
+  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { operation_id: OP, async append() {} }), /predecessor changed/);
 }));
 test('journal durability failure before dispatch prevents mutation; fixed target rejects unsupported topology', async () => withRuntime(async tool => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), p = await writer.observe(); let writes = 0;
-  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { async append() { if (++writes === 2) throw new Error('durability failed'); } }), /durability/);
+  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, tool, { operation_id: OP, async append() { if (++writes === 2) throw new Error('durability failed'); } }), /durability/);
   assert.equal(cloud.writes().length, 0);
   for (const raw of [null, { ...cloud.target(), account_id: '../escape' }, { ...cloud.target(), extra: true },
     { ...cloud.target(), worker: { ...cloud.target().worker, bindings: [{ name: 'D1', type: 'd1' }] } }]) assert.throws(() => validateTarget(raw));
@@ -239,7 +270,7 @@ test('fixed native transport never redirects provider tokens or emits raw error 
 });
 test('fake pinned-tool callbacks and changed required binding types refuse before any writes', async () => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), p = await writer.observe();
-  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, { hash: () => Buffer.alloc(32), assertUnchanged() {} }, { async append() {} }), /Pinned uploader/);
+  await assert.rejects(() => writer.deploy(nativeInput().bundle(), p, { hash: () => Buffer.alloc(32), assertUnchanged() {} }, { operation_id: OP, async append() {} }), /Pinned uploader/);
   assert.equal(cloud.writes().length, 0);
   const t = cloud.target(); t.worker.bindings = t.worker.bindings.map(b => b.name === 'ATTESTRACK_KV' ? { name: b.name, type: 'secret_text' } : b);
   assert.throws(() => validateTarget(t), /required binding type/);

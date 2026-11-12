@@ -1,5 +1,7 @@
 // Register application artifact contracts through the unchanged CI test entrypoint.
 import './application-artifacts.test.ts';
+import './native-release-tool.test.ts';
+import './native-application-release.test.ts';
 // Provenance: focused copy of the canonical retained-build tests at
 // bd8f2dd368809eaab81418fb8f9e9d201e32a688 (candidateRuns, mustReuse, validate,
 // verifyStagingPr). Infra generator and image cases are excluded.

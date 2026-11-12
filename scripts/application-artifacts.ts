@@ -104,7 +104,8 @@ export function validatePayload(raw: unknown, run: Run, repositoryId: number, tr
 /** Only called AFTER native artifact/digest verification. No files extracted from an untrusted ZIP. */
 export function readSingleZip(bytes: Buffer, name: string): unknown {
   const script = `import sys,io,zipfile,json,stat\nb=sys.stdin.buffer.read(${96 * 1024 * 1024 + 1})\nassert len(b)<=${96 * 1024 * 1024}\nz=zipfile.ZipFile(io.BytesIO(b)); a=z.infolist()\nassert len(a)==1 and a[0].filename==sys.argv[1] and not a[0].is_dir()\nassert not stat.S_ISLNK(a[0].external_attr>>16)\nassert a[0].file_size<=${96 * 1024 * 1024} and a[0].compress_size<=${96 * 1024 * 1024}\nx=z.read(a[0])\ndef unique(p):\n d=dict(p); assert len(d)==len(p); return d\njson.loads(x,object_pairs_hook=unique); sys.stdout.buffer.write(x)\n`;
-  return JSON.parse(execFileSync('python3', ['-c', script, name], { input: bytes, maxBuffer: 96 * 1024 * 1024, timeout: 30000 }).toString());
+  return JSON.parse(execFileSync('python3', ['-c', script, name], { input: bytes, maxBuffer: 96 * 1024 * 1024, timeout: 30000,
+    env: { PATH: process.env.PATH, LANG: 'C', PYTHONDONTWRITEBYTECODE: '1' } }).toString());
 }
 export function materialize(payload: Payload, destination: string): void {
   if (existsSync(destination)) throw new Error('Materialization destination must be fresh');

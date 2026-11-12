@@ -1,3 +1,5 @@
+// Register application artifact contracts through the unchanged CI test entrypoint.
+import './application-artifacts.test.ts';
 // Provenance: focused copy of the canonical retained-build tests at
 // bd8f2dd368809eaab81418fb8f9e9d201e32a688 (candidateRuns, mustReuse, validate,
 // verifyStagingPr). Infra generator and image cases are excluded.
@@ -134,4 +136,54 @@ test('a staging PR whose head repository was deleted is not accepted', () => {
   const pr = { number: 5, base: { ref: 'staging', repo: { id: 1, full_name: repository } },
     head: { ref: 'dev', sha: run.head_sha, repo: null } } as PullRequest;
   assert.throws(() => verifyStagingPr(evidence, run, repository, [pr]), /same-repository staging PR/);
+});
+
+// Application artifact readers use stricter complete native listings; schemas1/2 above are unchanged.
+import { completeNativeList, requireNativeJobs, verifyNativeArchive, type NativeArtifact, type NativeJob } from '../.github/actions/retained-build/retained-build.ts';
+import { createHash } from 'node:crypto';
+test('native listing requires exact complete stable pages and unique IDs', () => {
+  const rows = Array.from({ length: 101 }, (_, i) => ({ id: i + 1 }));
+  assert.equal(completeNativeList(p => ({ total_count: 101, items: rows.slice((p - 1) * 100, p * 100) })).length, 101);
+  for (const read of [() => ({ total_count: 101, items: [] }), () => ({ total_count: 1001, items: [] }),
+    () => ({ total_count: 2, items: [{ id: 1 }, { id: 1 }] }),
+    (p: number) => ({ total_count: p === 1 ? 101 : 102, items: rows.slice((p - 1) * 100, p * 100) })]) assert.throws(() => completeNativeList(read));
+});
+test('required original jobs reject ambiguity, skips and foreign run/attempt/head', () => {
+  const job: NativeJob = { id: 1, name: 'build', run_id: run.id, run_attempt: run.run_attempt, head_sha: run.head_sha, status: 'completed', conclusion: 'success' };
+  requireNativeJobs([job], run, ['build']);
+  for (const patch of [{ run_id: 13 }, { run_attempt: 2 }, { head_sha: 'f'.repeat(40) }, { conclusion: 'skipped' }, { status: 'in_progress' }]) assert.throws(() => requireNativeJobs([{ ...job, ...patch }], run, ['build']));
+  assert.throws(() => requireNativeJobs([job, { ...job, id: 2 }], run, ['build']));
+  assert.throws(() => requireNativeJobs([], run, ['build']));
+});
+test('native artifact checks exact ID/original origin/attempt name and ZIP digest before content', () => {
+  const bytes = Buffer.from('not even a ZIP');
+  const a: NativeArtifact = { id: 91, name: 'payload-1', expired: false, size_in_bytes: bytes.length,
+    digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`,
+    workflow_run: { id: run.id, repository_id: 1, head_repository_id: 1, head_branch: run.head_branch, head_sha: run.head_sha } };
+  verifyNativeArchive(a, run, 1, 'payload-1', bytes);
+  for (const patch of [{ id: 0 }, { expired: true }, { name: 'payload-2' }, { digest: 'sha256:' + '0'.repeat(64) },
+    { workflow_run: { ...a.workflow_run, head_branch: 'foreign' } }, { workflow_run: { ...a.workflow_run, repository_id: 2 } },
+    { workflow_run: { ...a.workflow_run, head_sha: 'f'.repeat(40) } }, { workflow_run: { ...a.workflow_run, id: 13 } }]) assert.throws(() => verifyNativeArchive({ ...a, ...patch }, run, 1, 'payload-1', bytes));
+  assert.throws(() => verifyNativeArchive(a, { ...run, conclusion: 'failure' }, 1, 'payload-1', bytes));
+});
+
+test('source and application candidate discovery accepts exact first-page success beyond1000 historical runs', () => {
+  for (const workflow of ['ci.yml', 'application-artifacts.yml']) {
+    const candidate = { ...run, id: 71, event: 'push', head_branch: 'staging', path: `.github/workflows/${workflow}` };
+    const paths: string[] = [];
+    const found = candidateRuns(repository, workflow, 99, path => {
+      paths.push(path); assert.ok(!path.includes('status='));
+      return { total_count: 1001, workflow_runs: [candidate, ...Array.from({ length: 99 }, (_, i) => ({ ...candidate, id: 1000 + i, conclusion: 'failure' }))] };
+    });
+    assert.equal(found.next().value, candidate);
+    assert.deepEqual(paths, [`repos/${repository}/actions/workflows/${workflow}/runs?per_page=100&page=1`]);
+  }
+});
+test('bounded history search with no successful evidence yields none, never a rebuild decision', () => {
+  const paths: string[] = [];
+  const found = [...candidateRuns(repository, 'application-artifacts.yml', 99, path => {
+    paths.push(path);
+    return { total_count: 1001, workflow_runs: Array.from({ length: 100 }, (_, i) => ({ ...run, id: i + 1, conclusion: 'failure' })) };
+  })];
+  assert.deepEqual(found, []); assert.equal(paths.length, 10); assert.ok(paths[9].endsWith('page=10'));
 });

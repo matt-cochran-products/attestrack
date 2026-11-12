@@ -2,6 +2,54 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+
+/** Strict native metadata helpers for application bytes; legacy source schemas stay unchanged. */
+export interface NativeArtifact {
+  id: number; name: string; expired: boolean; size_in_bytes: number; digest: string;
+  workflow_run: { id: number; repository_id: number; head_repository_id: number; head_branch: string; head_sha: string };
+}
+export interface NativeJob {
+  id: number; name: string; run_id: number; run_attempt: number; head_sha: string;
+  status: string; conclusion: string | null;
+}
+export function completeNativeList<T extends { id: number }>(
+    read: (page: number) => { total_count: number; items: T[] }): T[] {
+  const rows: T[] = []; let total: number | undefined;
+  for (let page = 1; page <= 10; page++) {
+    const batch = read(page);
+    if (!Number.isSafeInteger(batch.total_count) || batch.total_count < 0 || batch.total_count > 1000
+        || (total !== undefined && total !== batch.total_count)) throw new Error('Incomplete or changing native listing');
+    total = batch.total_count;
+    if (!Array.isArray(batch.items) || batch.items.length !== Math.min(100, total - rows.length)) throw new Error('Incomplete native page');
+    rows.push(...batch.items);
+    if (new Set(rows.map(r => r.id)).size !== rows.length || rows.some(r => !Number.isSafeInteger(r.id) || r.id < 1)) throw new Error('Duplicate or invalid native identity');
+    if (rows.length === total) return rows;
+  }
+  throw new Error('Native listing exceeds complete bounded scan');
+}
+export function requireNativeJobs(jobs: NativeJob[], run: Run, names: string[]): void {
+  for (const name of names) {
+    const found = jobs.filter(j => j.name === name);
+    if (found.length !== 1) throw new Error(`Missing or ambiguous native job: ${name}`);
+    const j = found[0];
+    if (j.run_id !== run.id || j.run_attempt !== run.run_attempt || j.head_sha !== run.head_sha
+        || j.status !== 'completed' || j.conclusion !== 'success') throw new Error(`Unsuccessful or foreign native job: ${name}`);
+  }
+}
+export function verifyNativeArchive(artifact: NativeArtifact, run: Run, repositoryId: number, name: string, bytes: Buffer): void {
+  const w = artifact.workflow_run;
+  if (!Number.isSafeInteger(run.id) || run.id < 1 || !Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1
+      || run.status !== 'completed' || run.conclusion !== 'success'
+      || !Number.isSafeInteger(artifact.id) || artifact.id < 1 || artifact.name !== name || artifact.expired
+      || !Number.isSafeInteger(repositoryId) || repositoryId < 1 || !w || w.id !== run.id
+      || w.repository_id !== repositoryId || w.head_repository_id !== repositoryId
+      || w.head_sha !== run.head_sha || w.head_branch !== run.head_branch
+      || bytes.length !== artifact.size_in_bytes || bytes.length > 96 * 1024 * 1024
+      || artifact.digest !== `sha256:${createHash('sha256').update(bytes).digest('hex')}`) {
+    throw new Error('Native artifact identity, origin or archive digest mismatch');
+  }
+}
 
 export interface Evidence {
   schema: number;

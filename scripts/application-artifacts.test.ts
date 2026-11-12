@@ -68,7 +68,7 @@ test('real build-output collector includes hidden files and refuses symlinks bef
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('actual main CLI consumes only original staged ZIP; no installer/compiler or rebuild child', () => {
+test('actual main CLI selects original staged ZIP from history over1000 runs; no rebuild child', () => {
   const temp = mkdtempSync(join(tmpdir(), 'attestrack-main-cli-')); const repo = join(temp, 'repo'), bin = join(temp, 'bin');
   mkdirSync(repo); mkdirSync(bin);
   try {
@@ -83,10 +83,10 @@ test('actual main CLI consumes only original staged ZIP; no installer/compiler o
     const p = payload(); p.producer.source_sha = head; p.producer.tree = nativeTree;
     p.source.head_sha = head; p.source.built_sha = head; p.source.tree = nativeTree; p.source.pull_request!.head_sha = head;
     const bytes = zip('application.json', Buffer.from(JSON.stringify(p))), a = artifact(bytes); a.workflow_run.head_sha = head;
-    const fixture = { head, nativeTree, staged, current, sourceRun, artifact: a, zip: bytes.toString('base64') }; writeFileSync(join(temp, 'native.json'), JSON.stringify(fixture));
+    const fixture = { head, nativeTree, staged, current, sourceRun, artifact: a, historyTotal: 1001, zip: bytes.toString('base64') }; writeFileSync(join(temp, 'native.json'), JSON.stringify(fixture));
     writeFileSync(join(bin, 'gh'), `#!${process.execPath}\nconst fs=require('fs');const f=JSON.parse(fs.readFileSync(${JSON.stringify(join(temp, 'native.json'))}));const p=process.argv[3];let r;\n` +
       `if(p.endsWith('/attestrack'))r={id:41};else if(p.includes('/branches/main'))r={protected:f.protected??true,commit:{sha:f.head}};else if(p.includes('/git/commits/'))r={tree:{sha:f.nativeTree}};\n` +
-      `else if(p.includes('/workflows/'))r={total_count:1,workflow_runs:[f.staged]};else if(p.includes('/attempts/')){const s=p.includes('/50/');const run=s?f.sourceRun:f.staged;const names=s?['resolve','checks / ci','checks / warehouse','checks / e2e / e2e','checks / Build gate','Build gate']:['scope','staging-build'];r={total_count:names.length,jobs:names.map((name,i)=>({id:i+1,name,run_id:run.id,run_attempt:1,head_sha:f.head,status:'completed',conclusion:'success',...f.jobPatch}))};}\n` +
+      `else if(p.includes('/workflows/')){if(p.includes('status='))throw Error('Filtered discovery forbidden');r={total_count:f.historyTotal,workflow_runs:[{...f.staged,...(f.noCandidate?{conclusion:'failure'}:{})},...Array.from({length:99},(_,i)=>({...f.staged,id:1000+i,conclusion:'failure'}))]};}else if(p.includes('/attempts/')){const s=p.includes('/50/');const run=s?f.sourceRun:f.staged;const names=s?['resolve','checks / ci','checks / warehouse','checks / e2e / e2e','checks / Build gate','Build gate']:['scope','staging-build'];r={total_count:names.length,jobs:names.map((name,i)=>({id:i+1,name,run_id:run.id,run_attempt:1,head_sha:f.head,status:'completed',conclusion:'success',...f.jobPatch}))};}\n` +
       `else if(p.includes('/artifacts/91/zip')){process.stdout.write(Buffer.from(f.zip,'base64'));process.exit(0);}else if(p.includes('/100/artifacts'))r={total_count:1,artifacts:[f.artifact]};\n` +
       `else if(p.endsWith('/runs/200'))r=f.current;else if(p.endsWith('/runs/50'))r=f.sourceRun;else if(p.includes('/pulls/7'))r={number:7,base:{ref:'staging',repo:{id:41,full_name:${JSON.stringify(REPOSITORY)}}},head:{ref:'dev',sha:f.head,repo:{id:41,full_name:${JSON.stringify(REPOSITORY)}}}};else throw Error('Unexpected native read '+p);process.stdout.write(JSON.stringify(r));\n`, { mode: 0o755 });
     const forbidden = join(temp, 'forbidden');
@@ -100,7 +100,7 @@ test('actual main CLI consumes only original staged ZIP; no installer/compiler o
     const receipt = JSON.parse(readFileSync(join(out, 'original-artifact.json'), 'utf8'));
     assert.equal(receipt.artifact_id, 91); assert.equal(receipt.producer_run, 100); assert.equal(receipt.producer_attempt, 1); assert.equal(receipt.archive_sha256, a.digest);
     rmSync(out, { recursive: true });
-    for (const patch of [{ protected: false }, { protected: 'false' }, { jobPatch: { run_attempt: 2 } },
+    for (const patch of [{ noCandidate: true }, { protected: false }, { protected: 'false' }, { jobPatch: { run_attempt: 2 } },
       { jobPatch: { conclusion: 'skipped' } }, { artifact: { ...a, digest: 'sha256:' + '0'.repeat(64) } },
       { artifact: { ...a, workflow_run: { ...a.workflow_run, repository_id: 42 } } }]) {
       writeFileSync(join(temp, 'native.json'), JSON.stringify({ ...fixture, ...patch }));

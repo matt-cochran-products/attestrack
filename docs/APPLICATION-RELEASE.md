@@ -39,8 +39,10 @@ are parser limits, not business budgets or provider limits.
 A protected main push selects a successful original staging producer for its
 exact complete tree. Before ZIP parsing, it verifies unique native artifact ID,
 original producer run/attempt/name, repository/head-branch/source and native outer
-ZIP SHA256. Complete native listings are bounded to1000entries and refuse
-truncation, changing totals or duplicates. Required original successful jobs are
+ZIP SHA256. Per-run jobs/artifacts require complete native listings bounded to1000entries
+and refuse truncation, changing totals or duplicates. Workflow candidate discovery
+reuses the existing recent1000-run search, filtering successful native status
+locally; a larger historical total does not prevent a valid recent candidate. Required original successful jobs are
 unique and bound to native run/attempt/head. The single bounded ZIP member and
 all inner bytes are checked; main materializes those same bytes to a fresh
 runner directory. A retained `artifact-materialization/v1` record identifies the

@@ -4,8 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { completeNativeList, requireNativeJobs, validate, verifyNativeArchive, verifyStagingPr,
-  type Evidence, type NativeArtifact, type NativeJob, type PullRequest, type Run } from '../.github/actions/retained-build/retained-build.ts';
+import { candidateRuns, completeNativeList, requireNativeJobs, validate, verifyNativeArchive, verifyStagingPr,
+  type Evidence, type NativeArtifact, type NativeJob, type PullRequest, type Run, type WorkflowRuns } from '../.github/actions/retained-build/retained-build.ts';
 import { buildWorkerEntry } from '../packages/deploy/src/worker-template.ts';
 
 export const REPOSITORY = 'matt-cochran-products/attestrack';
@@ -148,7 +148,7 @@ function scope(): Scope {
   return { branch, sha, tree: commit.tree.sha, repositoryId: repo.id, runId, attempt };
 }
 function source(s: Scope): Evidence {
-  const runs = list<Run>(`${prefix}/actions/workflows/ci.yml/runs`, 'workflow_runs');
+  const runs = candidateRuns(REPOSITORY, 'ci.yml', s.runId, path => api<WorkflowRuns>(path));
   for (const r of runs) {
     if (r.status !== 'completed' || r.conclusion !== 'success' || r.event !== 'pull_request' || r.head_repository?.full_name !== REPOSITORY) continue;
     // Source schemas remain source proof, never application payload authority.
@@ -209,7 +209,7 @@ export async function main(): Promise<void> {
     writeFileSync(join(out, 'application.json'), JSON.stringify(p) + '\n'); return;
   }
   if (mode === 'materialize' && s.branch === 'main') {
-    const runs = list<Run>(`${prefix}/actions/workflows/${WORKFLOW}/runs`, 'workflow_runs');
+    const runs = candidateRuns(REPOSITORY, WORKFLOW, s.runId, path => api<WorkflowRuns>(path));
     for (const r of runs) {
       if (r.id === s.runId || r.event !== 'push' || r.head_branch !== 'staging' || r.status !== 'completed'
           || r.conclusion !== 'success' || r.head_repository?.full_name !== REPOSITORY) continue;

@@ -166,3 +166,24 @@ test('native artifact checks exact ID/original origin/attempt name and ZIP diges
     { workflow_run: { ...a.workflow_run, head_sha: 'f'.repeat(40) } }, { workflow_run: { ...a.workflow_run, id: 13 } }]) assert.throws(() => verifyNativeArchive({ ...a, ...patch }, run, 1, 'payload-1', bytes));
   assert.throws(() => verifyNativeArchive(a, { ...run, conclusion: 'failure' }, 1, 'payload-1', bytes));
 });
+
+test('source and application candidate discovery accepts exact first-page success beyond1000 historical runs', () => {
+  for (const workflow of ['ci.yml', 'application-artifacts.yml']) {
+    const candidate = { ...run, id: 71, event: 'push', head_branch: 'staging', path: `.github/workflows/${workflow}` };
+    const paths: string[] = [];
+    const found = candidateRuns(repository, workflow, 99, path => {
+      paths.push(path); assert.ok(!path.includes('status='));
+      return { total_count: 1001, workflow_runs: [candidate, ...Array.from({ length: 99 }, (_, i) => ({ ...candidate, id: 1000 + i, conclusion: 'failure' }))] };
+    });
+    assert.equal(found.next().value, candidate);
+    assert.deepEqual(paths, [`repos/${repository}/actions/workflows/${workflow}/runs?per_page=100&page=1`]);
+  }
+});
+test('bounded history search with no successful evidence yields none, never a rebuild decision', () => {
+  const paths: string[] = [];
+  const found = [...candidateRuns(repository, 'application-artifacts.yml', 99, path => {
+    paths.push(path);
+    return { total_count: 1001, workflow_runs: Array.from({ length: 100 }, (_, i) => ({ ...run, id: i + 1, conclusion: 'failure' })) };
+  })];
+  assert.deepEqual(found, []); assert.equal(paths.length, 10); assert.ok(paths[9].endsWith('page=10'));
+});

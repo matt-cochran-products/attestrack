@@ -77,3 +77,146 @@ qualify genuine same-state recovery that preserves forward writes before target
 mutations. Production must require that staging acceptance for the same original
 bytes. No artifact schema/label or JSON boolean provides that authority, and no
 warehouse, outbound advertising or licensed extension authority is implied.
+
+## Native retained-byte writer source (still not activated)
+
+`scripts/native-application-release.ts` implements actual Cloudflare HTTP paths;
+it has no CLI, inferred target, credential environment-variable reader or hosted
+workflow entrypoint. `readOriginal` reuses the existing provenance engine to
+authenticate the original staging run/attempt, complete scoped jobs/artifact
+listings, native outer ZIP digest, source2/recorded PR and exact complete tree.
+It checks all retained files before giving a process-local bundle capability to
+the writer. Copies, mutated payloads and arbitrary caller JSON do not obtain that
+capability. Its public artifact identity uses **raw lowercase64hex** archive and
+inventory SHA256, alongside original artifact ID/run/attempt/source tree. Native
+GitHub's `sha256:` prefix is removed only after native archive verification;
+historical materialization receipts keep their existing format.
+
+New publications use `application-bytes/v2`. They retain `worker/entry.ts`, the
+actual generated input buffer compiled through esbuild stdin, its digest, the
+original template SHA256 and a fixed publisher execution-closure digest. The
+builder snapshots inputs before running dependencies, rejects tracked/input
+drift afterward and retains the same captured entry buffer used for compilation.
+This entry is provenance source only; the writer uploads only `worker/index.js`.
+Provider-bearing admission never evaluates candidate template/entry JavaScript.
+
+For original admission, lock/template and the fixed publisher files are read at
+the original full native commit, with bounded base64 and Git blob SHA1 checks.
+`release/application-publishers.json` explicitly approves original publisher
+implementations; recorded digests cannot approve themselves. v2 requires actual
+retained entry bytes/digest plus matching original native template/recipe. The
+old same-tree materializer retains its v1 lock/entry checks and adds matching
+local template/recipe checks for v2. Different-tree original admission does not
+compare legitimate older/newer inputs against current controller files.
+
+The sole grandfathered v1 publication is original artifact13963403279 from
+run43261054615/attempt1, source27f1b32 and exact treefb660be9. Its original ZIP,
+inventory, publisher, template and independently derived constant entry pair are
+explicitly pinned. This is historical publication proof, not evidence that it is
+currently deployed or a compatible recovery. Other unsupported v1 entries need
+an explicit complete original proof or a new qualified producer; they cannot
+borrow this template hash. New v2 packaging needs fresh original native artifact
+verification; the earlier10-file v1 packet is preserved without relabeling.
+
+A reviewed target must name an **existing** account, immutable Worker ID and
+script name, complete existing KV/SITE_ID/secret-name/optional private-VPC binding
+set and pinned native configuration. Pages is optional and, if selected, names
+an existing direct-upload static project and production branch. Different
+environment targets remain different identities. Missing mappings remain
+unconfigured. There is no Worker/project creation, KV creation/seed, runtime
+secret delivery, ClickHouse schema/grant change, npm publication, installation or
+compiler command in the writer. The existing owner bootstrap/deploy CLI is
+unchanged and is not called.
+
+The modern [Worker version API](https://developers.cloudflare.com/api/resources/workers/subresources/beta/subresources/workers/subresources/versions/methods/create/)
+accepts a Worker ID **or existing name**. This source uses the reviewed immutable
+ID; GET must resolve that ID/name, and GET of the legacy script's active version
+through that same ID must succeed with the expected bindings/configuration. An
+old account/plan/topology that cannot satisfy those readbacks is unsupported and
+fails closed. No migration, new registration, replacement identity or account
+upgrade is attempted. Actual compatibility with the selected account remains a
+native prerequisite, not something fictional tests establish.
+
+Uploading `modules` with `deploy=false` creates a version without switching
+traffic. Explicit secret-binding `inherit.version_id` points to the observed
+active predecessor; values remain provider-side. The older script upload API
+supports only floating `latest` inheritance, so it is deliberately not used.
+GET `include=modules` independently checks the uploaded module's exact SHA256.
+Existing compatibility flags/date, limits, placement and usage model are
+preserved and checked; unsupported stateful/assets/exports topology is refused.
+A separate [deployment POST](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/deployments/methods/create/)
+switches100% traffic. Successful readback requires the exact returned deployment
+ID, uploaded version UUID and module bytes. An uploaded version is not an active
+deployment. Mixed traffic and active/latest disagreement are refused.
+
+Pages uploads exactly retained static bytes via the documented [asset API](https://developers.cloudflare.com/api/resources/pages/subresources/assets/methods/upload/)
+and [Direct Upload deployment API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/create/).
+The manifest uses Cloudflare's actual BLAKE3(base64(bytes)+extension) truncated
+content key, not the artifact SHA256. The upload JWT is native short-lived
+asset-only transport input and is not journaled. Pages Functions/control files
+are refused before any target mutation. The canonical project deployment must
+equal the returned successful production deployment, with the submitted source
+metadata and unchanged project configuration. This is native association with
+the submitted manifest/bytes, **not** an independently downloaded Pages bundle
+hash or a claim that every serving edge has already converged. Worker version
+UUIDs and Pages deployment IDs are environment-specific, not cross-target bundle
+equality or schema compatibility.
+
+`native-release-tool.yml` packages a **separate public tool artifact**, without
+installing packages or running npm scripts. `native-release-tool.ts` checks the
+already locked blake3-wasm2.1.5 tarball's SHA512, reads only six fixed regular
+members, and verifies each exact JS/Wasm/license/package SHA256. All are verified
+again before loading the unmodified upstream hash entry from a fresh trusted
+directory, and checked for drift afterward. Package version alone is never
+identity. The packaging artifact itself does not authorize provider access; the
+factory must independently authenticate its original native run/artifact/ZIP
+and fixed tool profile. Node/Python/controller source also remain part of the
+trusted job/tool contract. Candidate application dependency code is not loaded
+by this writer. Official primary sources inspected:
+
+- [Cloudflare SDK0eb9ef0](https://github.com/cloudflare/cloudflare-typescript/blob/0eb9ef0ea40c1fe38e4b19be92f41bd7466bc1d6/src/resources/workers/beta/workers/versions.ts): JSON creation, explicit inherited version and module readback.
+- [Cloudflare uploader3cea40b](https://github.com/cloudflare/workers-sdk/blob/3cea40b078519222db432b5edf827ddc3e629a2a/packages/deploy-helpers/src/deploy/helpers/hash.ts): exact Pages hash convention.
+- [Official BLAKE3 vectors657284b](https://github.com/BLAKE3-team/BLAKE3/blob/657284b1fa4c4378aa7422b4450dcb5c2c9052fc/test_vectors/test_vectors.json): credential-free upstream runtime checks, including chunk boundary cases.
+
+The caller must durably retain every journal append **before dispatch**. Each
+mutation starts `unknown`; `confirmed` means its native API acknowledgement was
+received, not hosted acceptance. A later failure retains confirmed Worker work
+and unknown Pages work. No automatic rollback/retry occurs. Stale predecessor
+readback refuses overwrite of a newer deployment or upload. Recovery is another
+explicit original-artifact selection under qualified authority; the prior UUID
+is never silently treated as a compatible recovery. These native APIs do not
+provide an atomic cross-service compare-and-swap: external concurrent writers,
+secret/settings changes and partial commits require actual exclusion and
+reconciliation, not a claim that bookend GETs eliminate the race. Provider calls
+have30second deadlines and a10minute client lifetime; timeout remains unknown.
+
+The factory must select and durably persist a per-phase operation UUID before
+calling the writer. The writer never generates one internally. That UUID is in
+the write-ahead journal, Worker version tag/deployment message and Pages commit
+message; acknowledgement IDs and fresh byte/config/serving readbacks remain
+required. `inspectOperation` performs only GETs with complete bounded native
+pagination and stable bookends. It reports exact matches plus current active
+state; zero or multiple matches are unresolved and never authorize a replay,
+rollback or lease release. Correlation metadata is not acceptance authority.
+
+### Mandatory immediate factory follow-on (issue103 stays open)
+
+This packet is source groundwork, not the whole release-source implementation.
+Before any callable hosted writer: implement the protected current-source and
+preexisting-environment scope gate **before** credential allocation; separate
+native OPV reader/grant contracts and roles; authenticate retained original tool
+and application native artifacts; implement durable operation/phase identity,
+writer exclusion, write-ahead persistence and read-only unknown reconciliation;
+join actual native predecessor/recovery compatibility and staging acceptance
+producers. Endorz's HTTP forward-write witness is evidence, never a grant.
+Its exact prepared synthetic event/cohort IDs must be persisted before a POST;
+an ambiguous call gets read-only inspection, never another write invocation.
+
+The finalizer also needs native route/custom-domain/project association for the
+reviewed HTTP origin before/after. A successful HTTP site read and a separate
+Worker/Pages ID GET do not establish that association. Existing Access/bypass,
+dedicated tenant and disabled outbound strategies, same-store forward writes and
+an explicit reviewed recovery artifact remain required. Real target IDs,
+custody/bootstrap and native compatibility proof are not invented here. No
+source test, artifact schema, journal field or HTTP witness marks activation,
+acceptance or recovery ready. Prepared controls remain unchanged.

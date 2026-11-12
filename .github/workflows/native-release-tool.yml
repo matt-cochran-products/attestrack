@@ -1,0 +1,28 @@
+# Public tool packaging only. Does not allocate provider/fixture environments or deploy.
+name: Native release tool bytes
+on:
+  push:
+    branches: [staging, main]
+permissions:
+  contents: read
+jobs:
+  tool-package:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/validate-ci-runner
+        with:
+          mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+          runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - run: node scripts/native-release-tool.ts "$RUNNER_TEMP/native-release-tool.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-release-tool-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-release-tool.json
+          if-no-files-found: error
+          retention-days: 90

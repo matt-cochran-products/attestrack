@@ -29,7 +29,7 @@ function closed(v: unknown, keys: string[]): asserts v is Record<string, unknown
 }
 function positive(v: unknown): boolean { return Number.isSafeInteger(v) && Number(v) > 0; }
 export function safePath(path: string): void {
-  if (path.length > 512 || path.split('/').length > 32 || !/^(worker|portal|schema)\/[A-Za-z0-9_.\/-]+$/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..')
+  if (path.length > 512 || path.split('/').length > 32 || !/^(worker|portal|schema)\/[A-Za-z0-9_./-]+$/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..')
       || /(^|\/)(\.env(?:\..*)?|secrets?\..*|.*\.(pem|key)|id_rsa)$/i.test(path)) throw new Error('Unsafe artifact path');
   if (path.startsWith('worker/') && path !== 'worker/index.js') throw new Error('Unexpected Worker module');
   if (path.startsWith('schema/') && path !== 'schema/clickhouse.sql') throw new Error('Unexpected schema file');

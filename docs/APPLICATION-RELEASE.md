@@ -92,6 +92,32 @@ inventory SHA256, alongside original artifact ID/run/attempt/source tree. Native
 GitHub's `sha256:` prefix is removed only after native archive verification;
 historical materialization receipts keep their existing format.
 
+New publications use `application-bytes/v2`. They retain `worker/entry.ts`, the
+actual generated input buffer compiled through esbuild stdin, its digest, the
+original template SHA256 and a fixed publisher execution-closure digest. The
+builder snapshots inputs before running dependencies, rejects tracked/input
+drift afterward and retains the same captured entry buffer used for compilation.
+This entry is provenance source only; the writer uploads only `worker/index.js`.
+Provider-bearing admission never evaluates candidate template/entry JavaScript.
+
+For original admission, lock/template and the fixed publisher files are read at
+the original full native commit, with bounded base64 and Git blob SHA1 checks.
+`release/application-publishers.json` explicitly approves original publisher
+implementations; recorded digests cannot approve themselves. v2 requires actual
+retained entry bytes/digest plus matching original native template/recipe. The
+old same-tree materializer retains its v1 lock/entry checks and adds matching
+local template/recipe checks for v2. Different-tree original admission does not
+compare legitimate older/newer inputs against current controller files.
+
+The sole grandfathered v1 publication is original artifact13963403279 from
+run43261054615/attempt1, source27f1b32 and exact treefb660be9. Its original ZIP,
+inventory, publisher, template and independently derived constant entry pair are
+explicitly pinned. This is historical publication proof, not evidence that it is
+currently deployed or a compatible recovery. Other unsupported v1 entries need
+an explicit complete original proof or a new qualified producer; they cannot
+borrow this template hash. New v2 packaging needs fresh original native artifact
+verification; the earlier10-file v1 packet is preserved without relabeling.
+
 A reviewed target must name an **existing** account, immutable Worker ID and
 script name, complete existing KV/SITE_ID/secret-name/optional private-VPC binding
 set and pinned native configuration. Pages is optional and, if selected, names

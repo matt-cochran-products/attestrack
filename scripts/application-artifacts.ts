@@ -17,13 +17,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CI_JOBS = ['resolve', 'checks / ci', 'checks / warehouse', 'checks / e2e / e2e', 'checks / Build gate', 'Build gate'];
 export interface FileBytes { path: string; size: number; sha256: string; base64: string }
 export interface Payload {
-  schema: 'attestrack.application-bytes/v1'; repository: string; repository_id: number;
+  schema: 'attestrack.application-bytes/v1' | 'attestrack.application-bytes/v2'; repository: string; repository_id: number;
   producer: { run_id: number; run_attempt: number; source_sha: string; tree: string; workflow: string };
   source: Evidence;
-  build: { node: string; pnpm: string; esbuild: string; lock_sha256: string; entry_sha256: string; compatibility_date: string };
+  build: { node: string; pnpm: string; esbuild: string; lock_sha256: string; entry_sha256: string; compatibility_date: string; template_sha256?: string; publisher_sha256?: string };
   files: FileBytes[]; inventory_sha256: string;
 }
 export const digest = (bytes: string | Buffer): string => createHash('sha256').update(bytes).digest('hex');
+/** Fixed publisher execution closure; template/lock are separately bound original inputs. */
+export const PUBLISHER_FILES = Object.freeze(['.github/actions/retained-build/retained-build.ts', '.github/actions/validate-ci-runner/action.yml',
+  '.github/actions/validate-ci-runner/validate.py', '.github/workflows/application-artifacts.yml', 'scripts/application-artifacts.ts']);
+export function publisherIdentity(read: (path: string) => Buffer): { sha256: string; files: Record<string, string> } {
+  const files = Object.fromEntries(PUBLISHER_FILES.map(path => [path, digest(read(path))]));
+  return { sha256: digest(JSON.stringify(files)), files };
+}
 function closed(v: unknown, keys: string[]): asserts v is Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).sort().join() !== keys.sort().join()) throw new Error('Non-closed artifact document');
 }
@@ -31,7 +38,7 @@ function positive(v: unknown): boolean { return Number.isSafeInteger(v) && Numbe
 export function safePath(path: string): void {
   if (path.length > 512 || path.split('/').length > 32 || !/^(worker|portal|schema)\/[A-Za-z0-9_./-]+$/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..')
       || /(^|\/)(\.env(?:\..*)?|secrets?\..*|.*\.(pem|key)|id_rsa)$/i.test(path)) throw new Error('Unsafe artifact path');
-  if (path.startsWith('worker/') && path !== 'worker/index.js') throw new Error('Unexpected Worker module');
+  if (path.startsWith('worker/') && !['worker/index.js', 'worker/entry.ts'].includes(path)) throw new Error('Unexpected Worker module');
   if (path.startsWith('schema/') && path !== 'schema/clickhouse.sql') throw new Error('Unexpected schema file');
 }
 export function inventory(files: FileBytes[]): string {
@@ -43,14 +50,14 @@ export function fileBytes(path: string, bytes: Buffer): FileBytes {
 export function validateContent(raw: unknown): Payload {
   closed(raw, ['schema', 'repository', 'repository_id', 'producer', 'source', 'build', 'files', 'inventory_sha256']);
   closed(raw.producer, ['run_id', 'run_attempt', 'source_sha', 'tree', 'workflow']);
-  closed(raw.build, ['node', 'pnpm', 'esbuild', 'lock_sha256', 'entry_sha256', 'compatibility_date']);
+  closed(raw.build, ['node', 'pnpm', 'esbuild', 'lock_sha256', 'entry_sha256', 'compatibility_date', ...(raw.schema === 'attestrack.application-bytes/v2' ? ['template_sha256', 'publisher_sha256'] : [])]);
   const p = raw as unknown as Payload;
   closed(p.source, ['schema', 'repository', 'workflow', 'run_id', 'run_attempt', 'head_sha', 'built_sha', 'tree', 'pull_request']);
   if (p.source.schema !== 2 || p.source.repository !== REPOSITORY || p.source.workflow !== 'ci.yml'
       || !positive(p.source.run_id) || !positive(p.source.run_attempt) || !SHA.test(p.source.head_sha)
       || !SHA.test(p.source.built_sha) || p.source.tree !== p.producer.tree || !p.source.pull_request) throw new Error('Invalid recorded source proof');
   closed(p.source.pull_request, ['number', 'base_ref', 'base_repo_id', 'head_ref', 'head_repo_id', 'head_sha']);
-  if (p.schema !== 'attestrack.application-bytes/v1' || p.repository !== REPOSITORY || !positive(p.repository_id)
+  if (!['attestrack.application-bytes/v1', 'attestrack.application-bytes/v2'].includes(p.schema) || p.repository !== REPOSITORY || !positive(p.repository_id)
       || !positive(p.producer.run_id) || !positive(p.producer.run_attempt) || !SHA.test(p.producer.source_sha)
       || !SHA.test(p.producer.tree) || p.producer.workflow !== WORKFLOW
       || !HASH.test(p.build.lock_sha256) || !HASH.test(p.build.entry_sha256) || p.build.compatibility_date !== '2024-12-01'
@@ -66,21 +73,32 @@ export function validateContent(raw: unknown): Payload {
     if (bytes.toString('base64') !== f.base64 || bytes.length !== f.size || digest(bytes) !== f.sha256 || total > LIMIT) throw new Error('Artifact file digest or size mismatch');
   }
   for (const path of ['worker/index.js', 'portal/index.html', 'schema/clickhouse.sql']) if (!p.files.some(f => f.path === path)) throw new Error('Missing required artifact file');
+  const entry = p.files.find(f => f.path === 'worker/entry.ts');
+  if (p.schema === 'attestrack.application-bytes/v2') {
+    if (!entry || entry.sha256 !== p.build.entry_sha256 || !HASH.test(p.build.template_sha256 ?? '') || !HASH.test(p.build.publisher_sha256 ?? '')) throw new Error('Missing original entry/template/publisher identity');
+  } else if (entry) throw new Error('Legacy artifact cannot imply generated-entry retention');
   if (inventory(p.files) !== p.inventory_sha256) throw new Error('Complete inventory mismatch');
   const html = Buffer.from(p.files.find(f => f.path === 'portal/index.html')!.base64, 'base64').toString('utf8');
   if ((html.match(/name="attestrack-portal-api"/g) ?? []).length !== 1
       || !html.includes('<meta name="attestrack-portal-api" content="same-origin" />')) throw new Error('Missing neutral runtime configuration');
   return p;
 }
-export function validatePayload(raw: unknown, run: Run, repositoryId: number, tree: string): Payload {
+/** Native original origin only; no mutable/current checkout input comparison. */
+export function validateOrigin(raw: unknown, run: Run, repositoryId: number, tree: string): Payload {
   const p = validateContent(raw);
   if (p.repository_id !== repositoryId || !positive(repositoryId) || !positive(run.id) || !positive(run.run_attempt)
       || run.path !== `.github/workflows/${WORKFLOW}` || run.event !== 'push' || run.head_branch !== 'staging'
       || run.head_repository?.full_name !== REPOSITORY || run.status !== 'completed' || run.conclusion !== 'success'
       || !SHA.test(tree) || p.producer.tree !== tree || p.producer.source_sha !== run.head_sha
-      || p.producer.run_id !== run.id || p.producer.run_attempt !== run.run_attempt
-      || p.build.lock_sha256 !== digest(readFileSync(join(ROOT, 'pnpm-lock.yaml')))
-      || p.build.entry_sha256 !== digest(buildWorkerEntry())) throw new Error('Untrusted staged origin or source inputs');
+      || p.producer.run_id !== run.id || p.producer.run_attempt !== run.run_attempt) throw new Error('Untrusted staged origin or source inputs');
+  return p;
+}
+/** Existing same-tree materialization semantics, explicitly extended for v2. */
+export function validatePayload(raw: unknown, run: Run, repositoryId: number, tree: string): Payload {
+  const p = validateOrigin(raw, run, repositoryId, tree);
+  if (p.build.lock_sha256 !== digest(readFileSync(join(ROOT, 'pnpm-lock.yaml'))) || p.build.entry_sha256 !== digest(buildWorkerEntry())) throw new Error('Untrusted staged origin or source inputs');
+  if (p.schema === 'attestrack.application-bytes/v2' && (p.build.template_sha256 !== digest(readFileSync(join(ROOT, 'packages/deploy/src/worker-template.ts')))
+      || p.build.publisher_sha256 !== publisherIdentity(path => readFileSync(join(ROOT, path))).sha256)) throw new Error('Same-tree v2 recipe/template mismatch');
   return p;
 }
 /** Only called AFTER native artifact/digest verification. No files extracted from an untrusted ZIP. */
@@ -174,6 +192,15 @@ export function collect(dir: string, prefix: string): FileBytes[] {
   }
   return files;
 }
+/** Snapshot and compile the SAME entry bytes. No generated source path is reread. */
+export async function bundleEntry(bytes: Buffer, compiler: { build: (options: import('esbuild').BuildOptions) => Promise<import('esbuild').BuildResult> }): Promise<{ entry: Buffer; bundle: Buffer }> {
+  const entry = Buffer.from(bytes);
+  const result = await compiler.build({ stdin: { contents: entry.toString('utf8'), sourcefile: 'entry.ts', loader: 'ts', resolveDir: ROOT }, bundle: true, write: false, format: 'esm', platform: 'browser',
+    conditions: ['workerd', 'worker', 'import'], absWorkingDir: ROOT, logLevel: 'silent',
+    alias: Object.fromEntries(['host-cloudflare-worker', 'worker-core', 'strategies'].map(n => [`@attestrack/${n}`, join(ROOT, 'packages', n, 'dist/index.js')])) });
+  if (!result.outputFiles || result.outputFiles.length !== 1 || result.outputFiles[0].contents.length > LIMIT) throw new Error('Unexpected bundled Worker output');
+  return { entry, bundle: Buffer.from(result.outputFiles[0].contents) };
+}
 export async function main(): Promise<void> {
   const mode = process.argv[2]; const s = scope();
   if (mode === 'scope') return;
@@ -182,27 +209,30 @@ export async function main(): Promise<void> {
     if (command(['git', '-C', ROOT, 'rev-parse', 'HEAD']).toString().trim() !== s.sha
         || command(['git', '-C', ROOT, 'status', '--porcelain']).length) throw new Error('Checkout must be exact and clean before build');
     const e = source(s); const tmp = mkdtempSync(join(process.env.RUNNER_TEMP!, 'attestrack-build-'));
+    const originalRecipe = publisherIdentity(path => readFileSync(join(ROOT, path)));
+    const templateHash = digest(readFileSync(join(ROOT, 'packages/deploy/src/worker-template.ts'))), lockHash = digest(readFileSync(join(ROOT, 'pnpm-lock.yaml')));
+    const entry = Buffer.from(buildWorkerEntry());
     const env = buildEnvironment(join(tmp, 'home')); mkdirSync(env.HOME!, { recursive: true });
     const build = (args: string[]) => execFileSync(args[0], args.slice(1), { cwd: ROOT, env, stdio: 'inherit' });
     const pnpm = execFileSync('pnpm', ['--version'], { cwd: ROOT, env }).toString().trim();
     if (pnpm !== '9.0.0') throw new Error('Frozen package-manager identity mismatch');
     build(['pnpm', 'install', '--frozen-lockfile']); build(['pnpm', 'build']);
     const esbuild = await import('esbuild');
-    const entry = buildWorkerEntry(); const entryFile = join(tmp, 'worker.ts'); writeFileSync(entryFile, entry);
-    const result = await esbuild.build({ entryPoints: [entryFile], bundle: true, write: false, format: 'esm', platform: 'browser',
-      conditions: ['workerd', 'worker', 'import'], absWorkingDir: ROOT, logLevel: 'silent',
-      alias: Object.fromEntries(['host-cloudflare-worker', 'worker-core', 'strategies'].map(n => [`@attestrack/${n}`, join(ROOT, 'packages', n, 'dist/index.js')])) });
-    if (result.outputFiles.length !== 1 || result.outputFiles[0].contents.length > LIMIT) throw new Error('Unexpected bundled Worker output');
-    const files = [fileBytes('worker/index.js', Buffer.from(result.outputFiles[0].contents)), ...collect(join(ROOT, 'packages/portal-community/dist'), 'portal'),
+    const compiled = await bundleEntry(entry, esbuild);
+    const files = [fileBytes('worker/index.js', compiled.bundle), fileBytes('worker/entry.ts', compiled.entry), ...collect(join(ROOT, 'packages/portal-community/dist'), 'portal'),
       fileBytes('schema/clickhouse.sql', readFileSync(join(ROOT, 'packages/schema/warehouse/clickhouse.sql')))];
     const html = files.find(f => f.path === 'portal/index.html')!;
     const text = Buffer.from(html.base64, 'base64').toString();
     if (!text.includes('</head>') || text.includes('attestrack-portal-api')) throw new Error('Unexpected portal runtime configuration');
     Object.assign(html, fileBytes(html.path, Buffer.from(text.replace('</head>', '<meta name="attestrack-portal-api" content="same-origin" />\n</head>'))));
     files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-    const p: Payload = { schema: 'attestrack.application-bytes/v1', repository: REPOSITORY, repository_id: s.repositoryId,
+    if (publisherIdentity(path => readFileSync(join(ROOT, path))).sha256 !== originalRecipe.sha256
+        || digest(readFileSync(join(ROOT, 'packages/deploy/src/worker-template.ts'))) !== templateHash
+        || digest(readFileSync(join(ROOT, 'pnpm-lock.yaml'))) !== lockHash
+        || command(['git', '-C', ROOT, 'status', '--porcelain']).length) throw new Error('Build source/recipe changed');
+    const p: Payload = { schema: 'attestrack.application-bytes/v2', repository: REPOSITORY, repository_id: s.repositoryId,
       producer: { run_id: s.runId, run_attempt: s.attempt, source_sha: s.sha, tree: s.tree, workflow: WORKFLOW }, source: e,
-      build: { node: process.version, pnpm, esbuild: esbuild.version, lock_sha256: digest(readFileSync(join(ROOT, 'pnpm-lock.yaml'))), entry_sha256: digest(entry), compatibility_date: '2024-12-01' },
+      build: { node: process.version, pnpm, esbuild: esbuild.version, lock_sha256: lockHash, entry_sha256: digest(compiled.entry), compatibility_date: '2024-12-01', template_sha256: templateHash, publisher_sha256: originalRecipe.sha256 },
       files, inventory_sha256: inventory(files) };
     validateContent(p); // Byte integrity only; producer completion is checked natively by the later reader.
     scope(); if (existsSync(out)) throw new Error('Artifact output already exists'); mkdirSync(out);

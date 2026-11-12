@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildWorkerEntry } from '../packages/deploy/src/worker-template.ts';
-import { digest, fileBytes, inventory, REPOSITORY, type Payload } from './application-artifacts.ts';
+import { digest, fileBytes, inventory, publisherIdentity, REPOSITORY, type Payload } from './application-artifacts.ts';
+import { inspect } from './application-witness.ts';
 import { canonical, Cloudflare, NativeGitHub, NativeWriter, pagesConfiguration, readOriginal, targetIdentity, validateTarget, workerConfiguration,
   type Bundle, type GitHubRead, type Journal, type NativeHTTP, type Target } from './native-application-release.ts';
 import { loadTool } from './native-release-tool.ts';
@@ -14,18 +16,19 @@ const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${Strin
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
 function input(): Payload {
-  const files = [fileBytes('worker/index.js', Buffer.from('export default { fetch(){return new Response("retained")} };')),
+  const files = [fileBytes('worker/index.js', Buffer.from('export default { fetch(){return new Response("retained")} };')), fileBytes('worker/entry.ts', Buffer.from(buildWorkerEntry())),
     fileBytes('portal/index.html', Buffer.from('<head><meta name="attestrack-portal-api" content="same-origin" /></head>')),
     fileBytes('portal/assets/page.js', Buffer.from('console.log("retained portal");')),
     fileBytes('schema/clickhouse.sql', Buffer.from('-- untouched warehouse'))].sort((a, b) => a.path.localeCompare(b.path));
-  return { schema: 'attestrack.application-bytes/v1', repository: REPOSITORY, repository_id: 41,
+  return { schema: 'attestrack.application-bytes/v2', repository: REPOSITORY, repository_id: 41,
     producer: { run_id: 100, run_attempt: 1, source_sha: source, tree, workflow: 'application-artifacts.yml' },
     source: { schema: 2, repository: REPOSITORY, workflow: 'ci.yml', run_id: 50, run_attempt: 1, head_sha: source, built_sha: source, tree,
       pull_request: { number: 7, base_ref: 'staging', base_repo_id: 41, head_repo_id: 41, head_ref: 'dev', head_sha: source } },
     build: { node: 'v24.21.0', pnpm: '9.0.0', esbuild: '0.28.2', lock_sha256: digest(readFileSync(new URL('../pnpm-lock.yaml', import.meta.url))),
-      entry_sha256: digest(buildWorkerEntry()), compatibility_date: '2024-12-01' }, files, inventory_sha256: inventory(files) };
+      entry_sha256: digest(buildWorkerEntry()), compatibility_date: '2024-12-01', template_sha256: digest(readFileSync(new URL('../packages/deploy/src/worker-template.ts', import.meta.url))),
+      publisher_sha256: publisherIdentity(path => readFileSync(new URL('../' + path, import.meta.url))).sha256 }, files, inventory_sha256: inventory(files) };
 }
-function nativeInput(payload = input()) {
+function nativeInput(payload = input(), originalFiles: Record<string, Buffer> = {}) {
   const bytes = execFileSync('python3', ['-c', 'import sys,io,zipfile\nb=io.BytesIO()\nwith zipfile.ZipFile(b,"w") as z:z.writestr("application.json",sys.stdin.buffer.read())\nsys.stdout.buffer.write(b.getvalue())'], { input: JSON.stringify(payload) });
   const staged = { id: 100, run_attempt: 1, head_sha: source, head_branch: 'staging', head_repository: { full_name: REPOSITORY }, event: 'push', path: '.github/workflows/application-artifacts.yml', status: 'completed', conclusion: 'success', pull_requests: [] };
   const sourceRun = { ...staged, id: 50, head_branch: 'dev', event: 'pull_request', path: '.github/workflows/ci.yml' };
@@ -36,7 +39,11 @@ function nativeInput(payload = input()) {
     bytes() { return bytes; },
     json<T>(path: string): T {
       let v: unknown;
-      if (path === `repos/${REPOSITORY}`) v = { id: 41 };
+      if (path.includes('/contents/')) {
+        const name = path.split('/contents/')[1].split('?')[0], bytes = originalFiles[name] ?? readFileSync(new URL('../' + name, import.meta.url));
+        v = { type: 'file', path: name, size: bytes.length, encoding: 'base64', content: bytes.toString('base64'),
+          sha: createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'), ...objectPatch('blob') };
+      } else if (path === `repos/${REPOSITORY}`) v = { id: 41 };
       else if (path.includes('/attempts/')) {
         const run = path.includes('/50/') ? sourceRun : staged;
         const names = run.id === 50 ? ['resolve', 'checks / ci', 'checks / warehouse', 'checks / e2e / e2e', 'checks / Build gate', 'Build gate'] : ['scope', 'staging-build'];
@@ -102,9 +109,45 @@ test('original artifact admission verifies actual ZIP/source2 and rejects native
   const f = nativeInput(); assert.equal(f.bundle().identity.artifact_id, 91);
   assert.match(f.bundle().identity.archive_sha256, /^[a-f0-9]{64}$/);
   for (const p of [{ run: { run_attempt: 2 } }, { tree: 'e'.repeat(40) }, { artifact: { expired: true } },
-    { artifact: { digest: 'sha256:' + '0'.repeat(64) } }, { job: { conclusion: 'skipped' } }, { job: { run_attempt: 2 } }]) {
+    { artifact: { digest: 'sha256:' + '0'.repeat(64) } }, { job: { conclusion: 'skipped' } }, { job: { run_attempt: 2 } }, { blob: { sha: '0'.repeat(40) } }]) {
     Object.assign(f.patch, p); assert.throws(f.bundle); for (const k of Object.keys(p)) delete f.patch[k];
   }
+});
+test('v2 admits different ORIGINAL native lock/template/entry bytes without evaluating candidate code or comparing current checkout', () => {
+  const p = input(), lock = Buffer.from(readFileSync(new URL('../pnpm-lock.yaml', import.meta.url), 'utf8') + '\n# original fictional lock\n');
+  const template = Buffer.from(readFileSync(new URL('../packages/deploy/src/worker-template.ts', import.meta.url), 'utf8').replace('Every string binding', 'Original input binding'));
+  const entry = fileBytes('worker/entry.ts', Buffer.from(buildWorkerEntry().replace('Every string binding', 'Original input binding')));
+  Object.assign(p.files.find(f => f.path === 'worker/entry.ts')!, entry); p.inventory_sha256 = inventory(p.files);
+  p.build.lock_sha256 = digest(lock); p.build.template_sha256 = digest(template); p.build.entry_sha256 = entry.sha256;
+  const original = { 'pnpm-lock.yaml': lock, 'packages/deploy/src/worker-template.ts': template };
+  assert.equal(nativeInput(p, original).bundle().payload.build.entry_sha256, entry.sha256);
+  const wrongLock = { ...original, 'pnpm-lock.yaml': Buffer.from('wrong original') };
+  assert.throws(() => nativeInput(p, wrongLock).bundle(), /lock mismatch/);
+  const wrongRecipe = { ...original, 'scripts/application-artifacts.ts': Buffer.from('unreviewed publisher') };
+  assert.throws(() => nativeInput(p, wrongRecipe).bundle());
+});
+test('arbitrary historical v1 artifact cannot borrow reviewed known entry hashes or become grandfathered', () => {
+  const p = input(); p.schema = 'attestrack.application-bytes/v1'; delete p.build.template_sha256; delete p.build.publisher_sha256;
+  p.files = p.files.filter(f => f.path !== 'worker/entry.ts'); p.inventory_sha256 = inventory(p.files);
+  assert.throws(() => nativeInput(p).bundle(), /Unsupported legacy publisher/);
+});
+test('actual admitted artifact identity bridges to actual HTTP inspect validator; native-prefixed digest refuses before HTTP', async () => {
+  const bundle = nativeInput().bundle(), event = randomUUID(), cohort = randomUUID(); let requests = 0;
+  const target = { origin: 'https://fictional.invalid', site_id: 'fictional', policy_hash: 'a'.repeat(64) };
+  const input = { target, artifact: bundle.identity, phase: 'predecessor' as const, mutation: { cohort, event_id: event } };
+  const fetcher: typeof fetch = async (url, init) => {
+    requests++; const path = new URL(String(url)).pathname;
+    if (path.endsWith('/site-config')) return new Headers(init!.headers).has('x-attestrack-portal-secret')
+      ? Response.json({ siteId: target.site_id, consentConfigured: true, mode: 'ENFORCEMENT' }) : Response.json({ error: 'portal_unauthorized' }, { status: 401 });
+    if (path.endsWith('/consent/context')) return Response.json({ siteId: target.site_id });
+    assert.ok(path.endsWith('/explore/query'));
+    return Response.json({ columns: ['eventId', 'siteId', 'eventName', 'consentDecision'], rows: [{ eventId: event, siteId: target.site_id, eventName: 'release_witness', consentDecision: 'granted' }], rowCount: 1, truncated: false });
+  };
+  const witness = await inspect(input, { portal_secret: 'fictional-source-only-portal-secret' }, fetcher);
+  assert.deepEqual(witness.artifact, bundle.identity); assert.equal(witness.observation, 'read-only'); assert.equal(requests, 4);
+  requests = 0;
+  await assert.rejects(() => inspect({ ...input, artifact: { ...bundle.identity, archive_sha256: 'sha256:' + bundle.identity.archive_sha256 } }, { portal_secret: 'fictional-source-only-portal-secret' }, fetcher), /invalid_artifact_reference/);
+  assert.equal(requests, 0);
 });
 test('fictional native writer uploads exact original module/static bytes, separates version creation/switch and retains native serving readback', async () => withRuntime(async tool => {
   const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), f = nativeInput(), bundle = f.bundle(); const records: Journal[] = [];

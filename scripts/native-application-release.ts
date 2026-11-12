@@ -1,8 +1,10 @@
 /** Native byte writer, not release/acceptance/recovery authorization. No implicit target or CLI. */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { completeNativeList, requireNativeJobs, validate, verifyStagingPr,
   type NativeArtifact, type NativeJob, type PullRequest, type Run } from '../.github/actions/retained-build/retained-build.ts';
-import { digest, REPOSITORY, validatePayload, verifiedDocument, type Payload } from './application-artifacts.ts';
+import { digest, PUBLISHER_FILES, publisherIdentity, REPOSITORY, validateContent, validateOrigin, verifiedDocument, type Payload } from './application-artifacts.ts';
 import { assetHash, requireTool, TOOL_PROFILE, type loadTool } from './native-release-tool.ts';
 
 type ObjectValue = Record<string, unknown>;
@@ -35,6 +37,42 @@ export class NativeGitHub implements GitHubRead {
 }
 export interface Bundle { readonly payload: Payload; readonly identity: ArtifactIdentity }
 const admittedBundles = new WeakMap<Bundle, string>();
+function originalBlob(reader: GitHubRead, sha: string, path: string): Buffer {
+  const r = object(reader.json(`repos/${REPOSITORY}/contents/${path}?ref=${sha}`));
+  if (r.type !== 'file' || r.path !== path || r.encoding !== 'base64' || r.submodule_git_url != null
+      || !Number.isSafeInteger(r.size) || Number(r.size) < 0 || Number(r.size) > 2 * 1024 * 1024) throw new Error('Missing bounded original source blob');
+  const encoded = string(r.content).replace(/\n/g, ''), bytes = Buffer.from(encoded, 'base64');
+  if (encoded.length > 3 * 1024 * 1024 || bytes.toString('base64') !== encoded || bytes.length !== r.size
+      || createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') !== r.sha) throw new Error('Original native Git blob identity mismatch');
+  return bytes;
+}
+function originalInputs(reader: GitHubRead, payload: Payload, identity: ArtifactIdentity): void {
+  const policy = object(JSON.parse(readFileSync(new URL('../release/application-publishers.json', import.meta.url), 'utf8')));
+  closed(policy, ['schema', 'implementations', 'legacy']);
+  if (policy.schema !== 'attestrack.application-publishers/v1') throw new Error('Unreviewed publisher policy');
+  const sourceSha = payload.producer.source_sha;
+  const recipe = publisherIdentity(path => originalBlob(reader, sourceSha, path));
+  const implementation = object(object(policy.implementations)[recipe.sha256]);
+  closed(implementation, ['schema', 'files']);
+  same(implementation.files, recipe.files, 'Unreviewed original publisher implementation');
+  same(Object.keys(object(implementation.files)).sort(), [...PUBLISHER_FILES].sort(), 'Incomplete original publisher closure');
+  const lock = originalBlob(reader, sourceSha, 'pnpm-lock.yaml'), template = originalBlob(reader, sourceSha, 'packages/deploy/src/worker-template.ts');
+  if (digest(lock) !== payload.build.lock_sha256) throw new Error('Original native lock mismatch');
+  if (payload.schema === 'attestrack.application-bytes/v2') {
+    if (implementation.schema !== 2 || recipe.sha256 !== payload.build.publisher_sha256 || digest(template) !== payload.build.template_sha256) throw new Error('Original v2 source/template/recipe mismatch');
+    // validateContent verified actual retained entry bytes, digest and inventory. The
+    // reviewed publisher compiles exactly this buffer; no candidate code is evaluated here.
+  } else {
+    if (implementation.schema !== 1) throw new Error('Unsupported legacy publisher');
+    const matches = array(policy.legacy).filter(raw => {
+      const entry = closed(raw, ['artifact', 'source_sha', 'publisher_sha256', 'template_sha256', 'entry_sha256']);
+      closed(entry.artifact, ['artifact_id', 'producer_run', 'producer_attempt', 'archive_sha256', 'inventory_sha256', 'source_tree']);
+      return canonical(entry.artifact) === canonical(identity) && entry.source_sha === sourceSha
+        && entry.publisher_sha256 === recipe.sha256 && entry.template_sha256 === digest(template) && entry.entry_sha256 === payload.build.entry_sha256;
+    });
+    if (matches.length !== 1) throw new Error('Historical generated entry requires explicit original proof or new qualification');
+  }
+}
 /** Re-authenticate original native run/jobs/artifact/source2 before handing bytes to a writer. */
 export function readOriginal(reader: GitHubRead, runId: number, artifactId: number, tree: string): Bundle {
   positive(runId); positive(artifactId); if (!/^[a-f0-9]{40}$/.test(tree)) throw new Error('Invalid expected complete tree');
@@ -48,7 +86,7 @@ export function readOriginal(reader: GitHubRead, runId: number, artifactId: numb
   const matches = list<NativeArtifact>(`${p}/actions/runs/${runId}/artifacts`, 'artifacts').filter(a => a.name === `attestrack-application-${run.run_attempt}`);
   if (matches.length !== 1 || matches[0].id !== artifactId) throw new Error('Missing or ambiguous original application artifact');
   const a = matches[0], bytes = reader.bytes(`${p}/actions/artifacts/${artifactId}/zip`);
-  const payload = validatePayload(verifiedDocument(a, run, repository.id, a.name, bytes, 'application.json'), run, repository.id, tree);
+  const payload = validateOrigin(verifiedDocument(a, run, repository.id, a.name, bytes, 'application.json'), run, repository.id, tree);
   if (reader.json<{ tree: { sha: string } }>(`${p}/git/commits/${payload.producer.source_sha}`).tree.sha !== tree) throw new Error('Original producer tree mismatch');
   const s = payload.source, sr = reader.json<Run>(`${p}/actions/runs/${s.run_id}`);
   validate(s, sr, REPOSITORY, 'ci.yml', tree);
@@ -58,6 +96,7 @@ export function readOriginal(reader: GitHubRead, runId: number, artifactId: numb
   if (reader.json<{ tree: { sha: string } }>(`${p}/git/commits/${s.built_sha}`).tree.sha !== tree) throw new Error('Original source tree mismatch');
   const bundle: Bundle = { payload, identity: { artifact_id: a.id, producer_run: run.id, producer_attempt: run.run_attempt,
     archive_sha256: a.digest.slice('sha256:'.length), inventory_sha256: payload.inventory_sha256, source_tree: tree } };
+  originalInputs(reader, payload, bundle.identity);
   admittedBundles.set(bundle, digest(canonical(bundle))); return bundle;
 }
 export interface Target {
@@ -221,9 +260,7 @@ export class NativeWriter {
   async deploy(bundle: Bundle, expectedPredecessor: Snapshot, tool: ReturnType<typeof loadTool>, journal: JournalSink): Promise<Journal> {
     if (!admittedBundles.has(bundle) || admittedBundles.get(bundle) !== digest(canonical(bundle))) throw new Error('Original native artifact admission required or admitted bytes drifted');
     const predecessor = structuredClone(expectedPredecessor);
-    const raw = validatePayload(structuredClone(bundle.payload), { id: bundle.identity.producer_run, run_attempt: bundle.identity.producer_attempt,
-      head_sha: bundle.payload.producer.source_sha, head_branch: 'staging', head_repository: { full_name: REPOSITORY },
-      path: '.github/workflows/application-artifacts.yml', event: 'push', status: 'completed', conclusion: 'success', pull_requests: [] }, bundle.payload.repository_id, bundle.identity.source_tree);
+    const raw = validateContent(structuredClone(bundle.payload));
     // Detect mutation of admitted bytes/identity before dispatch; no materialized directory can replace them.
     same(bundle.identity, { artifact_id: bundle.identity.artifact_id, producer_run: raw.producer.run_id, producer_attempt: raw.producer.run_attempt,
       archive_sha256: bundle.identity.archive_sha256, inventory_sha256: raw.inventory_sha256, source_tree: raw.producer.tree }, 'Admitted artifact drift');

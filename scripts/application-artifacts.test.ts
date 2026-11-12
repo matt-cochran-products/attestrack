@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { buildWorkerEntry } from '../packages/deploy/src/worker-template.ts';
-import { collect, digest, fileBytes, inventory, materialize, REPOSITORY, validateContent, validatePayload, verifiedDocument, WORKFLOW, type Payload } from './application-artifacts.ts';
+import { bundleEntry, collect, digest, fileBytes, inventory, materialize, publisherIdentity, REPOSITORY, validateContent, validatePayload, verifiedDocument, WORKFLOW, type Payload } from './application-artifacts.ts';
 import type { NativeArtifact, Run } from '../.github/actions/retained-build/retained-build.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -28,6 +28,23 @@ function artifact(bytes: Buffer): NativeArtifact {
   return { id: 91, name: 'attestrack-application-1', expired: false, size_in_bytes: bytes.length, digest: `sha256:${digest(bytes)}`,
     workflow_run: { id: run.id, repository_id: 41, head_repository_id: 41, head_branch: 'staging', head_sha: sha } };
 }
+test('v2 retains generated entry/template/recipe identity without weakening same-tree v1 checks', () => {
+  const p = payload(); p.schema = 'attestrack.application-bytes/v2';
+  p.files.push(fileBytes('worker/entry.ts', Buffer.from(buildWorkerEntry()))); p.files.sort((a, b) => a.path < b.path ? -1 : 1); p.inventory_sha256 = inventory(p.files);
+  p.build.template_sha256 = digest(readFileSync(join(root, 'packages/deploy/src/worker-template.ts'))); p.build.publisher_sha256 = publisherIdentity(path => readFileSync(join(root, path))).sha256;
+  validatePayload(p, run, 41, tree);
+  for (const mutate of [(p: Payload) => { p.files = p.files.filter(f => f.path !== 'worker/entry.ts'); p.inventory_sha256 = inventory(p.files); },
+    (p: Payload) => { p.build.entry_sha256 = '0'.repeat(64); }, (p: Payload) => { p.build.template_sha256 = '0'.repeat(64); },
+    (p: Payload) => { p.build.publisher_sha256 = '0'.repeat(64); }]) { const copy = structuredClone(p); mutate(copy); assert.throws(() => validatePayload(copy, run, 41, tree)); }
+});
+test('actual esbuild compiles exactly captured retained entry buffer despite later caller mutation', async () => {
+  const esbuild = await import('esbuild'), original = Buffer.from('export default {fetch(){return new Response("captured-entry")}}');
+  const expected = Buffer.from(original);
+  const result = await bundleEntry(original, { build(options) { original.fill(0); return esbuild.build(options); } });
+  assert.deepEqual(result.entry, expected); assert.notDeepEqual(result.entry, original);
+  const worker = await import('data:text/javascript;base64,' + result.bundle.toString('base64'));
+  assert.equal(await worker.default.fetch().text(), 'captured-entry');
+});
 test('actual ZIP plus exact manifest materializes all original bytes including hidden assets', () => {
   const p = payload(), bytes = zip('application.json', Buffer.from(JSON.stringify(p))), dir = mkdtempSync(join(tmpdir(), 'attestrack-roundtrip-'));
   try {

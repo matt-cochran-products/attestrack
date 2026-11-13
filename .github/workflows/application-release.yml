@@ -15,6 +15,9 @@ concurrency:
 jobs:
   scope:
     timeout-minutes: 10
+    outputs:
+      request-sha256: ${{ steps.admission.outputs.request-sha256 }}
+      artifact-name: ${{ steps.admission.outputs.source-admission-artifact }}
     runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

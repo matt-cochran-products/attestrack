@@ -4,9 +4,9 @@ import { lstatSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } fro
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { completeNativeList, requireNativeJobs, type NativeArtifact, type NativeJob, type Run } from '../.github/actions/retained-build/retained-build.ts';
-import { digest, REPOSITORY, verifiedDocument } from './application-artifacts.ts';
+import { digest, REPOSITORY, validateOrigin, verifiedDocument } from './application-artifacts.ts';
 import { targetIdentity as httpIdentity, type Target as HttpTarget } from './application-witness.ts';
-import { canonical, NativeGitHub, readOriginal, targetIdentity, validateTarget, type ArtifactIdentity, type GitHubRead, type Target } from './native-application-release.ts';
+import { canonical, NativeGitHub, readOriginal, targetIdentity, validateTarget, type ArtifactIdentity, type Bundle, type GitHubRead, type Target } from './native-application-release.ts';
 import { TOOL_PROFILE, verifyTool } from './native-release-tool.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,18 +26,25 @@ export interface Profile { native: Target; http: HttpTarget }
 export function selectProfile(raw: unknown, witness: unknown, branch: 'staging' | 'main'): Profile {
   const p = closed(raw, ['schema', 'staging', 'production']);
   if (p.schema !== 'attestrack.application-release-targets/v1') throw new Error('Unreviewed native release profile');
-  const value = p[branch === 'staging' ? 'staging' : 'production'];
   const original = closed(witness, ['schema', 'staging']);
-  if (original.schema !== 'attestrack.application-targets/v1' || value === null
-      || (branch === 'staging' && original.staging === null)) throw new Error('Existing release target is unconfigured');
-  const row = closed(value, ['native', 'http']);
-  const native = validateTarget(row.native), http = row.http as HttpTarget;
-  httpIdentity(http);
-  if (native.environment !== (branch === 'staging' ? 'staging' : 'production')) throw new Error('Wrong reviewed target environment');
-  if (branch === 'staging') same(http, original.staging);
-  const site = native.worker.bindings.find(b => b.name === 'SITE_ID');
-  if (!site || site.type !== 'plain_text' || site.text !== http.site_id) throw new Error('Native and HTTP site differ');
-  return { native, http: structuredClone(http) };
+  if (original.schema !== 'attestrack.application-targets/v1') throw new Error('Unreviewed existing HTTP profile');
+  let selected: Profile | null = null;
+  for (const lane of ['staging', 'production'] as const) {
+    if (p[lane] === null) continue;
+    const row = closed(p[lane], ['native', 'http']);
+    const native = validateTarget(row.native), http = row.http as HttpTarget;
+    httpIdentity(http);
+    if (native.environment !== lane) throw new Error('Wrong reviewed target environment');
+    if (lane === 'staging') {
+      if (original.staging === null) throw new Error('Existing release target is unconfigured');
+      same(http, original.staging);
+    }
+    const site = native.worker.bindings.find(b => b.name === 'SITE_ID');
+    if (!site || site.type !== 'plain_text' || site.text !== http.site_id) throw new Error('Native and HTTP site differ');
+    if (lane === (branch === 'staging' ? 'staging' : 'production')) selected = { native, http: structuredClone(http) };
+  }
+  if (selected === null) throw new Error('Existing release target is unconfigured');
+  return selected;
 }
 export function runnerContext(env: NodeJS.ProcessEnv): Context {
   if (env.GITHUB_ACTIONS !== 'true' || env.GITHUB_REPOSITORY !== REPOSITORY || env.GITHUB_SERVER_URL !== 'https://github.com'
@@ -62,11 +69,13 @@ function attempt(reader: GitHubRead, id: number, number: number): Run {
 function jobs(reader: GitHubRead, run: Run, names: string[]): void {
   requireNativeJobs(list<NativeJob>(reader, `repos/${REPOSITORY}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs`, 'jobs'), run, names);
 }
-function archived(reader: GitHubRead, run: Run, repositoryId: number, name: string, member: string): { value: unknown; metadata: NativeArtifact } {
+function archived(reader: GitHubRead, run: Run, repositoryId: number, name: string, member: string): { value: unknown; metadata: NativeArtifact; bytes: Buffer } {
   const matches = list<NativeArtifact>(reader, `repos/${REPOSITORY}/actions/runs/${run.id}/artifacts`, 'artifacts').filter(a => a.name === name);
   if (matches.length !== 1) throw new Error('Missing or ambiguous original source artifact');
   const a = matches[0];
-  return { value: verifiedDocument(a, run, repositoryId, name, reader.bytes(`repos/${REPOSITORY}/actions/artifacts/${a.id}/zip`), member), metadata: a };
+  if (a.expired !== false) throw new Error('Original artifact expiration is not positively known');
+  const bytes = reader.bytes(`repos/${REPOSITORY}/actions/artifacts/${a.id}/zip`);
+  return { value: verifiedDocument(a, run, repositoryId, name, bytes, member), metadata: a, bytes };
 }
 function producer(reader: GitHubRead, run: Run, branch: string, source: string, path: string): Run {
   integer(run.id); integer(run.run_attempt);
@@ -118,6 +127,26 @@ export interface PlannedRequest {
   tool: { run_id: number; run_attempt: number; artifact_id: number; archive_sha256: string; profile_sha256: string };
   targets: { profile_sha256: string; native_sha256: string; http_sha256: string };
 }
+/** Select the actual original source attempt from authenticated retained bytes.
+ * Existing readOriginal still performs the full Source2/jobs/recipe admission.
+ */
+export function readApplication(reader: GitHubRead, repositoryId: number, locator: { run_id: number; run_attempt: number; artifact_id: number }, tree: string): Bundle {
+  const p = `repos/${REPOSITORY}`, run = attempt(reader, locator.run_id, locator.run_attempt);
+  const archive = archived(reader, run, repositoryId, `attestrack-application-${run.run_attempt}`, 'application.json');
+  if (archive.metadata.id !== integer(locator.artifact_id)) throw new Error('Wrong original application artifact');
+  const payload = validateOrigin(archive.value, run, repositoryId, sha(tree));
+  sha(payload.source.head_sha); sha(payload.source.built_sha); sha(payload.source.tree);
+  if (payload.source.run_id === run.id) throw new Error('Source and application producers cannot be the same workflow');
+  const originalReader: GitHubRead = {
+    bytes: path => path === `${p}/actions/artifacts/${locator.artifact_id}/zip` ? Buffer.from(archive.bytes) : reader.bytes(path),
+    json<T>(path: string): T {
+      if (path === `${p}/actions/runs/${run.id}`) return run as T;
+      if (path === `${p}/actions/runs/${payload.source.run_id}`) return attempt(reader, payload.source.run_id, payload.source.run_attempt) as T;
+      return reader.json<T>(path);
+    },
+  };
+  return readOriginal(originalReader, run.id, locator.artifact_id, tree);
+}
 /** Every returned hash binds observations/bytes only; it grants no native writer authority. */
 export function admit(reader: GitHubRead, context: Context, event: unknown, profile: unknown, witness: unknown): PlannedRequest {
   const e = object(event), eventRepo = object(e.repository), triggerHint = object(e.workflow_run);
@@ -165,12 +194,8 @@ export function admit(reader: GitHubRead, context: Context, event: unknown, prof
     const matches = list<NativeArtifact>(reader, `${p}/actions/runs/${application.id}/artifacts`, 'artifacts').filter(a => a.name === `attestrack-application-${application.run_attempt}`);
     if (matches.length !== 1) throw new Error('Original staged application artifact missing'); artifactId = matches[0].id;
   }
-  // Existing admission uses /runs/ID; pin that one lookup to the REAL original
-  // native attempt endpoint. Never substitute metadata from a later run attempt.
-  const originalReader: GitHubRead = { bytes: path => reader.bytes(path), json<T>(path: string): T {
-    return path === `${p}/actions/runs/${originalRun}` ? attempt(reader, originalRun, originalAttempt) as T : reader.json<T>(path);
-  } };
-  const bundle = readOriginal(originalReader, originalRun, artifactId, current.tree.sha);
+  const bundle = readApplication(reader, context.repository_id,
+    { run_id: originalRun, run_attempt: originalAttempt, artifact_id: artifactId }, current.tree.sha);
   if (materializationClaim !== null) {
     const v = materializationClaim;
     if (v.archive_sha256 !== `sha256:${bundle.identity.archive_sha256}` || v.inventory_sha256 !== bundle.identity.inventory_sha256) throw new Error('Materialization differs from original verified bytes');
@@ -186,6 +211,9 @@ export function admit(reader: GitHubRead, context: Context, event: unknown, prof
   return request;
 }
 function regular(path: string, limit: number): Buffer {
+  for (let p = dirname(path); p !== dirname(p); p = dirname(p)) {
+    if (lstatSync(p).isSymbolicLink()) throw new Error('Symlinked scope parent refused');
+  }
   const st = lstatSync(path);
   if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1 || st.size > limit) throw new Error('Invalid fixed scope file');
   return readFileSync(path);
@@ -205,7 +233,7 @@ export function main(env: NodeJS.ProcessEnv = process.env, args: string[] = proc
   const request = admit(new NativeGitHub(), context, event, profile, witness);
   if (run(['rev-parse', 'HEAD']) !== context.workflow_commit || run(['status', '--porcelain'])) throw new Error('Scope source changed');
   const directory = resolve(temporary, 'attestrack-release-scope'); mkdirSync(directory, { mode: 0o700 });
-  const file = resolve(directory, 'application-release-request.json'); writeFileSync(file, canonical(request)+'\n', { flag: 'wx', mode: 0o600 });
+  const file = resolve(directory, 'application-release-request.json'); writeFileSync(file, canonical(request), { flag: 'wx', mode: 0o600 });
   const output = under(temporary, env.GITHUB_OUTPUT ?? ''); regular(output, 1024 * 1024);
   appendFileSync(output, `request-file=${file}\nrequest-sha256=${digest(canonical(request))}\nsource-admission-artifact=application-source-admission-${context.run_id}-${context.run_attempt}\n`);
 }

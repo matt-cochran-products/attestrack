@@ -482,9 +482,13 @@ test('eligibility evaluated from the workflow feeds the gate end to end', () => 
 
 test('retained tests run exactly once, in the source ci job', () => {
   const command = 'node --test scripts/retained-build.test.ts scripts/retained-workflow.test.ts scripts/application-witness.test.ts';
-  assert.equal((checksYaml + callerYaml + e2eYaml + mutationYaml).split('node --test').length - 1, 1);
+  const scopeCommand = 'node --test --experimental-test-isolation=none scripts/application-release-scope.test.ts';
+  const all = checksYaml + callerYaml + e2eYaml + mutationYaml;
+  assert.equal(all.split(command).length - 1, 1);
+  assert.equal(all.split(scopeCommand).length - 1, 1);
+  assert.equal(all.split('node --test').length - 1, 2);
   const runs = (name: string) => stepsOf(job(name)).filter((s) => s.has('run')).map((s) => value(s, 'run'));
-  assert.equal(runs('ci').filter((run) => run === command).length, 1);
+  assert.deepEqual(runs('ci').filter((run) => run.startsWith('node --test')), [command, scopeCommand]);
   assert.ok(!runs('warehouse').some((run) => run.includes('node --test')));
 });
 
@@ -493,6 +497,7 @@ test('original commands, action pins, services and env are preserved', () => {
   const setup = [CHECKOUT, './.github/actions/validate-ci-runner', 'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
     'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1', 'pnpm install --frozen-lockfile'];
   assert.deepEqual(describe('ci'), [...setup, 'node --test scripts/retained-build.test.ts scripts/retained-workflow.test.ts scripts/application-witness.test.ts',
+    'node --test --experimental-test-isolation=none scripts/application-release-scope.test.ts',
     'pnpm audit-gate', 'pnpm typecheck', 'pnpm lint', 'pnpm test', 'pnpm test:workers', 'pnpm coverage',
     'pnpm route-contract-check', 'pnpm build', 'pnpm size-check', 'pnpm boundary-check', 'pnpm egress-check']);
   assert.deepEqual(describe('warehouse'), [...setup, 'pnpm build', 'pnpm test:warehouse']);

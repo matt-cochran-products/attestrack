@@ -1,0 +1,43 @@
+# Source admission only. No provider/OPV/environment/writer/fixture authority.
+name: Native application release admission
+on:
+  workflow_run:
+    workflows: [Retained application artifacts, Native release tool bytes]
+    types: [completed]
+    branches: [staging, main]
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+concurrency:
+  group: application-release-scope-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  scope:
+    timeout-minutes: 10
+    outputs:
+      request-sha256: ${{ steps.admission.outputs.request-sha256 }}
+      artifact-name: ${{ steps.admission.outputs.source-admission-artifact }}
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/validate-ci-runner
+        with:
+          mode: ${{ vars.CI_RUNNER_MODE || 'github' }}
+          runner-label: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'github' }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - id: admission
+        run: node scripts/application-release-scope.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.admission.outputs.source-admission-artifact }}
+          path: ${{ steps.admission.outputs.request-file }}
+          if-no-files-found: error
+          retention-days: 90

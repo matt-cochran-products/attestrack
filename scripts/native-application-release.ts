@@ -169,7 +169,7 @@ function operationId(value: unknown): string | null {
   return typeof value === 'string' && value.startsWith('attestrack:') && UUID.test(value.slice(11)) ? value.slice(11) : null;
 }
 function bindings(raw: unknown): Binding[] {
-  return array(raw).map(b => {
+  return array(raw).map<Binding>(b => {
     const o = object(b), type = string(o.type), name = string(o.name);
     if (type === 'secret_text') { if ('text' in o || 'value' in o) throw new Error('Unexpected secret readback'); return { type, name }; }
     if (type === 'plain_text') return { type, name, text: string(o.text) };

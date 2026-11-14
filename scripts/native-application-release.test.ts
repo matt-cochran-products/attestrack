@@ -12,7 +12,7 @@ import { canonical, Cloudflare, NativeGitHub, NativeWriter, pagesConfiguration, 
   type Bundle, type GitHubRead, type Journal, type NativeHTTP, type Target } from './native-application-release.ts';
 import { loadTool } from './native-release-tool.ts';
 import { upstreamTool } from './native-release-tool.test.ts';
-import { prepareOperation, claimOperation, unknownOperation, execution, recordAcknowledgement } from './native-application-operation.ts';
+import { prepareOperation, claimOperation, unknownOperation, execution, recordAcknowledgement, validateJournal } from './native-application-operation.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -333,4 +333,22 @@ test('production remains expressible through separate claimed operations without
  const writer=new NativeWriter(target,cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
  for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production'),owner),cap=await execution({async readCurrent(){return claimed;}},{environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
  assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages,null);assert.equal(cloud.writes().length,2);
+}));
+
+test('confirmed final Pages ACK requires matching current deployment and operation readback',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
+ for(let n=0;n<4;n++){
+  const owner={...executorOwner,run_id:240,job_id:340+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'staging'),owner),cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);
+  if(n===3){
+   for(const pages of [null,before.pages,{...ack.after!.pages!,deployment_id:PG},{...ack.after!.pages!,operation_id:null},{...ack.after!.pages!,operation_id:id(9)}]){
+    const changed=structuredClone(ack);changed.after!.pages=pages;assert.throws(()=>recordAcknowledgement(claimed,changed),/Pages serving acknowledgement/);
+   }
+   const swapped=structuredClone(ack);swapped.native_id=PG;assert.throws(()=>recordAcknowledgement(claimed,swapped),/Pages serving acknowledgement/);
+  }
+  last=recordAcknowledgement(claimed,ack).journal;
+ }
+ assert.equal(last!.operations[3].native_id,PC);assert.equal(last!.after!.pages!.deployment_id,PC);assert.equal(last!.after!.pages!.operation_id,OP);assert.deepEqual(validateJournal(last),last);
+ for(const pages of [null,before.pages,{...last!.after!.pages!,deployment_id:PG},{...last!.after!.pages!,operation_id:null},{...last!.after!.pages!,operation_id:id(9)}]){
+  const changed=structuredClone(last!);changed.after!.pages=pages;assert.throws(()=>validateJournal(changed),/Pages serving acknowledgement/);
+ }
 }));

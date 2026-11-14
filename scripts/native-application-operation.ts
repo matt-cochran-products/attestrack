@@ -19,6 +19,10 @@ export function validateJournal(value:unknown):Journal{
  const switched=j.operations.length>=2&&j.operations[1].state==='confirmed';
  if((j.after!==null)!==switched)throw Error('Confirmed switch requires exact native readback');
  if(switched){const w=(j.after as Journal['predecessor']).worker;if(w.version_id!==j.operations[0].native_id||w.deployment_id!==j.operations[1].native_id||w.operation_id!==j.operation_id||w.deployment_operation_id!==j.operation_id)throw Error('Native serving acknowledgement differs');}
+ if(operations[3]?.state==='confirmed'){
+  const pages=(j.after as Journal['predecessor']).pages;
+  if(!pages||pages.deployment_id!==operations[3].native_id||pages.operation_id!==j.operation_id)throw Error('Pages serving acknowledgement differs');
+ }
  return structuredClone(value) as Journal;
 }
 function snapshot(raw:unknown){const s=closed(raw,['worker','pages']),w=closed(s.worker,['deployment_id','version_id','latest_version_id','configuration_sha256','version_configuration_sha256','module_sha256','operation_id','deployment_operation_id']);for(const k of ['deployment_id','version_id','latest_version_id'])if(typeof w[k]!=='string'||!UUID.test(w[k] as string))throw Error('Invalid Worker readback');for(const k of ['configuration_sha256','version_configuration_sha256','module_sha256'])hash(w[k]);for(const k of ['operation_id','deployment_operation_id'])if(w[k]!==null&&(typeof w[k]!=='string'||!UUID.test(w[k] as string)))throw Error('Invalid operation readback');if(s.pages!==null){const p=closed(s.pages,['deployment_id','configuration_sha256','operation_id']);if(typeof p.deployment_id!=='string'||!UUID.test(p.deployment_id))throw Error('Invalid Pages readback');hash(p.configuration_sha256);if(p.operation_id!==null&&(typeof p.operation_id!=='string'||!UUID.test(p.operation_id)))throw Error('Invalid Pages operation');}}

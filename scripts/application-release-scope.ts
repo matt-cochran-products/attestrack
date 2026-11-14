@@ -23,6 +23,22 @@ function decimal(raw: unknown): number { if (typeof raw !== 'string' || !/^[1-9]
 function same(a: unknown, b: unknown): void { if (canonical(a) !== canonical(b)) throw new Error('Source admission binding differs'); }
 export interface Context { repository_id: number; workflow_commit: string; run_id: number; run_attempt: number }
 export interface Profile { native: Target; http: HttpTarget }
+/** Closed diagnostic only: no native replies, caller strings, target IDs or credentials. */
+class TargetUnconfigured extends Error {
+  constructor() { super('Existing release target is unconfigured'); }
+}
+export function refusalDiagnostic(error: unknown): {
+  schema: 'attestrack.application-source-refusal/v1'; ok: false;
+  code: 'target_unconfigured' | 'source_admission_refused';
+  environment_allocated: false; writer_allocated: false;
+  next_action: 'review_existing_target_mapping' | 'inspect_source_admission_prerequisites';
+} {
+  const missing = error instanceof TargetUnconfigured;
+  return { schema: 'attestrack.application-source-refusal/v1', ok: false,
+    code: missing ? 'target_unconfigured' : 'source_admission_refused',
+    environment_allocated: false, writer_allocated: false,
+    next_action: missing ? 'review_existing_target_mapping' : 'inspect_source_admission_prerequisites' };
+}
 export function selectProfile(raw: unknown, witness: unknown, branch: 'staging' | 'main'): Profile {
   const p = closed(raw, ['schema', 'staging', 'production']);
   if (p.schema !== 'attestrack.application-release-targets/v1') throw new Error('Unreviewed native release profile');
@@ -36,14 +52,14 @@ export function selectProfile(raw: unknown, witness: unknown, branch: 'staging' 
     httpIdentity(http);
     if (native.environment !== lane) throw new Error('Wrong reviewed target environment');
     if (lane === 'staging') {
-      if (original.staging === null) throw new Error('Existing release target is unconfigured');
+      if (original.staging === null) throw new TargetUnconfigured();
       same(http, original.staging);
     }
     const site = native.worker.bindings.find(b => b.name === 'SITE_ID');
     if (!site || site.type !== 'plain_text' || site.text !== http.site_id) throw new Error('Native and HTTP site differ');
     if (lane === (branch === 'staging' ? 'staging' : 'production')) selected = { native, http: structuredClone(http) };
   }
-  if (selected === null) throw new Error('Existing release target is unconfigured');
+  if (selected === null) throw new TargetUnconfigured();
   return selected;
 }
 export function runnerContext(env: NodeJS.ProcessEnv): Context {
@@ -238,5 +254,5 @@ export function main(env: NodeJS.ProcessEnv = process.env, args: string[] = proc
   appendFileSync(output, `request-file=${file}\nrequest-sha256=${digest(canonical(request))}\nsource-admission-artifact=application-source-admission-${context.run_id}-${context.run_attempt}\n`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { main(); } catch { console.error('Application source admission refused; no environment or writer allocated.'); process.exitCode = 1; }
+  try { main(); } catch (error: unknown) { console.error(JSON.stringify(refusalDiagnostic(error))); process.exitCode = 1; }
 }

@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { admit, main, PROFILE, runnerContext, selectProfile, WORKFLOW } from './application-release-scope.ts';
+import { admit, main, PROFILE, refusalDiagnostic, runnerContext, selectProfile, WORKFLOW } from './application-release-scope.ts';
 import { digest, fileBytes, inventory, publisherIdentity, PUBLISHER_FILES, type Payload, REPOSITORY } from './application-artifacts.ts';
 import { TOOL_FILES, TOOL_PROFILE } from './native-release-tool.ts';
 import { buildWorkerEntry } from '../packages/deploy/src/worker-template.ts';
@@ -29,6 +29,22 @@ test('actual tracked defaults refuse staging and production before native API/cr
   const reader: GitHubRead = { json() { assert.fail('unconfigured target reached native API'); }, bytes() { assert.fail('unconfigured target downloaded bytes'); } };
   for (const branch of ['staging', 'main']) assert.throws(() => admit(reader, context,
     { action: 'completed', repository: { id: 41, full_name: REPOSITORY }, workflow_run: { head_branch: branch } }, p, w), /unconfigured/);
+});
+test('refusal diagnostics distinguish absent target from unknown failure without copying upstream details', () => {
+  let missing: unknown;
+  try { selectProfile({ schema: 'attestrack.application-release-targets/v1', staging: null, production: null },
+    { schema: 'attestrack.application-targets/v1', staging: null }, 'staging'); } catch (error: unknown) { missing = error; }
+  assert.deepEqual(refusalDiagnostic(missing), {
+    schema: 'attestrack.application-source-refusal/v1', ok: false, code: 'target_unconfigured',
+    environment_allocated: false, writer_allocated: false, next_action: 'review_existing_target_mapping',
+  });
+  for (const error of [new Error('sensitive-native-body'), 'sensitive-native-body', { code: 'target_unconfigured', token: 'sensitive-native-body' }]) {
+    const result = refusalDiagnostic(error);
+    assert.equal(result.code, 'source_admission_refused');
+    assert.equal(result.next_action, 'inspect_source_admission_prerequisites');
+    assert.doesNotMatch(JSON.stringify(result), /sensitive|token|body/);
+    assert.equal(result.environment_allocated, false); assert.equal(result.writer_allocated, false);
+  }
 });
 test('closed reviewed native profile agrees with the existing HTTP site and environment', () => {
   assert.deepEqual(selectProfile(profile(), witness(), 'staging'), { native, http });
@@ -204,7 +220,7 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
   try {
     const checkout = join(temporary, 'checkout'), scratch = join(temporary, 'runner'), bin = join(temporary, 'bin');
     mkdirSync(checkout); mkdirSync(scratch); mkdirSync(bin);
-    const files = ['scripts/application-release-scope.ts', 'scripts/native-application-release.ts', 'scripts/native-release-tool.ts',
+    const files = ['scripts/application-release-scope.ts', 'scripts/native-application-release.ts', 'scripts/native-application-operation.ts', 'scripts/native-release-tool.ts',
       'scripts/application-artifacts.ts', 'scripts/application-witness.ts', '.github/actions/retained-build/retained-build.ts',
       'packages/deploy/src/worker-template.ts', 'release/application-publishers.json', WORKFLOW];
     for (const name of files) { const path = join(checkout, name); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, readFileSync(new URL('../' + name, import.meta.url))); }
@@ -239,6 +255,9 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
     const denied = invoke({ ...env, GITHUB_HEAD_REF: 'foreign-feature' }); assert.equal(denied.status, 1);
     assert.equal(existsSync(marker), false); assert.equal(readFileSync(output, 'utf8'), previousOutput);
     assert.doesNotMatch(denied.stderr + denied.stdout, /fictional-job-readonly/);
+    const diagnostic = denied.stderr.split('\n').find(line => line.startsWith('{'));
+    assert.ok(diagnostic); assert.equal(JSON.parse(diagnostic).code, 'source_admission_refused');
+    assert.equal(JSON.parse(diagnostic).writer_allocated, false);
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 });
 

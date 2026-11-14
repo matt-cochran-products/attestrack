@@ -204,7 +204,7 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
   try {
     const checkout = join(temporary, 'checkout'), scratch = join(temporary, 'runner'), bin = join(temporary, 'bin');
     mkdirSync(checkout); mkdirSync(scratch); mkdirSync(bin);
-    const files = ['scripts/application-release-scope.ts', 'scripts/native-application-release.ts', 'scripts/native-release-tool.ts',
+    const files = ['scripts/application-release-scope.ts', 'scripts/native-application-release.ts', 'scripts/native-application-operation.ts', 'scripts/native-release-tool.ts',
       'scripts/application-artifacts.ts', 'scripts/application-witness.ts', '.github/actions/retained-build/retained-build.ts',
       'packages/deploy/src/worker-template.ts', 'release/application-publishers.json', WORKFLOW];
     for (const name of files) { const path = join(checkout, name); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, readFileSync(new URL('../' + name, import.meta.url))); }

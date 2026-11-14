@@ -12,6 +12,7 @@ import { canonical, Cloudflare, NativeGitHub, NativeWriter, pagesConfiguration, 
   type Bundle, type GitHubRead, type Journal, type NativeHTTP, type Target } from './native-application-release.ts';
 import { loadTool } from './native-release-tool.ts';
 import { upstreamTool } from './native-release-tool.test.ts';
+import { prepareOperation, claimOperation, unknownOperation, execution, recordAcknowledgement } from './native-application-operation.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -286,3 +287,50 @@ test('actual native GitHub CLI reader accepts its exact repository root and reje
     assert.throws(() => new NativeGitHub().json('repos/foreign/attestrack'), /Foreign/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
+
+const executorOwner={repository_id:41,workflow_commit:'e'.repeat(40),run_id:200,run_attempt:1,job_id:300};
+test('role-separated native operations execute exact retained components with separate durable claim and ACK steps',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
+ for(let n=0;n<4;n++){
+  const journal=writer.prepareOperation(bundle,before,OP,last),prepared=prepareOperation(journal,'staging');
+  assert.equal(prepared.state,'prepared');const writes=cloud.writes().length;
+  // A merely prepared or interrupted/unknown record cannot obtain execution.
+  await assert.rejects(execution({async readCurrent(){return prepared;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
+  const claimed=claimOperation(prepared,{...executorOwner,job_id:300+n});assert.throws(()=>claimOperation(claimed,executorOwner),/reconciliation/);
+  const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n});
+  const ack=await writer.executeOperation(bundle,tool,cap);assert.ok(cloud.writes().length>writes);
+  await assert.rejects(writer.executeOperation(bundle,tool,cap),/capability/);
+  await assert.rejects(execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n}),/already issued/);
+  const finished=recordAcknowledgement(claimed,ack);assert.equal(finished.state,'acknowledged');last=finished.journal;
+ }
+ assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages!.deployment_id,PC);assert.equal(last!.operations.length,4);
+ assert.throws(()=>writer.prepareOperation(bundle,before,OP,last),/complete/);
+}));
+test('durable unknown, unclaimed, swapped executor/source and forged capability refuse without provider mutation',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),j=writer.prepareOperation(bundle,before,OP),prepared=prepareOperation(j,'staging'),claimed=claimOperation(prepared,executorOwner);
+ for(const f of [prepared,unknownOperation(claimed)])await assert.rejects(execution({async readCurrent(){return f;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
+ for(const patch of [{job_id:301},{run_attempt:2},{run_id:201},{repository_id:42},{workflow_commit:'f'.repeat(40)}])await assert.rejects(execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,...patch}),/claim differs/);
+ await assert.rejects(execution(undefined as never,{environment:'staging',operation_id:OP},executorOwner),/Authenticated encrypted/);
+ await assert.rejects(writer.executeOperation(bundle,tool,{operation_id:OP}),/capability/);
+ assert.throws(()=>writer.prepareOperation(bundle,before,OP,j),/Unknown/);assert.equal(cloud.writes().length,0);
+}));
+test('lost native ACK remains unknown and reconciliation reads existing operation without dispatching again',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),prepared=prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),owner={...executorOwner,run_id:210},claimed=claimOperation(prepared,owner);
+ cloud.corruptModule=true;const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner);
+ await assert.rejects(writer.executeOperation(bundle,tool,cap),/Uploaded original/);assert.equal(cloud.writes().length,1);
+ const unknown=unknownOperation(claimed);await assert.rejects(execution({async readCurrent(){return unknown;}},{environment:'staging',operation_id:OP},owner),/claim differs/);
+ const observation=await writer.inspectOperation(bundle,OP);assert.equal(observation.worker.versions.length,1);assert.equal(cloud.writes().length,1);
+}));
+test('ACK binding tampering cannot advance a durable original claim and monolithic production path is refused',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),{...executorOwner,run_id:220});
+ const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,run_id:220}),ack=await writer.executeOperation(bundle,tool,cap);
+ for(const patch of [{journal_sha256:'0'.repeat(64)},{operation_id:id(9)},{name:'pages-deploy'},{native_id:['bad']}])assert.throws(()=>recordAcknowledgement(claimed,{...ack,...patch} as typeof ack));
+ const target=cloud.target();target.environment='production';const prod=new NativeWriter(target,cloud),writes=cloud.writes().length;
+ await assert.rejects(prod.deploy(bundle,before,tool,{operation_id:OP,async append(){assert.fail('Production must not enter combined journal/provider custody');}}),/role-separated/);assert.equal(cloud.writes().length,writes);
+}));
+test('production remains expressible through separate claimed operations without combined writer authority',async()=>withRuntime(async tool=>{
+ const cloud=new FictionalCloudflare(),target=cloud.target();target.environment='production';target.pages=null;
+ const writer=new NativeWriter(target,cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
+ for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production'),owner),cap=await execution({async readCurrent(){return claimed;}},{environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
+ assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages,null);assert.equal(cloud.writes().length,2);
+}));

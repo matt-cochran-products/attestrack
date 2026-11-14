@@ -15,7 +15,10 @@ export function validateJournal(value:unknown):Journal{
  hash(j.target_sha256);hash(j.tool_profile_sha256);const a=closed(j.artifact,['artifact_id','producer_run','producer_attempt','archive_sha256','inventory_sha256','source_tree']);for(const k of ['artifact_id','producer_run','producer_attempt'])positive(a[k]);for(const k of ['archive_sha256','inventory_sha256'])hash(a[k]);if(typeof a.source_tree!=='string'||!SHA.test(a.source_tree))throw Error('Invalid artifact tree');
  snapshot(j.predecessor);if(j.after!==null)snapshot(j.after);
  const order=['worker-upload','worker-switch','pages-assets','pages-deploy'];if(!Array.isArray(j.operations)||j.operations.length<1||j.operations.length>4)throw Error('Invalid operation sequence');
- j.operations.forEach((x,i)=>{const o=closed(x,['name','state','native_id']);if(o.name!==order[i]||!['unknown','confirmed'].includes(o.state as string))throw Error('Invalid operation sequence');if(o.state==='unknown'){if(i!==j.operations.length-1||o.native_id!==null)throw Error('Unknown operation cannot advance');}else if(typeof o.native_id!=='string'||(o.name==='pages-assets'?!HASH.test(o.native_id):!UUID.test(o.native_id)))throw Error('Invalid native acknowledgement');});
+ const operations=j.operations;operations.forEach((x,i)=>{const o=closed(x,['name','state','native_id']);if(o.name!==order[i]||!['unknown','confirmed'].includes(o.state as string))throw Error('Invalid operation sequence');if(o.state==='unknown'){if(i!==operations.length-1||o.native_id!==null)throw Error('Unknown operation cannot advance');}else if(typeof o.native_id!=='string'||(o.name==='pages-assets'?!HASH.test(o.native_id):!UUID.test(o.native_id)))throw Error('Invalid native acknowledgement');});
+ const switched=j.operations.length>=2&&j.operations[1].state==='confirmed';
+ if((j.after!==null)!==switched)throw Error('Confirmed switch requires exact native readback');
+ if(switched){const w=(j.after as Journal['predecessor']).worker;if(w.version_id!==j.operations[0].native_id||w.deployment_id!==j.operations[1].native_id||w.operation_id!==j.operation_id||w.deployment_operation_id!==j.operation_id)throw Error('Native serving acknowledgement differs');}
  return structuredClone(value) as Journal;
 }
 function snapshot(raw:unknown){const s=closed(raw,['worker','pages']),w=closed(s.worker,['deployment_id','version_id','latest_version_id','configuration_sha256','version_configuration_sha256','module_sha256','operation_id','deployment_operation_id']);for(const k of ['deployment_id','version_id','latest_version_id'])if(typeof w[k]!=='string'||!UUID.test(w[k] as string))throw Error('Invalid Worker readback');for(const k of ['configuration_sha256','version_configuration_sha256','module_sha256'])hash(w[k]);for(const k of ['operation_id','deployment_operation_id'])if(w[k]!==null&&(typeof w[k]!=='string'||!UUID.test(w[k] as string)))throw Error('Invalid operation readback');if(s.pages!==null){const p=closed(s.pages,['deployment_id','configuration_sha256','operation_id']);if(typeof p.deployment_id!=='string'||!UUID.test(p.deployment_id))throw Error('Invalid Pages readback');hash(p.configuration_sha256);if(p.operation_id!==null&&(typeof p.operation_id!=='string'||!UUID.test(p.operation_id)))throw Error('Invalid Pages operation');}}
@@ -28,6 +31,7 @@ export function unknownOperation(raw:Frame):Frame{const f=frame(raw);if(f.state!
 export interface AuthenticatedJournalReader { readCurrent(context:{repository:typeof REPOSITORY;environment:Frame['environment'];operation_id:string}):Promise<unknown> }
 export interface Execution { readonly operation_id:string }
 const capabilities=new WeakMap<Execution,Frame>();
+const issuedClaims=new Set<string>();
 /** The fixed journal role reader authenticates+decrypts CURRENT durable bytes.
  * No plaintext reader or codec default exists. Assembly must authenticate its
  * own executor metadata; this library does not infer that from caller JSON. */
@@ -35,6 +39,7 @@ export async function execution(reader:AuthenticatedJournalReader,context:{envir
  if(!reader||typeof reader.readCurrent!=='function')throw Error('Authenticated encrypted journal reader required');
  const f=frame(await reader.readCurrent({repository:REPOSITORY,...context}));
  if(f.state!=='execution-claimed'||f.environment!==context.environment||f.journal.operation_id!==context.operation_id||canonical(f.executor)!==canonical(executor(own)))throw Error('Durable execution claim differs; reconcile without replay');
+ const key=digest(canonical({executor:f.executor,operation_id:f.journal.operation_id,journal:f.journal}));if(issuedClaims.has(key))throw Error('Execution claim already issued; reconcile without replay');issuedClaims.add(key);
  const cap=Object.freeze({operation_id:f.journal.operation_id});capabilities.set(cap,f);return cap;
 }
 /** Process-local consumption is defense in depth, NOT durable exactly-once. */

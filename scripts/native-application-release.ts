@@ -351,6 +351,7 @@ export class NativeWriter {
     if(frame.environment!==this.target.environment)throw Error('Wrong native execution environment');
     if(!admittedBundles.has(bundle)||admittedBundles.get(bundle)!==digest(canonical(bundle)))throw Error('Original native artifact admission required');
     same(r.artifact,bundle.identity,'Original operation artifact changed');
+    if(frame.executor?.repository_id!==bundle.payload.repository_id)throw Error('Original executor repository changed');
     if(r.target_sha256!==targetIdentity(this.target)||r.tool_profile_sha256!==TOOL_PROFILE)throw Error('Original operation target/tool changed');
     validateJournal(r);requireTool(tool);const raw=validateContent(structuredClone(bundle.payload)),last=r.operations.at(-1)!,marker=operationMarker(r.operation_id),before=r.predecessor;
     if(last.state!=='unknown'||(!this.target.pages&&r.operations.length>2))throw Error('Exactly one unknown operation required');
@@ -370,7 +371,9 @@ export class NativeWriter {
       const switched=object(await this.#http.request(`${this.#script()}/deployments`,{method:'POST',body:JSON.stringify({strategy:'percentage',versions:[{version_id:versionId,percentage:100}],annotations:{'workers/message':marker}})}));nativeId=uuid(switched.id);after=await this.observe();
       if(after.worker.deployment_id!==nativeId||after.worker.version_id!==versionId||after.worker.module_sha256!==workerFile.sha256||after.worker.operation_id!==r.operation_id||after.worker.deployment_operation_id!==r.operation_id)throw Error('Worker serving readback mismatch');same(after.pages,before.pages,'Pages changed during switch');
     }else{
-      if(!this.target.pages||!after)throw Error('Missing confirmed Worker readback');await this.#unchanged(after);
+      if(!this.target.pages||!after)throw Error('Missing confirmed Worker readback');
+      if(after.worker.version_id!==r.operations[0].native_id||after.worker.deployment_id!==r.operations[1].native_id||after.worker.module_sha256!==workerFile.sha256||after.worker.operation_id!==r.operation_id||after.worker.deployment_operation_id!==r.operation_id)throw Error('Confirmed original Worker readback changed');
+      await this.#unchanged(after);
       if(last.name==='pages-assets'){
         const jwt=string(object(await this.#http.request(`${this.#pages()}/upload-token`)).jwt);if(!jwt||/[\r\n]/.test(jwt))throw Error('Missing native asset token');
         for(const a of assets)await this.#http.request('/pages/assets/upload',{method:'POST',body:JSON.stringify([a])},jwt);

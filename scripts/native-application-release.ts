@@ -6,6 +6,7 @@ import { completeNativeList, requireNativeJobs, validate, verifyStagingPr,
   type NativeArtifact, type NativeJob, type PullRequest, type Run } from '../.github/actions/retained-build/retained-build.ts';
 import { digest, PUBLISHER_FILES, publisherIdentity, REPOSITORY, validateContent, validateOrigin, verifiedDocument, type Payload } from './application-artifacts.ts';
 import { assetHash, requireTool, TOOL_PROFILE, type loadTool } from './native-release-tool.ts';
+import { consumeExecution, validateJournal, type Execution, type Acknowledgement } from './native-application-operation.ts';
 
 type ObjectValue = Record<string, unknown>;
 const HASH = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -331,8 +332,62 @@ export class NativeWriter {
       }),
         deployment_operation_id: operationId(active.annotations && object(active.annotations)['workers/message']), latest_version_id: uuid(object(latest[0]).id), versions: found }, pages };
   }
+  /** Credential-free/journal-role planning. Persist returned unknown BEFORE
+   * claiming one original executor; this does not call the provider or grant it. */
+  prepareOperation(bundle:Bundle,predecessor:Snapshot,operation:string,previous:Journal|null=null):Journal {
+    if(!admittedBundles.has(bundle)||admittedBundles.get(bundle)!==digest(canonical(bundle)))throw Error('Original native artifact admission required');
+    const initial:Journal={schema:'attestrack.native-write-journal/v1',operation_id:uuid(operation),artifact:structuredClone(bundle.identity),target_sha256:targetIdentity(this.target),tool_profile_sha256:TOOL_PROFILE,predecessor:structuredClone(predecessor),operations:[],after:null};
+    const current=previous===null?initial:validateJournal(previous);
+    same({...current,operations:[],after:null},initial,'Original operation bindings changed');
+    if(current.operations.some(o=>o.state!=='confirmed'))throw Error('Unknown operation requires read-only reconciliation');
+    const order:Operation['name'][]=this.target.pages?['worker-upload','worker-switch','pages-assets','pages-deploy']:['worker-upload','worker-switch'];
+    if(current.operations.length>=order.length)throw Error('Operation sequence already complete');
+    current.operations.push({name:order[current.operations.length],state:'unknown',native_id:null});return validateJournal(current);
+  }
+  /** Provider role executes ONE already claimed operation. No JournalSink,
+   * GitHub writer, store callback or durability capability enters this method. */
+  async executeOperation(bundle:Bundle,tool:ReturnType<typeof loadTool>,capability:Execution):Promise<Acknowledgement>{
+    const frame=consumeExecution(capability),r=frame.journal;
+    if(frame.environment!==this.target.environment)throw Error('Wrong native execution environment');
+    if(!admittedBundles.has(bundle)||admittedBundles.get(bundle)!==digest(canonical(bundle)))throw Error('Original native artifact admission required');
+    same(r.artifact,bundle.identity,'Original operation artifact changed');
+    if(r.target_sha256!==targetIdentity(this.target)||r.tool_profile_sha256!==TOOL_PROFILE)throw Error('Original operation target/tool changed');
+    validateJournal(r);requireTool(tool);const raw=validateContent(structuredClone(bundle.payload)),last=r.operations.at(-1)!,marker=operationMarker(r.operation_id),before=r.predecessor;
+    if(last.state!=='unknown'||(!this.target.pages&&r.operations.length>2))throw Error('Exactly one unknown operation required');
+    const workerFile=raw.files.find(f=>f.path==='worker/index.js')!,manifest:Record<string,string>={},assets:{key:string;value:string;metadata:{contentType:string};base64:true}[]=[];
+    if(this.target.pages)for(const f of raw.files.filter(f=>f.path.startsWith('portal/'))){const path=f.path.slice(7),type=contentType(path),key=assetHash(tool,path,Buffer.from(f.base64,'base64'));manifest[`/${path}`]=key;assets.push({key,value:f.base64,metadata:{contentType:type},base64:true});}
+    let nativeId:string,after=r.after;
+    if(last.name==='worker-upload'){
+      await this.#unchanged(before);const prior=await this.#version(before.worker.version_id);
+      if(digest(canonical(runtime(prior)))!==before.worker.version_configuration_sha256)throw Error('Predecessor runtime settings changed');
+      const uploaded=object(await this.#http.request(`${this.#worker()}/versions?deploy=false`,{method:'POST',body:JSON.stringify({main_module:'index.js',...runtime(prior),annotations:{'workers/tag':marker},bindings:this.target.worker.bindings.map(b=>b.type==='secret_text'?{name:b.name,type:'inherit',version_id:before.worker.version_id}:b),modules:[{name:'index.js',content_type:'application/javascript+module',content_base64:workerFile.base64}]})}));
+      nativeId=uuid(uploaded.id);const version=await this.#version(nativeId);
+      if(object(version.annotations)['workers/tag']!==marker||moduleHash(version)!==workerFile.sha256)throw Error('Uploaded original module/operation changed');same(runtime(version),runtime(prior),'Uploaded runtime settings changed');await this.#observeAfterUpload(nativeId,before);
+    }else if(last.name==='worker-switch'){
+      const versionId=uuid(r.operations[0].native_id),version=await this.#version(versionId);
+      if(moduleHash(version)!==workerFile.sha256||object(version.annotations)['workers/tag']!==marker||digest(canonical(runtime(version)))!==before.worker.version_configuration_sha256)throw Error('Prepared uploaded version changed');
+      await this.#observeAfterUpload(versionId,before);
+      const switched=object(await this.#http.request(`${this.#script()}/deployments`,{method:'POST',body:JSON.stringify({strategy:'percentage',versions:[{version_id:versionId,percentage:100}],annotations:{'workers/message':marker}})}));nativeId=uuid(switched.id);after=await this.observe();
+      if(after.worker.deployment_id!==nativeId||after.worker.version_id!==versionId||after.worker.module_sha256!==workerFile.sha256||after.worker.operation_id!==r.operation_id||after.worker.deployment_operation_id!==r.operation_id)throw Error('Worker serving readback mismatch');same(after.pages,before.pages,'Pages changed during switch');
+    }else{
+      if(!this.target.pages||!after)throw Error('Missing confirmed Worker readback');await this.#unchanged(after);
+      if(last.name==='pages-assets'){
+        const jwt=string(object(await this.#http.request(`${this.#pages()}/upload-token`)).jwt);if(!jwt||/[\r\n]/.test(jwt))throw Error('Missing native asset token');
+        for(const a of assets)await this.#http.request('/pages/assets/upload',{method:'POST',body:JSON.stringify([a])},jwt);
+        await this.#http.request('/pages/assets/upsert-hashes',{method:'POST',body:JSON.stringify({hashes:[...new Set(Object.values(manifest))]})},jwt);nativeId=digest(canonical(manifest));await this.#unchanged(after);
+      }else{
+        if(r.operations[2]?.native_id!==digest(canonical(manifest)))throw Error('Prepared static manifest changed');tool.assertUnchanged();
+        const form=new FormData();form.set('manifest',JSON.stringify(manifest));form.set('branch',this.target.pages.production_branch);form.set('commit_hash',raw.producer.source_sha);form.set('commit_dirty','false');form.set('commit_message',marker);
+        const result=object(await this.#http.request(`${this.#pages()}/deployments`,{method:'POST',body:form}));nativeId=uuid(result.id);let successful=false;
+        for(let n=0;n<20;n++){const page=object(await this.#http.request(`${this.#pages()}/deployments/${nativeId}`)),stage=object(page.latest_stage);if(stage.status==='failure'||stage.status==='canceled')throw Error('Native Pages deployment failed');if(stage.name==='deploy'&&stage.status==='success'){await this.#pagesDeployment(nativeId);const meta=object(object(page.deployment_trigger).metadata);if(meta.commit_hash!==raw.producer.source_sha||meta.commit_message!==marker)throw Error('Pages original source changed');successful=true;break;}await new Promise(resolve=>setTimeout(resolve,1000));}
+        if(!successful)throw Error('Native Pages completion unknown');const final=await this.observe();if(final.pages?.deployment_id!==nativeId||final.pages.operation_id!==r.operation_id)throw Error('Pages serving readback mismatch');same(final.worker,after.worker,'Worker changed during Pages deployment');after=final;
+      }
+    }
+    tool.assertUnchanged();return{schema:'attestrack.native-operation-ack/v1',journal_sha256:digest(canonical(r)),operation_id:r.operation_id,name:last.name,native_id:nativeId,after:structuredClone(after)};
+  }
   /** No retry or automatic rollback after an unknown write. Caller must retain journal durably. */
   async deploy(bundle: Bundle, expectedPredecessor: Snapshot, tool: ReturnType<typeof loadTool>, journal: JournalSink): Promise<Journal> {
+    if(this.target.environment==='production')throw Error('Production requires role-separated native operations; assembly pending');
     if (!admittedBundles.has(bundle) || admittedBundles.get(bundle) !== digest(canonical(bundle))) throw new Error('Original native artifact admission required or admitted bytes drifted');
     const operation = uuid(journal.operation_id), marker = operationMarker(operation);
     const predecessor = structuredClone(expectedPredecessor);

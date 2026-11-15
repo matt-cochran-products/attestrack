@@ -284,7 +284,7 @@ test('fake pinned-tool callbacks and changed required binding types refuse befor
 test('actual native GitHub CLI reader accepts its exact repository root and rejects foreign reads before child dispatch', () => {
   const d = mkdtempSync(join(tmpdir(), 'attestrack-native-gh-'));
   try {
-    writeFileSync(join(d, 'gh'), `#!${process.execPath}\nif(process.argv[2]!=='api'||process.argv[3]!==${JSON.stringify(`repos/${REPOSITORY}`)})throw Error('wrong native path');process.stdout.write('{"id":41}');\n`, { mode: 0o755 });
+    writeFileSync(join(d, 'gh'), `#!${process.execPath}\nif(process.argv.length!==6||process.argv[2]!=='api'||process.argv[3]!=='--hostname'||process.argv[4]!=='github.com'||process.argv[5]!==${JSON.stringify(`repos/${REPOSITORY}`)})throw Error('wrong native path');process.stdout.write('{"id":41}');\n`, { mode: 0o755 });
     const source = new URL('./native-application-release.ts', import.meta.url).href;
     const output = execFileSync(process.execPath, ['--input-type=module', '-e', `import {NativeGitHub} from ${JSON.stringify(source)};console.log(JSON.stringify(new NativeGitHub().json(${JSON.stringify(`repos/${REPOSITORY}`)})))`],
       { env: { PATH: d }, timeout: 10000 });

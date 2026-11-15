@@ -220,3 +220,52 @@ an explicit reviewed recovery artifact remain required. Real target IDs,
 custody/bootstrap and native compatibility proof are not invented here. No
 source test, artifact schema, journal field or HTTP witness marks activation,
 acceptance or recovery ready. Prepared controls remain unchanged.
+
+## Role-separated single-operation precursor (issue103 remains open)
+
+`NativeWriter.prepareOperation` derives the next exact write-ahead record from
+an admitted original artifact, fixed target, predecessor and unchanged operation
+UUID. It makes no provider call. The separate journal role must encrypt,
+authenticate and CAS-persist that record, then persist `claimOperation` with the
+original executor repository ID, workflow commit, run, attempt and job ID BEFORE
+the provider job starts. There is no journal creation/reset, plaintext codec,
+new key, credential or configured target in this component.
+
+`execution` requires an explicitly injected authenticated **current** journal
+reader. Production assembly must verify signature before decryption/strict parse,
+exact repository/environment/branch/key-purpose/genesis/source bindings, current
+head and original native executor metadata. No implementation/default is supplied:
+an absent reader refuses. A prepared record, unknown record, different executor
+or an already issued local claim cannot execute. `executeOperation` consumes a
+process-local capability, accepts no JournalSink or Git/store callback and runs
+one fixed original operation: Worker upload, Worker switch, Pages asset batch or
+Pages deployment. It verifies retained artifact/tool/target and native prior
+state before dispatch, returning only a bound acknowledgement/native readback.
+The Pages asset batch can contain several HTTP writes; partial failure is unknown,
+not permission to repeat any member. A separate journal job must authenticate the
+original executor's exact ACK artifact before `recordAcknowledgement` and CAS.
+Neither a native ACK nor a final native snapshot is functional/recovery acceptance.
+
+**Process-local consumption does not establish exactly-once across processes.**
+The missing production coordinator must durably consume one claim for ONE original
+native executor job before dispatch, prohibit a second job/restarted invocation
+from executing it, and route lost ACK/dead executor/unknown current state only to
+existing `inspectOperation`. It must not reconstruct a new claim from the old
+prepared artifact or renew ownership by timeout. A current signed claim alone is
+not evidence that its executor has never dispatched. Even a zero-match native
+inspection does not permit a retry. This assembly and encrypted journal/owner
+enrollment are not implemented or activated by the precursor. The old combined
+`deploy(..., JournalSink)` convenience refuses production; production is retained
+in the role-separated source API, without a hosted workflow entrypoint.
+
+The actual same-components publication observed on current main37ea077 selected
+original staging artifact14076463516, run43508041054/attempt1, native ZIP
+`07b58b43f2fe03b795497ab47704f28b717f574697c5d341217be28da9b1aa70`
+and inventory`5103bdbf8824d9c57f0611e35c1614c222fce7800ccdae66793414bab26fc500`.
+Main materialization43518893016/1 and tool43518893740/1 succeeded. These are
+publication/materialization observations, not deployment or warehouse evidence.
+Native/HTTP profiles still contain null. The separate website repository/Pages
+project cannot supply application/warehouse target authority. Existing app target
+association, private warehouse identity/schema/grants, dedicated consent fixture,
+OPV role custody, native exclusion and compatible recovery preserving writes
+remain required before a callable release coordinator.

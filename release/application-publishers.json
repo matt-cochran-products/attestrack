@@ -20,6 +20,16 @@
         ".github/workflows/application-artifacts.yml": "0bc6a0bbb7837e95586076e4b2ca481b7c22c5a9ff46d9ae99f982589ad2ef44",
         "scripts/application-artifacts.ts": "b3b59eb463bf013649fc064e2f631268b65ab1187a6b6cd937baf6ad16cc313e"
       }
+    },
+    "0a16297769784ce5f6034f0f6e3e8b48d45181c4485ded59963ff1dadd5b9495": {
+      "schema": 2,
+      "files": {
+        ".github/actions/retained-build/retained-build.ts": "a5ebf681fed256e4b89dba1b1532eca07fa34bc3c4bdb94baa7d513db778c793",
+        ".github/actions/validate-ci-runner/action.yml": "b9c759d7fd9e420fa2c53ab98a8e787c5bb33fa56f4bf62b9f8106713c3deb7f",
+        ".github/actions/validate-ci-runner/validate.py": "36f61ed4644c7720da437778dad4de5dc114e6afb94cafdf2a70b3719400f24c",
+        ".github/workflows/application-artifacts.yml": "0bc6a0bbb7837e95586076e4b2ca481b7c22c5a9ff46d9ae99f982589ad2ef44",
+        "scripts/application-artifacts.ts": "3159bb478c2bad06e3d28bc8d0abab609a532f501eca214b6b0a945bcb35f363"
+      }
     }
   },
   "legacy": [

@@ -221,6 +221,7 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
     const checkout = join(temporary, 'checkout'), scratch = join(temporary, 'runner'), bin = join(temporary, 'bin');
     mkdirSync(checkout); mkdirSync(scratch); mkdirSync(bin);
     const files = ['scripts/application-release-scope.ts', 'scripts/native-application-release.ts', 'scripts/native-application-operation.ts', 'scripts/native-release-tool.ts',
+      'scripts/native-release-canonical.ts', 'scripts/native-application-job-fence.ts',
       'scripts/application-artifacts.ts', 'scripts/application-witness.ts', '.github/actions/retained-build/retained-build.ts',
       'packages/deploy/src/worker-template.ts', 'release/application-publishers.json', WORKFLOW];
     for (const name of files) { const path = join(checkout, name); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, readFileSync(new URL('../' + name, import.meta.url))); }
@@ -238,11 +239,11 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
     const expected = f.result(), metadata = join(temporary, 'native.json'), marker = join(temporary, 'gh-called');
     writeFileSync(metadata, JSON.stringify({ data: Object.fromEntries(f.data), bytes: Object.fromEntries([...f.blobs].map(([p, b]) => [p, b.toString('base64')])) }));
     const fake = join(bin, 'gh');
-    writeFileSync(fake, `#!/usr/bin/python3 -I\nimport sys,json,base64\nfrom pathlib import Path\nassert len(sys.argv)==3 and sys.argv[1]=='api'\nPath(${JSON.stringify(marker)}).write_text('called')\nd=json.loads(Path(${JSON.stringify(metadata)}).read_text());p=sys.argv[2]\nif p in d['bytes']:sys.stdout.buffer.write(base64.b64decode(d['bytes'][p]))\nelse:print(json.dumps(d['data'][p]))\n`, { mode: 0o700 });
+    writeFileSync(fake, `#!/usr/bin/python3 -I\nimport sys,json,base64\nfrom pathlib import Path\nassert len(sys.argv)==5 and sys.argv[1:4]==['api','--hostname','github.com']\nPath(${JSON.stringify(marker)}).write_text('called')\nd=json.loads(Path(${JSON.stringify(metadata)}).read_text());p=sys.argv[4]\nif p in d['bytes']:sys.stdout.buffer.write(base64.b64decode(d['bytes'][p]))\nelse:print(json.dumps(d['data'][p]))\n`, { mode: 0o700 });
     const event = join(scratch, 'event.json'), output = join(scratch, 'output');
     writeFileSync(event, JSON.stringify(f.event)); writeFileSync(output, '');
     const env = { ...environment(), GITHUB_SHA: head, GITHUB_WORKFLOW_SHA: head,
-      PATH: bin + ':/usr/bin:/bin', HOME: temporary, GH_TOKEN: 'fictional-job-readonly', RUNNER_TEMP: scratch,
+      PATH: bin + ':/usr/bin:/bin', HOME: temporary, GH_TOKEN: 'fictional-job-readonly', GH_HOST: 'untrusted.invalid', RUNNER_TEMP: scratch,
       GITHUB_EVENT_PATH: event, GITHUB_OUTPUT: output };
     const invoke = (environment: NodeJS.ProcessEnv) => spawnSync(process.execPath, [join(checkout, 'scripts/application-release-scope.ts')],
       { env: environment, cwd: checkout, timeout: 30000, encoding: 'utf8' });

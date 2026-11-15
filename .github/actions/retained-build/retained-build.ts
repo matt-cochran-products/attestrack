@@ -117,7 +117,7 @@ interface PullRequestEvent {
 }
 const sha = /^[a-f0-9]{40}$/;
 const text = (args: string[]) => execFileSync(args[0], args.slice(1), { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }).trim();
-const api = <T>(path: string): T => JSON.parse(text(['gh', 'api', path]));
+const api = <T>(path: string): T => JSON.parse(text(['gh', 'api', '--hostname', 'github.com', path]));
 
 export function validate(evidence: Evidence, run: Run, repository: string, workflow: string, tree: string): void {
   if (run.status !== 'completed' || run.conclusion !== 'success'
@@ -260,7 +260,7 @@ export function main(): void {
     try {
       let evidence: Evidence;
       try {
-        text(['gh', 'run', 'download', String(run.id), '--repo', repository, '--name', name, '--dir', dir]);
+        text(['gh', 'run', 'download', String(run.id), '--repo', `github.com/${repository}`, '--name', name, '--dir', dir]);
         evidence = JSON.parse(readFileSync(join(dir, 'build-result.json'), 'utf8'));
       } catch (error) { skip(`cannot read evidence (${(error as Error).message})`); continue; }
       try { validate(evidence, run, repository, workflow, tree); } catch { continue; }

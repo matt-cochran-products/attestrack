@@ -72,7 +72,7 @@ test('scope preserves publishers and calls the existing requester role only afte
   assert.doesNotMatch(workflow, /(?:environment:|secrets:|id-token:|deployments:|packages:|workflow_dispatch:|pnpm install)/);
   assert.match(workflow, /run: node scripts\/application-release-scope.ts/);
   assert.match(workflow, /artifact-id: \$\{\{ steps.source-admission.outputs.artifact-id }}/);
-  assert.match(workflow, /request-controller:\n    needs: scope\n    uses: matt-cochran-products\/infra\/\.github\/workflows\/reusable-native-platform-request.yml@main/);
+  assert.match(workflow, /request-controller:\n {4}needs: scope\n {4}uses: matt-cochran-products\/infra\/\.github\/workflows\/reusable-native-platform-request.yml@main/);
   assert.match(workflow, /admission-artifact: \$\{\{ needs.scope.outputs.artifact-id }}/);
   assert.doesNotMatch(workflow, /secrets: inherit/);
 });

@@ -5,18 +5,32 @@ import { readFileSync } from 'node:fs';
 import { completeNativeList, type NativeArtifact, type NativeJob, type Run } from '../.github/actions/retained-build/retained-build.ts';
 import { digest, readSingleZip, REPOSITORY } from './application-artifacts.ts';
 import { canonical } from './native-release-canonical.ts';
-import type { AuthenticatedJournalReader, Executor, Frame } from './native-application-operation.ts';
+import type { AuthenticatedJournalReader, Executor, Frame, ExecutionContext, Phase } from './native-application-operation.ts';
 import { execution } from './native-application-operation.ts';
 import type { OriginalJobRuntime } from './native-application-job-fence.ts';
-import type { GitHubRead } from './native-application-release.ts';
+import type { GitHubRead, Operation } from './native-application-release.ts';
 import { INFRA, INFRA_ID, projectionArtifactName, validateProjection, validateStoreBinding, verifyCurrentPublicHead, verifyCurrentPublicJournal, type JournalStoreBinding } from './native-journal-projection.ts';
 
 export const ISSUER_PROFILE = 'release/application-journal-issuers.json';
 export const ISSUER_WORKFLOW = '.github/workflows/platform-product-release.yml';
+export const ISSUER_JOBS = Object.freeze({
+  'candidate-worker-upload': 'attestrack-native-journal-candidate-worker-upload',
+  'candidate-worker-switch': 'attestrack-native-journal-candidate-worker-switch',
+  'candidate-pages-assets': 'attestrack-native-journal-candidate-pages-assets',
+  'candidate-pages-deploy': 'attestrack-native-journal-candidate-pages-deploy',
+  'recovery-worker-upload': 'attestrack-native-journal-recovery-worker-upload',
+  'recovery-worker-switch': 'attestrack-native-journal-recovery-worker-switch',
+  'recovery-pages-assets': 'attestrack-native-journal-recovery-pages-assets',
+  'recovery-pages-deploy': 'attestrack-native-journal-recovery-pages-deploy',
+  'resume-worker-upload': 'attestrack-native-journal-resume-worker-upload',
+  'resume-worker-switch': 'attestrack-native-journal-resume-worker-switch',
+  'resume-pages-assets': 'attestrack-native-journal-resume-pages-assets',
+  'resume-pages-deploy': 'attestrack-native-journal-resume-pages-deploy',
+} as const);
 export interface IssuerBinding {
   store: JournalStoreBinding;
-  issuer: { schema: 'attestrack.native-journal-issuer/v1'; repository: typeof INFRA; repository_id: number; workflow: typeof ISSUER_WORKFLOW;
-    source_commit: string; workflow_blob: string; workflow_sha256: string; job_name: 'attestrack-native-journal' };
+  issuer: { schema: 'attestrack.native-journal-issuer/v2'; repository: typeof INFRA; repository_id: number; workflow: typeof ISSUER_WORKFLOW;
+    source_commit: string; workflow_blob: string; workflow_sha256: string; jobs: Record<`${Phase}-${Operation['name']}`, string> };
 }
 export interface ProjectionLocator { run_id: number; run_attempt: number; job_id: number; artifact_id: number; source_commit: string }
 const SHA = /^[a-f0-9]{40}$/, HASH = /^[a-f0-9]{64}$/;
@@ -26,13 +40,13 @@ function closed(raw: unknown, keys: string[]): Record<string, unknown> {
 }
 function positive(raw: unknown): number { if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 1) throw Error('Invalid original journal issuer identity'); return raw; }
 export function validateIssuerBinding(raw: unknown, environment: Frame['environment']): IssuerBinding {
-  const b = closed(raw, ['store', 'issuer']), issuer = closed(b.issuer, ['schema', 'repository', 'repository_id', 'workflow', 'source_commit', 'workflow_blob', 'workflow_sha256', 'job_name']);
+  const b = closed(raw, ['store', 'issuer']), issuer = closed(b.issuer, ['schema', 'repository', 'repository_id', 'workflow', 'source_commit', 'workflow_blob', 'workflow_sha256', 'jobs']);
   validateStoreBinding(b.store, environment);
-  if (issuer.schema !== 'attestrack.native-journal-issuer/v1' || issuer.repository !== INFRA || issuer.repository_id !== INFRA_ID || issuer.workflow !== ISSUER_WORKFLOW
+  if (issuer.schema !== 'attestrack.native-journal-issuer/v2' || issuer.repository !== INFRA || issuer.repository_id !== INFRA_ID || issuer.workflow !== ISSUER_WORKFLOW
       || typeof issuer.source_commit !== 'string' || !SHA.test(issuer.source_commit)
       || typeof issuer.workflow_blob !== 'string' || !SHA.test(issuer.workflow_blob)
       || typeof issuer.workflow_sha256 !== 'string' || !HASH.test(issuer.workflow_sha256)
-      || issuer.job_name !== 'attestrack-native-journal') throw Error('Unreviewed infra journal issuer binding');
+      || canonical(issuer.jobs) !== canonical(ISSUER_JOBS)) throw Error('Unreviewed infra journal issuer binding');
   return structuredClone(raw) as IssuerBinding;
 }
 export function selectIssuer(raw: unknown, environment: Frame['environment']): IssuerBinding {
@@ -99,7 +113,7 @@ function verifySource(reader: GitHubRead, binding: IssuerBinding, original: Proj
       || createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') !== value.sha
       || digest(bytes) !== binding.issuer.workflow_sha256) throw Error('Original sole-publisher workflow bytes differ');
 }
-function originalJob(reader: GitHubRead, binding: IssuerBinding, original: ProjectionLocator): { run: Run; job: NativeJob } {
+function originalJob(reader: GitHubRead, binding: IssuerBinding, original: ProjectionLocator, sessionJob?: ControlIssuerJob): { run: Run; job: NativeJob } {
   const p = `repos/${INFRA}`, issuer = binding.issuer;
   const repository = reader.json<{ full_name: string; id: number; fork: boolean; private: boolean; default_branch: string }>(p);
   const branch = reader.json<{ name: string; protected: boolean }>(`${p}/branches/main`);
@@ -114,7 +128,9 @@ function originalJob(reader: GitHubRead, binding: IssuerBinding, original: Proje
   }
   if (latest.status !== run.status || latest.conclusion !== run.conclusion) throw Error('Journal issuer latest/attempt lifecycle disagrees');
   const jobs = list<NativeJob>(reader, `${p}/actions/runs/${original.run_id}/attempts/${original.run_attempt}/jobs`, 'jobs');
-  const matches = jobs.filter(j => j.name === issuer.job_name), scope = jobs.filter(j => j.name === 'scope');
+  const selected = jobs.filter(j => j.id === original.job_id), scope = jobs.filter(j => j.name === 'scope');
+  if (selected.length !== 1 || (sessionJob ? selected[0].name !== sessionJob : !Object.values(issuer.jobs).includes(selected[0].name))) throw Error('Unknown original operation issuer');
+  const matches = jobs.filter(j => j.name === selected[0].name);
   const bound = (j: NativeJob) => j.run_id === original.run_id && j.run_attempt === original.run_attempt && j.head_sha === original.source_commit && j.status === 'completed' && j.conclusion === 'success';
   if (matches.length !== 1 || matches[0].id !== original.job_id || !bound(matches[0]) || scope.length !== 1 || !bound(scope[0])) throw Error('Original journal issuer/scope job unsuccessful or ambiguous');
   return { run, job: matches[0] };
@@ -122,6 +138,36 @@ function originalJob(reader: GitHubRead, binding: IssuerBinding, original: Proje
 function lifecycle({ run, job }: { run: Run; job: NativeJob }): unknown {
   return { run: { id: run.id, run_attempt: run.run_attempt, head_sha: run.head_sha, status: run.status, conclusion: run.conclusion },
     job: { id: job.id, run_id: job.run_id, run_attempt: job.run_attempt, head_sha: job.head_sha, name: job.name, status: job.status, conclusion: job.conclusion } };
+}
+export type SessionIssuerJob = 'attestrack-native-session' | `attestrack-native-witness-${Phase}`;
+export type ControlIssuerJob = SessionIssuerJob | 'scope';
+/** Uses the same independently verified native provenance and whole-workflow
+ * sole-publisher source contract as operation projections. Artifact metadata
+ * proves run origin only; the fixed job/name contract supplies job attribution. */
+export function readSessionIssuerArtifact(binding: IssuerBinding, environment: Frame['environment'], rawOriginal: ProjectionLocator,
+  job: ControlIssuerJob, reader: GitHubRead, member: 'session.json' | 'intake.json' = 'session.json'): { document: unknown; name: string; assertCurrent: () => void; assertControllerActive: () => void } {
+  validateIssuerBinding(binding, environment); const original = locator(rawOriginal);
+  if (original.source_commit !== binding.issuer.source_commit || !['scope', 'attestrack-native-session',
+    'attestrack-native-witness-candidate', 'attestrack-native-witness-recovery', 'attestrack-native-witness-resume'].includes(job)) throw Error('Unreviewed session issuer source/job');
+  if ((job === 'scope') !== (member === 'intake.json')) throw Error('Control artifact member differs from fixed producer');
+  const before = originalJob(reader, binding, original, job), prefix = `repos/${INFRA}`;
+  verifySource(reader, binding, original);
+  const artifacts = list<NativeArtifact>(reader, `${prefix}/actions/runs/${original.run_id}/artifacts`, 'artifacts');
+  const found = artifacts.filter(a => a.id === original.artifact_id);
+  if (found.length !== 1) throw Error('Original session archive missing or ambiguous');
+  const a = found[0], w = a.workflow_run;
+  if (a.expired !== false || !Number.isSafeInteger(a.size_in_bytes) || a.size_in_bytes < 1 || a.size_in_bytes > 1024 * 1024
+      || artifacts.filter(other => other.name === a.name).length !== 1 || !w || w.id !== original.run_id
+      || w.repository_id !== INFRA_ID || w.head_repository_id !== INFRA_ID || w.head_sha !== original.source_commit || w.head_branch !== 'main') throw Error('Original session artifact origin differs');
+  const bytes = reader.bytes(`${prefix}/actions/artifacts/${a.id}/zip`);
+  if (bytes.length !== a.size_in_bytes || a.digest !== `sha256:${digest(bytes)}`) throw Error('Original session archive bytes differ');
+  const document = readSingleZip(bytes, member);
+  const assertCurrent = () => { if (canonical(lifecycle(originalJob(reader, binding, original, job))) !== canonical(lifecycle(before))) throw Error('Original session issuer changed during verification'); };
+  const assertControllerActive = () => {
+    const current = originalJob(reader, binding, original, job);
+    if (current.run.status !== 'in_progress' || current.run.conclusion !== null || canonical(lifecycle(current)) !== canonical(lifecycle(before))) throw Error('Original controller no longer holds its queue');
+  };
+  assertCurrent(); return { document, name: a.name, assertCurrent, assertControllerActive };
 }
 export class NativeJournalProjectionReader implements AuthenticatedJournalReader {
   private readonly binding: IssuerBinding;
@@ -134,7 +180,7 @@ export class NativeJournalProjectionReader implements AuthenticatedJournalReader
     this.environment = environment;
     this.reader = reader ?? new ProjectionGitHubRead(this.binding, environment, this.original);
   }
-  async readCurrent(context: { repository: typeof REPOSITORY; environment: Frame['environment']; operation_id: string }): Promise<Frame> {
+  async readCurrent(context: ExecutionContext & { repository: typeof REPOSITORY }): Promise<Frame> {
     if (context.environment !== this.environment || context.repository !== REPOSITORY) throw Error('Projection read context differs');
     const reader = this.reader, original = this.original, p = `repos/${INFRA}`;
     const before = originalJob(reader, this.binding, original);
@@ -151,6 +197,8 @@ export class NativeJournalProjectionReader implements AuthenticatedJournalReader
     const bytes = reader.bytes(`${p}/actions/artifacts/${original.artifact_id}/zip`);
     if (bytes.length !== artifact.size_in_bytes || artifact.digest !== `sha256:${digest(bytes)}`) throw Error('Projection native archive digest differs');
     const projection = validateProjection(readSingleZip(bytes, 'projection.json'), context, this.binding.store);
+    const operation = projection.frame.journal.operations.at(-1)!.name;
+    if (before.job.name !== this.binding.issuer.jobs[`${projection.frame.phase}-${operation}`]) throw Error('Projection operation differs from successful issuer job');
     const expected = projectionArtifactName(projection.frame);
     if (artifact.name !== expected || artifacts.filter(a => a.name === expected).length !== 1) throw Error('Original sole-publisher projection name differs');
     verifyCurrentPublicJournal(reader, projection);
@@ -169,10 +217,10 @@ export function configuredProjectionReader(environment: Frame['environment'], or
 /** Concrete consumption path for the future waiting provider job. Only public
  * reads happen before the original-job fence issues its opaque capability.
  */
-export async function projectedExecution(context: { environment: Frame['environment']; operation_id: string }, own: Executor, original: ProjectionLocator, runtime?: OriginalJobRuntime) {
+export async function projectedExecution(context: ExecutionContext, own: Executor, original: ProjectionLocator, runtime?: OriginalJobRuntime) {
   return consumeProjection(configuredProjectionReader(context.environment, original), context, own, runtime);
 }
-export async function consumeProjection(reader: NativeJournalProjectionReader, context: { environment: Frame['environment']; operation_id: string }, own: Executor, runtime?: OriginalJobRuntime) {
+export async function consumeProjection(reader: NativeJournalProjectionReader, context: ExecutionContext, own: Executor, runtime?: OriginalJobRuntime) {
   if (!(reader instanceof NativeJournalProjectionReader)) throw Error('Native journal projection verifier required');
   const cap = await execution(reader, context, own, runtime);
   // Do not expose a capability if the Git head or issuer changes while native

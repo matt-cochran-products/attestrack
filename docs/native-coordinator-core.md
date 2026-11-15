@@ -16,8 +16,8 @@ The core takes an authenticated current-store reader/CAS adapter and the existin
 read-only GitHub adapter. It persists original intent before discovering the
 executor, requires the original successful `scope` job, selects the actual unique
 operation job from the original run/attempt listing, and CAS-persists that job's
-native ID. Job names are fixed as `native-worker-upload`, `native-worker-switch`,
-`native-pages-assets`, and `native-pages-deploy`. These are the proposed future
+native ID. Job names are fixed as `native-<phase>-<operation>` across
+candidate/recovery/resume and the four ordered Worker/Pages operations. These are the proposed future
 workflow contract; no such hosted jobs are introduced here. An absent current job
 waits without granting authority. A rerun/replacement executor refuses.
 Before a state transition, both native observations must agree on run and selected
@@ -30,7 +30,7 @@ run, attempt-bound name, repository IDs, source, byte size and archive SHA-256,
 then parsed with the existing closed ZIP reader and existing operation ACK
 validator. The outer run may still be in progress: the verifier checks the real
 job's success and never fabricates a successful whole-run object. ACK names also
-include operation UUID, operation name, job ID and attempt. GitHub artifact
+include immutable release UUID, phase, operation UUID, operation name, job ID and attempt. GitHub artifact
 metadata binds a run, not a producing job; a future trusted fixed workflow must
 reserve this name to that one provider job and forbid other jobs publishing it.
 
@@ -83,7 +83,7 @@ Normal required remote CI and independent review remain mandatory.
    fsynced. An existing directory also refuses, including a crash before marker
    creation. There is no deletion, reset or replay path. The process-local
    Set/WeakMap remains supplemental. Fixed job names match the coordinator's
-   `native-<operation>` contract; no current hosted job is added. The current-head
+   `native-<phase>-<operation>` contract; no current hosted job is added. The current-head
    public projection consumer from step 2 remains unconfigured. Do not pass
    age/signing/store-writer material into a provider to work around that gap.
 4. Wire actual durable controller jobs, original artifact readers in the provider
@@ -142,3 +142,15 @@ permission from a missing marker.
 
 - [GitHub variables reference](https://docs.github.com/en/actions/reference/workflows-and-actions/variables)
 - [GitHub rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+
+## Phase-aware coordinator wire contract
+
+CoordinatorRecord v2 repeats the immutable release UUID and phase from both
+prepared/current Frame v2 values. ACK v2 must match them exactly. Reconcile
+reconstructs the full frame; the explicit next-operation transition requires the
+same release, phase, original app run and exact prior acknowledged journal.
+A phase transition is a release-session decision, not `advanceOperation`.
+The candidate-plan convenience constructor refuses recovery; authenticated
+session authority must select R and construct its exact artifact-specific record.
+No deployed v1 records exist, so old schemas fail closed instead of migrating
+unqualified state. Four new app regression cases are authored for native CI.

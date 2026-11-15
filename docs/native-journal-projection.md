@@ -2,7 +2,7 @@
 
 `NativeJournalProjectionReader` implements the existing authenticated current-frame
 reader. It consumes the infra journal adapter's closed
-`attestrack.native-operation-projection/v1` body. The application never receives a
+`attestrack.native-operation-projection/v2` body. The application never receives a
 journal age identity, signing key or Git writer. It performs provenance reads and
 hashes already-public encrypted bytes; it neither decrypts nor writes the store.
 
@@ -26,12 +26,17 @@ producer run, genesis or release acceptance is asserted by this source packet.
 These values match protected infra authority and `journal_crypto.py` at
 `86597fd930ac3349d24cbd968d3eedc548dca7bf`. A configured row contains `store`
 (repository, repository_id, branch, non-null reviewed genesis_head) and `issuer`.
-The issuer uses the same closed `attestrack.native-journal-issuer/v1` contract as
+The issuer uses the same closed `attestrack.native-journal-issuer/v2` contract as
 the infra producer: repository `matt-cochran-products/infra`, ID `1326961741`,
 workflow `.github/workflows/platform-product-release.yml`, exact source_commit,
-native workflow_blob, workflow_sha256 and fixed job_name
-`attestrack-native-journal`. That job is a future reviewed extension, not a job
-in the current Fly-only workflow. No live issuer pins are filled here.
+native workflow_blob, workflow_sha256 and a closed `jobs` map. The exact keys
+`<phase>-<operation>` cover candidate/recovery/resume and the four operations
+worker-upload/worker-switch/pages-assets/pages-deploy. Each maps to
+`attestrack-native-journal-<phase>-<operation>`. These are explicit sequential job IDs
+and display names, not matrix cells whose completion ordering is assumed. The
+reader selects the exact successful original job ID, then requires its name to
+match the actual projection operation. These jobs are future reviewed extensions
+to the current Fly-only workflow. No live issuer pins are filled here.
 
 The original locator separately binds native infra run, attempt, job and artifact
 IDs plus source commit. It cannot choose another source, repository or workflow.
@@ -45,7 +50,7 @@ frame <the full execution-claimed Frame>, frame_sha256
 ```
 
 Its fixed artifact name is
-`attestrack-native-claim-<operation UUID>-<operation name>-<provider job ID>-<provider attempt>`.
+`attestrack-native-claim-<release UUID>-<phase>-<operation UUID>-<operation name>-<provider job ID>-<provider attempt>`.
 The full frame hash uses the existing canonical JSON serialization, matching the
 producer's closed ASCII/safe-integer Python contract.
 
@@ -62,7 +67,7 @@ producer's closed ASCII/safe-integer Python contract.
   expected run/repository/source/branch, name, archive size and native SHA-256.
   Expired, duplicate, foreign or malformed artifacts refuse.
 - The body is closed and reconstructs exactly the existing claimed Frame. Its
-  environment, operation, original provider executor and full-frame hash agree.
+  environment, immutable release UUID, phase, operation, original provider executor and full-frame hash agree.
 - Fresh public repository/ref reads identify the configured current store head.
   Its complete root tree contains exactly regular `ledger.age` and
   `ledger.age.sig`; the reader reconstructs native Git tree SHA-1, verifies each
@@ -103,7 +108,7 @@ defaults, endpoint restrictions, and the actual projection→process-fence capab
 path using fictional metadata and isolated files. They are authored, not locally
 executed. Syntax-only parsing and diff checks do not qualify hosted deployment.
 
-The full lane remains open: existing central native admission/request routing,
+The full lane remains open. Source admission/request routing now exists;
 journal job/adapter wiring, exact public projection publication, scoped read
 authority, app waiting-provider jobs, terminal ACK flow, no-effect abort,
 witness/recovery/acceptance and main's accepted exact-byte selection still need
@@ -152,3 +157,36 @@ production use separate stores and queue keys; neither blocks the other.
 This addendum is an assembly requirement, not a workflow activation or test
 result. Frozen consumer patch `cc5d46db...` and fence patch `e4893b6e...` are
 unchanged. All native issuer profiles remain null.
+
+## One operation chain is not complete release qualification
+
+Each four-job phase group supports one artifact-specific native deployment chain.
+Worker-only targets use its two-operation prefix; they do not fabricate Pages
+work. A full P/C/R/resume qualification still requires an actual read-only
+predecessor observation, separate artifact-bound C/R/resume chains with distinct
+phase-specific jobs, independent witness roles, and a durable release-session
+exclusion spanning them. Those identities and terminal acceptance are separate
+assembly work; these four issuer names do not claim to qualify the full release.
+
+`NativeOperationCoordinator.advanceOperation()` explicitly advances a stored
+original acknowledgement to the next prepared intent through whole-head CAS. It
+checks the complete prior operation prefix and all other journal/run bindings.
+Claimed or unknown predecessors cannot advance. An exact already-persisted next
+intent can be reopened after a lost CAS acknowledgement without replacing its
+executor or replaying a provider operation.
+
+## Unreleased phase protocol
+
+Frame, CoordinatorRecord, ACK and operation projection use v2, with no v1 fallback.
+The immutable release UUID and candidate/recovery/resume phase bind every frame,
+ACK, native provider job, issuer job, artifact namespace and process marker.
+Provider jobs are `native-<phase>-<operation>` within the same original app run.
+A successful candidate issuer or ACK cannot stand in for recovery or resume.
+The fixed issuer map has twelve exact entries; no matrix ordering is assumed.
+
+The durable release session selects genuinely admitted historical R independently.
+`coordinatorIntent` remains a candidate/resume helper over admitted candidate bytes;
+it refuses recovery. The trusted session controller constructs the separately
+qualified R record, which the coordinator validates without changing artifact
+admission. Explicit `advanceOperation` stays within one release and phase.
+These source bindings do not supply a live session, target, grant or fixture.

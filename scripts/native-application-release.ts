@@ -383,7 +383,7 @@ export class NativeWriter {
         if(!successful)throw Error('Native Pages completion unknown');const final=await this.observe();if(final.pages?.deployment_id!==nativeId||final.pages.operation_id!==r.operation_id)throw Error('Pages serving readback mismatch');same(final.worker,after.worker,'Worker changed during Pages deployment');after=final;
       }
     }
-    tool.assertUnchanged();return{schema:'attestrack.native-operation-ack/v1',journal_sha256:digest(canonical(r)),operation_id:r.operation_id,name:last.name,native_id:nativeId,after:structuredClone(after)};
+    tool.assertUnchanged();return{schema:'attestrack.native-operation-ack/v2',release_id:frame.release_id,phase:frame.phase,journal_sha256:digest(canonical(r)),operation_id:r.operation_id,name:last.name,native_id:nativeId,after:structuredClone(after)};
   }
   /** No retry or automatic rollback after an unknown write. Caller must retain journal durably. */
   async deploy(bundle: Bundle, expectedPredecessor: Snapshot, tool: ReturnType<typeof loadTool>, journal: JournalSink): Promise<Journal> {

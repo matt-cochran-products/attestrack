@@ -65,12 +65,16 @@ test('scope context is fixed protected main, original positive run IDs, and no C
   }
   assert.throws(() => main({}, ['--run', 'anything']), /no selectors/);
 });
-test('scope workflow preserves publishers and grants only read authority with no environment/OPV install', () => {
+test('scope preserves publishers and calls the existing requester role only after original admission upload', () => {
   const workflow = readFileSync(new URL('../' + WORKFLOW, import.meta.url), 'utf8');
   assert.match(workflow, /workflow_run:/); assert.match(workflow, /workflows: \[Retained application artifacts, Native release tool bytes\]/);
   assert.match(workflow, /ref: \$\{\{ github.workflow_sha }}/);
   assert.doesNotMatch(workflow, /(?:environment:|secrets:|id-token:|deployments:|packages:|workflow_dispatch:|pnpm install)/);
   assert.match(workflow, /run: node scripts\/application-release-scope.ts/);
+  assert.match(workflow, /artifact-id: \$\{\{ steps.source-admission.outputs.artifact-id }}/);
+  assert.match(workflow, /request-controller:\n {4}needs: scope\n {4}uses: matt-cochran-products\/infra\/\.github\/workflows\/reusable-native-platform-request.yml@main/);
+  assert.match(workflow, /admission-artifact: \$\{\{ needs.scope.outputs.artifact-id }}/);
+  assert.doesNotMatch(workflow, /secrets: inherit/);
 });
 
 const STAGE = 'a'.repeat(40), TREE = 'b'.repeat(40), DEV = 'd'.repeat(40), MAIN = 'e'.repeat(40), BUILT = 'f'.repeat(40);
@@ -251,6 +255,7 @@ test('real CLI checks actual clean Git source and fixed scratch output with only
     const file = join(scratch, 'attestrack-release-scope/application-release-request.json'), raw = readFileSync(file);
     assert.deepEqual(JSON.parse(raw.toString()), expected);
     assert.ok(readFileSync(output, 'utf8').includes(`request-sha256=${digest(raw)}`));
+    assert.ok(readFileSync(output, 'utf8').includes(`source-sha=${expected.source_commit}\nsource-branch=${expected.branch}\n`));
     assert.equal(git('status', '--porcelain'), '');
     rmSync(marker); const previousOutput = readFileSync(output, 'utf8');
     const denied = invoke({ ...env, GITHUB_HEAD_REF: 'foreign-feature' }); assert.equal(denied.status, 1);

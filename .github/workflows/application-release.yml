@@ -1,4 +1,4 @@
-# Source admission only. No provider/OPV/environment/writer/fixture authority.
+# Native source admission and request transport; no provider/journal/fixture authority.
 name: Native application release admission
 on:
   workflow_run:
@@ -16,6 +16,9 @@ jobs:
   scope:
     timeout-minutes: 10
     outputs:
+      source-sha: ${{ steps.admission.outputs.source-sha }}
+      source-branch: ${{ steps.admission.outputs.source-branch }}
+      artifact-id: ${{ steps.source-admission.outputs.artifact-id }}
       request-sha256: ${{ steps.admission.outputs.request-sha256 }}
       artifact-name: ${{ steps.admission.outputs.source-admission-artifact }}
     runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -35,9 +38,17 @@ jobs:
         run: node scripts/application-release-scope.ts
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - id: source-admission
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ steps.admission.outputs.source-admission-artifact }}
           path: ${{ steps.admission.outputs.request-file }}
           if-no-files-found: error
           retention-days: 90
+  request-controller:
+    needs: scope
+    uses: matt-cochran-products/infra/.github/workflows/reusable-native-platform-request.yml@main
+    with:
+      source-sha: ${{ needs.scope.outputs.source-sha }}
+      source-branch: ${{ needs.scope.outputs.source-branch }}
+      admission-artifact: ${{ needs.scope.outputs.artifact-id }}

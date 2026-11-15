@@ -251,7 +251,7 @@ export function main(env: NodeJS.ProcessEnv = process.env, args: string[] = proc
   const directory = resolve(temporary, 'attestrack-release-scope'); mkdirSync(directory, { mode: 0o700 });
   const file = resolve(directory, 'application-release-request.json'); writeFileSync(file, canonical(request), { flag: 'wx', mode: 0o600 });
   const output = under(temporary, env.GITHUB_OUTPUT ?? ''); regular(output, 1024 * 1024);
-  appendFileSync(output, `request-file=${file}\nrequest-sha256=${digest(canonical(request))}\nsource-admission-artifact=application-source-admission-${context.run_id}-${context.run_attempt}\n`);
+  appendFileSync(output, `request-file=${file}\nrequest-sha256=${digest(canonical(request))}\nsource-sha=${request.source_commit}\nsource-branch=${request.branch}\nsource-admission-artifact=application-source-admission-${context.run_id}-${context.run_attempt}\n`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try { main(); } catch (error: unknown) { console.error(JSON.stringify(refusalDiagnostic(error))); process.exitCode = 1; }

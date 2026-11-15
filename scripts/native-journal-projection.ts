@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { canonical } from './native-release-canonical.ts';
 import { digest, REPOSITORY } from './application-artifacts.ts';
-import { claimOperation, prepareOperation, type Frame } from './native-application-operation.ts';
+import { claimOperation, prepareOperation, type Frame, type ExecutionContext } from './native-application-operation.ts';
 import type { GitHubRead } from './native-application-release.ts';
 
 export const INFRA = 'matt-cochran-products/infra';
@@ -18,7 +18,7 @@ export interface JournalStoreBinding {
 }
 export interface ProjectionStore extends JournalStoreBinding { head: string; ciphertext_sha256: string; signature_sha256: string }
 export interface JournalProjection {
-  schema: 'attestrack.native-operation-projection/v1'; repository: typeof REPOSITORY;
+  schema: 'attestrack.native-operation-projection/v2'; repository: typeof REPOSITORY;
   environment: Frame['environment']; store: ProjectionStore; frame: Frame; frame_sha256: string;
 }
 const SHA = /^[a-f0-9]{40}$/, HASH = /^[a-f0-9]{64}$/;
@@ -34,23 +34,23 @@ export function validateStoreBinding(raw: unknown, environment: Frame['environme
   if (!expected || s.repository !== expected.repository || s.repository_id !== expected.repository_id || s.branch !== 'release-ledger') throw Error('Unreviewed public journal store identity');
   sha(s.genesis_head); return structuredClone(raw) as JournalStoreBinding;
 }
-export function validateProjection(raw: unknown, context: { repository: typeof REPOSITORY; environment: Frame['environment']; operation_id: string }, binding: JournalStoreBinding): JournalProjection {
+export function validateProjection(raw: unknown, context: ExecutionContext & { repository: typeof REPOSITORY }, binding: JournalStoreBinding): JournalProjection {
   const p = closed(raw, ['schema', 'repository', 'environment', 'store', 'frame', 'frame_sha256']);
-  if (p.schema !== 'attestrack.native-operation-projection/v1' || p.repository !== REPOSITORY || context.repository !== REPOSITORY || p.environment !== context.environment) throw Error('Journal projection purpose/environment differs');
+  if (p.schema !== 'attestrack.native-operation-projection/v2' || p.repository !== REPOSITORY || context.repository !== REPOSITORY || p.environment !== context.environment) throw Error('Journal projection purpose/environment differs');
   const s = closed(p.store, ['repository', 'repository_id', 'branch', 'genesis_head', 'head', 'ciphertext_sha256', 'signature_sha256']);
   const actual = validateStoreBinding({ repository: s.repository, repository_id: s.repository_id, branch: s.branch, genesis_head: s.genesis_head }, context.environment);
   if (canonical(actual) !== canonical(validateStoreBinding(binding, context.environment))) throw Error('Journal projection configured genesis/store differs');
   sha(s.head); hash(s.ciphertext_sha256); hash(s.signature_sha256);
   if (s.head === s.genesis_head) throw Error('Empty genesis cannot authorize an execution claim');
   const f = p.frame as Frame;
-  if (!f || f.environment !== context.environment || f.journal.operation_id !== context.operation_id || !f.executor
-      || canonical(f) !== canonical(claimOperation(prepareOperation(f.journal, context.environment), f.executor))) throw Error('Projection is not an exact original execution claim');
+  if (!f || f.release_id !== context.release_id || f.phase !== context.phase || f.environment !== context.environment || f.journal.operation_id !== context.operation_id || !f.executor
+      || canonical(f) !== canonical(claimOperation(prepareOperation(f.journal, context.environment, context), f.executor))) throw Error('Projection is not an exact original execution claim');
   if (hash(p.frame_sha256) !== digest(canonical(f))) throw Error('Projection full frame digest differs');
   return structuredClone(raw) as JournalProjection;
 }
 export function projectionArtifactName(frame: Frame): string {
   if (!frame.executor) throw Error('Claimed provider executor required');
-  return `attestrack-native-claim-${frame.journal.operation_id}-${frame.journal.operations.at(-1)!.name}-${frame.executor.job_id}-${frame.executor.run_attempt}`;
+  return `attestrack-native-claim-${frame.release_id}-${frame.phase}-${frame.journal.operation_id}-${frame.journal.operations.at(-1)!.name}-${frame.executor.job_id}-${frame.executor.run_attempt}`;
 }
 function publicHead(reader: GitHubRead, store: JournalStoreBinding): string {
   const prefix = `repos/${store.repository}`;
@@ -60,7 +60,7 @@ function publicHead(reader: GitHubRead, store: JournalStoreBinding): string {
   if (ref.ref !== `refs/heads/${store.branch}` || ref.object?.type !== 'commit') throw Error('Public journal branch differs');
   return sha(ref.object.sha);
 }
-export function verifyCurrentPublicHead(reader: GitHubRead, projection: JournalProjection): void {
+export function verifyCurrentPublicHead(reader: GitHubRead, projection: Pick<JournalProjection, 'store'>): void {
   if (publicHead(reader, projection.store) !== projection.store.head) throw Error('Journal projection is not the current branch head');
 }
 function blob(reader: GitHubRead, repository: string, identity: string, size: number, limit: number): Buffer {
@@ -76,7 +76,7 @@ function blob(reader: GitHubRead, repository: string, identity: string, size: nu
  * journal role independently verifies signature/decryption/ancestry before
  * publishing its authenticated projection; provider receives no private key.
  */
-export function verifyCurrentPublicJournal(reader: GitHubRead, projection: JournalProjection): void {
+export function verifyCurrentPublicJournal(reader: GitHubRead, projection: Pick<JournalProjection, 'store' | 'environment'>): void {
   const s = projection.store, prefix = `repos/${s.repository}`;
   validateStoreBinding({ repository: s.repository, repository_id: s.repository_id, branch: s.branch, genesis_head: s.genesis_head }, projection.environment);
   if (publicHead(reader, s) !== s.head) throw Error('Journal projection is not the current branch head');

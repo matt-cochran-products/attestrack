@@ -8,6 +8,7 @@ import { digest, REPOSITORY } from './application-artifacts.ts';
 import { canonical } from './native-release-canonical.ts';
 import type { GitHubRead } from './native-application-release.ts';
 import type { Executor, Frame } from './native-application-operation.ts';
+import type { WitnessClaim } from './native-release-session.ts';
 
 const WORKFLOW = '.github/workflows/application-release.yml';
 const PREFIX = `repos/${REPOSITORY}`;
@@ -23,10 +24,8 @@ function decimal(value: string | undefined): number {
   if (!value || !/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(Number(value))) throw Error('Invalid original job environment identity');
   return Number(value);
 }
-function environment(frame: Frame, env: Readonly<NodeJS.ProcessEnv>): { owner: Executor; temporary: string; name: string } {
-  const owner = frame.executor, name = `native-${frame.journal.operations.at(-1)!.name}`;
-  if (frame.state !== 'execution-claimed' || !owner || frame.repository !== REPOSITORY
-      || env.GITHUB_ACTIONS !== 'true' || env.GITHUB_REPOSITORY !== REPOSITORY
+function environment(owner: Executor, name: string, env: Readonly<NodeJS.ProcessEnv>): { owner: Executor; temporary: string; name: string } {
+  if (!owner || env.GITHUB_ACTIONS !== 'true' || env.GITHUB_REPOSITORY !== REPOSITORY
       || env.GITHUB_SERVER_URL !== 'https://github.com' || env.GITHUB_API_URL !== 'https://api.github.com'
       || env.GITHUB_EVENT_NAME !== 'workflow_run' || env.GITHUB_REF !== 'refs/heads/main'
       || env.GITHUB_REF_PROTECTED !== 'true' || env.GITHUB_HEAD_REF || env.GITHUB_JOB !== name
@@ -68,8 +67,8 @@ function native(reader: GitHubRead, owner: Executor, name: string): unknown {
  * Execution capability can be issued or provider material can be read. Any
  * existing directory (including a torn empty one), file or symlink refuses.
  */
-export function reserveOriginalJob(frame: Frame, runtime: OriginalJobRuntime): void {
-  const { owner, temporary, name } = environment(frame, runtime.env);
+function reserve(owner: Executor, name: string, marker: unknown, runtime: OriginalJobRuntime): void {
+  const { temporary } = environment(owner, name, runtime.env);
   const before = native(runtime.github, owner, name);
   const uid = process.getuid!();
   if (!constants.O_NOFOLLOW || !constants.O_DIRECTORY || !constants.O_EXCL) throw Error('Required Linux exclusive no-follow fence primitives unavailable');
@@ -96,8 +95,7 @@ export function reserveOriginalJob(frame: Frame, runtime: OriginalJobRuntime): v
     file = openSync(`/proc/self/fd/${directory}/${JOB_FENCE_FILE}`, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
     const fileStat = fstatSync(file);
     if (!fileStat.isFile() || fileStat.nlink !== 1 || fileStat.uid !== uid || (fileStat.mode & 0o777) !== 0o600) throw Error('Original job fence file differs');
-    const bytes = canonical({ schema: 'attestrack.native-job-consumption/v1', repository: REPOSITORY,
-      environment: frame.environment, operation_id: frame.journal.operation_id, executor: owner, frame_sha256: digest(canonical(frame)) }) + '\n';
+    const bytes = canonical(marker) + '\n';
     writeFileSync(file, bytes, 'utf8');
     fsyncSync(file); fsyncSync(directory); fsyncSync(root);
     if (!same(native(runtime.github, owner, name), before)) throw Error('Original executor changed while consuming job fence');
@@ -106,4 +104,27 @@ export function reserveOriginalJob(frame: Frame, runtime: OriginalJobRuntime): v
     try { if (file !== undefined) closeSync(file); }
     finally { try { if (directory !== undefined) closeSync(directory); } finally { closeSync(root); } }
   }
+}
+
+/** Provider and fixture jobs share the same create-only filesystem primitive,
+ * but their exact native names and marker purposes are disjoint. */
+export function reserveOriginalJob(frame: Frame, runtime: OriginalJobRuntime): void {
+  if (frame.state !== 'execution-claimed' || !frame.executor || frame.repository !== REPOSITORY) throw Error('Original execution claim required');
+  reserve(frame.executor, `native-${frame.phase}-${frame.journal.operations.at(-1)!.name}`, {
+    schema: 'attestrack.native-job-consumption/v2', repository: REPOSITORY, release_id: frame.release_id,
+    phase: frame.phase, environment: frame.environment, operation_id: frame.journal.operation_id,
+    executor: frame.executor, frame_sha256: digest(canonical(frame)),
+  }, runtime);
+}
+/** Called only after the current original session projection is authenticated.
+ * The consumer rechecks that projection after this irreversible local marker. */
+export function reserveOriginalWitness(claim: WitnessClaim, environment: Frame['environment'], descriptorHash: string, runtime: OriginalJobRuntime): void {
+  if (claim.schema !== 'attestrack.native-witness-claim/v1' || claim.state !== 'execution-claimed'
+      || !['predecessor', 'candidate', 'recovery', 'resume'].includes(claim.phase)
+      || !['staging', 'production'].includes(environment) || !/^[a-f0-9]{64}$/.test(descriptorHash)) throw Error('Original witness claim required');
+  reserve(claim.executor, `native-${claim.phase}-witness`, {
+    schema: 'attestrack.native-witness-job-consumption/v1', repository: REPOSITORY,
+    release_id: claim.release_id, phase: claim.phase, environment, executor: claim.executor,
+    descriptor_sha256: descriptorHash, claim_sha256: digest(canonical(claim)),
+  }, runtime);
 }

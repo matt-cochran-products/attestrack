@@ -11,16 +11,26 @@ import { claimOperation, consumeExecution, prepareOperation, type Frame } from '
 import { JOB_FENCE_DIRECTORY, JOB_FENCE_FILE } from './native-application-job-fence.ts';
 import type { GitHubRead, Journal } from './native-application-release.ts';
 import { INFRA, INFRA_ID, JOURNAL_STORES, projectionArtifactName, validateProjection, type JournalProjection } from './native-journal-projection.ts';
-import { ISSUER_WORKFLOW, NativeJournalProjectionReader, ProjectionGitHubRead, configuredProjectionReader, consumeProjection,
+import { ISSUER_WORKFLOW, ISSUER_JOBS, NativeJournalProjectionReader, ProjectionGitHubRead, configuredProjectionReader, consumeProjection,
   selectIssuer, validateIssuerBinding, type IssuerBinding, type ProjectionLocator } from './native-journal-projection-reader.ts';
+
+import { NativeSessionProjectionReader } from './native-session-projection-reader.ts';
+import { witnessExecution, executeWitness } from './native-witness-execution.ts';
+import { validateSessionDescriptor, validatePhasePreparation, type SessionDescriptor, type SessionProjection, type WitnessPhase } from './native-release-session.ts';
+import { targetIdentity as httpTargetIdentity, type Witness } from './application-witness.ts';
+
+import { NativeIntakeReader, type NativeIntake } from './native-intake-reader.ts';
+
+import { discoverNativeIntake, IntakeDiscoveryRead } from './native-intake-discovery.ts';
 
 const uuid = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const blobId = (bytes: Buffer) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 function zip(value: unknown, member = 'projection.json'): Buffer {
   return execFileSync('python3', ['-c', 'import sys,io,zipfile\nb=io.BytesIO()\nwith zipfile.ZipFile(b,"w") as z:z.writestr(sys.argv[1],sys.stdin.buffer.read())\nsys.stdout.buffer.write(b.getvalue())', member], { input: JSON.stringify(value) });
 }
+const releasePhase = { release_id: uuid(8), phase: 'candidate' as const };
 let providerRun = 800;
-function fixture(environment: Frame['environment'] = 'staging') {
+function fixture(environment: Frame['environment'] = 'staging', selectedPhase: Frame['phase'] = 'candidate') {
   const hash = 'a'.repeat(64), source = 'b'.repeat(40), head = 'c'.repeat(40), genesis = 'e'.repeat(40);
   const owner = { repository_id: 41, workflow_commit: 'f'.repeat(40), run_id: ++providerRun, run_attempt: 1, job_id: 502 };
   const journal: Journal = { schema: 'attestrack.native-write-journal/v1', operation_id: uuid(1),
@@ -28,21 +38,21 @@ function fixture(environment: Frame['environment'] = 'staging') {
     target_sha256: hash, tool_profile_sha256: hash, predecessor: { worker: { deployment_id: uuid(2), version_id: uuid(3), latest_version_id: uuid(3),
       configuration_sha256: hash, version_configuration_sha256: hash, module_sha256: hash, operation_id: null, deployment_operation_id: null }, pages: null },
     operations: [{ name: 'worker-upload', state: 'unknown', native_id: null }], after: null };
-  const frame = claimOperation(prepareOperation(journal, environment), owner);
+  const frame = claimOperation(prepareOperation(journal, environment, { ...releasePhase, phase: selectedPhase }), owner);
   const store = { ...JOURNAL_STORES[environment], branch: 'release-ledger' as const, genesis_head: genesis };
   // Fictional reviewed source fixture, not a current deployed issuer job.
-  const workflow = Buffer.from('name: Fictional infra journal\non: deployment\njobs:\n  scope:\n    runs-on: ubuntu-latest\n  attestrack-native-journal:\n    needs: scope\n    steps:\n      - uses: actions/upload-artifact@' + '1'.repeat(40) + '\n        with:\n          name: ${{ steps.projection.outputs.artifact-name }}\n');
-  const binding: IssuerBinding = { store, issuer: { schema: 'attestrack.native-journal-issuer/v1', repository: INFRA, repository_id: INFRA_ID, workflow: ISSUER_WORKFLOW, source_commit: source,
-    workflow_blob: blobId(workflow), workflow_sha256: digest(workflow), job_name: 'attestrack-native-journal' } };
+  const workflow = Buffer.from('name: Fictional infra journal\non: deployment\njobs:\n  scope:\n    runs-on: ubuntu-latest\n  attestrack-native-journal-candidate-worker-upload:\n    needs: scope\n    steps:\n      - uses: actions/upload-artifact@' + '1'.repeat(40) + '\n        with:\n          name: ${{ steps.projection.outputs.artifact-name }}\n');
+  const binding: IssuerBinding = { store, issuer: { schema: 'attestrack.native-journal-issuer/v2', repository: INFRA, repository_id: INFRA_ID, workflow: ISSUER_WORKFLOW, source_commit: source,
+    workflow_blob: blobId(workflow), workflow_sha256: digest(workflow), jobs: { ...ISSUER_JOBS } } };
   const original: ProjectionLocator = { run_id: 900, run_attempt: 1, job_id: 901, artifact_id: 902, source_commit: source };
   const cipher = Buffer.from('FICTIONAL opaque encrypted journal bytes'), signature = Buffer.from('FICTIONAL opaque signature bytes');
-  const projection: JournalProjection = { schema: 'attestrack.native-operation-projection/v1', repository: REPOSITORY, environment,
+  const projection: JournalProjection = { schema: 'attestrack.native-operation-projection/v2', repository: REPOSITORY, environment,
     store: { ...store, head, ciphertext_sha256: digest(cipher), signature_sha256: digest(signature) }, frame, frame_sha256: digest(canonical(frame)) };
   let archive = zip(projection);
   const ip = `repos/${INFRA}`, sp = `repos/${store.repository}`;
   const run = { id: 900, run_attempt: 1, head_sha: source, head_branch: 'main', head_repository: { full_name: INFRA }, path: ISSUER_WORKFLOW,
     event: 'deployment', status: 'in_progress', conclusion: null as string | null };
-  const journalJob = { id: 901, name: 'attestrack-native-journal', run_id: 900, run_attempt: 1, head_sha: source, status: 'completed', conclusion: 'success' as string | null };
+  const journalJob = { id: 901, name: ISSUER_JOBS[`${selectedPhase}-worker-upload`] as string, run_id: 900, run_attempt: 1, head_sha: source, status: 'completed', conclusion: 'success' as string | null };
   const scope = { ...journalJob, id: 903, name: 'scope' };
   const artifact = { id: 902, name: projectionArtifactName(frame), expired: false, size_in_bytes: archive.length, digest: `sha256:${digest(archive)}`,
     workflow_run: { id: 900, repository_id: INFRA_ID, head_repository_id: INFRA_ID, head_branch: 'main', head_sha: source } };
@@ -73,7 +83,7 @@ function fixture(environment: Frame['environment'] = 'staging') {
   const reader: GitHubRead = { json<T>(path: string): T {
     reads.push(path); before?.(path); if (!(path in documents)) throw Error(`Unexpected projection read ${path}`); return structuredClone(documents[path]) as T;
   }, bytes(path) { reads.push(path); assert.equal(path, `${ip}/actions/artifacts/902/zip`); return archive; } };
-  const context = { repository: REPOSITORY, environment, operation_id: journal.operation_id } as const;
+  const context = { ...releasePhase, phase: selectedPhase, repository: REPOSITORY, environment, operation_id: journal.operation_id } as const;
   return { binding, original, projection, frame, owner, environment, source, workflow, workflowBlob, run, journalJob, scope, artifact,
     documents, reads, ref, gitTree, reader, context, ip, sp,
     verifier: () => new NativeJournalProjectionReader(binding, environment, original, reader),
@@ -108,6 +118,23 @@ test('configuration binds actual known repository IDs, exact ref, non-null genes
   assert.throws(() => validateIssuerBinding(f.binding, 'production'));
   assert.throws(() => validateIssuerBinding({ ...f.binding, issuer: { ...f.binding.issuer, job_name: 'scope' } }, 'staging'));
   assert.throws(() => new NativeJournalProjectionReader(f.binding, 'staging', { ...f.original, source_commit: '0'.repeat(40) }, f.reader), /source pin/);
+});
+test('operation issuer map is closed and cannot substitute a successful neighboring operation job', async () => {
+  const f = fixture();
+  for (const jobs of [{}, { ...ISSUER_JOBS, extra: 'scope' }, { ...ISSUER_JOBS, 'candidate-worker-upload': ISSUER_JOBS['candidate-worker-switch'] }]) {
+    assert.throws(() => validateIssuerBinding({ ...f.binding, issuer: { ...f.binding.issuer, jobs } }, 'staging'));
+  }
+  assert.throws(() => validateIssuerBinding({ ...f.binding, issuer: { ...f.binding.issuer, schema: 'attestrack.native-journal-issuer/v1' } }, 'staging'));
+  f.journalJob.name = ISSUER_JOBS['candidate-worker-switch'];
+  await assert.rejects(f.verifier().readCurrent(f.context), /operation differs/);
+});
+test('other sequential operation issuers may coexist without becoming this projection publisher', async () => {
+  const f = fixture();
+  const other = { ...f.journalJob, id: 904, name: ISSUER_JOBS['candidate-worker-switch'], status: 'queued', conclusion: null };
+  f.documents[`${f.ip}/actions/runs/900/attempts/1/jobs?per_page=100&page=1`] = { total_count: 3, jobs: [f.scope, f.journalJob, other] };
+  assert.deepEqual(await f.verifier().readCurrent(f.context), f.frame);
+  other.name = ISSUER_JOBS['candidate-worker-upload'];
+  await assert.rejects(f.verifier().readCurrent(f.context), /ambiguous/);
 });
 test('projection is closed and binds the exact claim, operation, environment, full frame and configured genesis', () => {
   const f = fixture();
@@ -179,7 +206,7 @@ test('read adapter rejects foreign stores, alternate refs, undiscovered objects 
   }
 });
 function providerRuntime(f: ReturnType<typeof fixture>, temporary: string) {
-  const owner = f.owner, p = `repos/${REPOSITORY}`, name = 'native-worker-upload';
+  const owner = f.owner, p = `repos/${REPOSITORY}`, name = `native-${f.frame.phase}-worker-upload`;
   const run = { id: owner.run_id, run_attempt: owner.run_attempt, head_sha: owner.workflow_commit, head_branch: 'main', head_repository: { full_name: REPOSITORY },
     path: '.github/workflows/application-release.yml', event: 'workflow_run', status: 'in_progress', conclusion: null };
   const job = { id: owner.job_id, name, run_id: owner.run_id, run_attempt: owner.run_attempt, head_sha: owner.workflow_commit, status: 'in_progress', conclusion: null };
@@ -252,4 +279,171 @@ test('native CI RUNNER_TEMP metadata satisfies the unchanged original-job filesy
     assert.ok(pinned.isDirectory() && pinned.uid === process.getuid!() && (pinned.mode & 0o022) === 0, 'Native RUNNER_TEMP must be owned by this uid and not group/other writable');
     assert.ok(pinned.dev === current.dev && pinned.ino === current.ino, 'Native RUNNER_TEMP identity must remain pinned');
   } finally { closeSync(fd); }
+});
+
+test('each release phase requires its own successful original issuer and immutable release context', async () => {
+  for (const phase of ['candidate', 'recovery', 'resume'] as const) {
+    const f = fixture('staging', phase);
+    assert.deepEqual(await f.verifier().readCurrent(f.context), f.frame);
+    assert.ok(f.artifact.name.startsWith(`attestrack-native-claim-${releasePhase.release_id}-${phase}-`));
+    for (const other of ['candidate', 'recovery', 'resume'] as const) if (other !== phase) {
+      await assert.rejects(f.verifier().readCurrent({ ...f.context, phase: other }), /original execution claim/);
+      const name = f.journalJob.name;
+      f.journalJob.name = ISSUER_JOBS[`${other}-worker-upload`];
+      await assert.rejects(f.verifier().readCurrent(f.context), /operation differs/);
+      f.journalJob.name = name;
+    }
+    await assert.rejects(f.verifier().readCurrent({ ...f.context, release_id: uuid(9) }), /original execution claim/);
+  }
+});
+test('unreleased v1 projection/frame and missing release identity cannot authorize execution', () => {
+  const f = fixture();
+  for (const change of [
+    (p: Record<string, unknown>) => { p.schema = 'attestrack.native-operation-projection/v1'; },
+    (p: Record<string, unknown>) => { (p.frame as Frame).schema = 'attestrack.native-operation-frame/v1' as never; },
+    (p: Record<string, unknown>) => { delete (p.frame as unknown as Record<string, unknown>).release_id; },
+    (p: Record<string, unknown>) => { (p.frame as Frame).phase = 'predecessor' as never; },
+  ]) {
+    const altered = structuredClone(f.projection) as unknown as Record<string, unknown>; change(altered);
+    altered.frame_sha256 = digest(canonical(altered.frame));
+    assert.throws(() => validateProjection(altered, f.context, f.binding.store));
+  }
+});
+
+const sessionUuid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
+function sessionFixture(phase: WitnessPhase = 'predecessor') {
+  const f = fixture(), candidate = f.frame.journal.artifact;
+  const target = { origin: 'https://attestrack.example', site_id: 'fixture', policy_hash: 'd'.repeat(64) };
+  const descriptor: SessionDescriptor = { schema: 'attestrack.native-release-session/v1', release_id: sessionUuid(1), environment: f.environment,
+    original_run: { repository_id: f.owner.repository_id, workflow_commit: f.owner.workflow_commit, run_id: f.owner.run_id, run_attempt: f.owner.run_attempt },
+    admission_sha256: '1'.repeat(64), predecessor: { ...candidate, artifact_id: 90, archive_sha256: '2'.repeat(64), source_tree: '2'.repeat(40) }, candidate,
+    recovery: { ...candidate, artifact_id: 92, archive_sha256: '3'.repeat(64), source_tree: '3'.repeat(40) }, target_sha256: f.frame.journal.target_sha256,
+    tool_profile_sha256: f.frame.journal.tool_profile_sha256, http_target_sha256: httpTargetIdentity(target), persistence_contract_sha256: '4'.repeat(64),
+    required_operations: ['worker-upload', 'worker-switch'], phase_operations: { candidate: sessionUuid(2), recovery: sessionUuid(3), resume: sessionUuid(4) },
+    witness: { cohort: sessionUuid(5), events: { predecessor: sessionUuid(6), candidate: sessionUuid(7), recovery: sessionUuid(8), resume: sessionUuid(9) } } };
+  const order = ['predecessor', 'candidate', 'recovery', 'resume'] as const;
+  const previous: Witness | undefined = phase === 'predecessor' ? undefined : { schema: 'attestrack.http-witness/v1', observation: 'write-and-read',
+    artifact: candidate, target_sha256: descriptor.http_target_sha256, cohort: descriptor.witness.cohort,
+    phases: order.slice(0, order.indexOf(phase)).map(p => ({ phase: p, event_id: descriptor.witness.events[p] })) };
+  const projection: SessionProjection = { schema: 'attestrack.native-release-session-projection/v1', repository: REPOSITORY,
+    environment: f.environment, deployment_id: 77, selection_sha256: '5'.repeat(64), descriptor, descriptor_sha256: digest(canonical(descriptor)),
+    witness_claim: { schema: 'attestrack.native-witness-claim/v1', release_id: descriptor.release_id, phase, cohort: descriptor.witness.cohort,
+      event_id: descriptor.witness.events[phase], executor: f.owner, prior_witness_sha256: previous ? digest(canonical(previous)) : null, state: 'execution-claimed' },
+    store: f.projection.store };
+  f.journalJob.name = phase === 'predecessor' ? 'attestrack-native-session' : `attestrack-native-witness-${phase}`;
+  f.artifact.name = phase === 'predecessor' ? 'attestrack-native-session-77-1' : `attestrack-native-witness-${descriptor.release_id}-${phase}-1`;
+  f.replaceArchive(projection, 'session.json');
+  const context = { environment: f.environment, deployment_id: 77, selection_sha256: projection.selection_sha256,
+    admission_sha256: descriptor.admission_sha256, original_run: descriptor.original_run };
+  const reader = () => new NativeSessionProjectionReader(f.binding, f.environment, f.original, phase, f.reader);
+  function runtime(temporary: string) {
+    const r = providerRuntime(f, temporary), jobs = f.documents[`repos/${REPOSITORY}/actions/runs/${f.owner.run_id}/attempts/1/jobs?per_page=100&page=1`] as { jobs: { id: number; name: string }[] };
+    const name = `native-${phase}-witness`; jobs.jobs.find(j => j.id === f.owner.job_id)!.name = name; r.env.GITHUB_JOB = name; return r;
+  }
+  return { ...f, descriptor, sessionProjection: projection, target, previous, sessionContext: context, sessionReader: reader, witnessRuntime: runtime };
+}
+test('immutable authenticated session descriptor tolerates later journal commits but witness effects require exact current claim', () => {
+  const f = sessionFixture();
+  assert.deepEqual(f.sessionReader().readDescriptor(f.sessionContext), f.descriptor);
+  f.ref.object.sha = '0'.repeat(40);
+  assert.deepEqual(f.sessionReader().readDescriptor(f.sessionContext), f.descriptor);
+  assert.throws(() => f.sessionReader().readCurrentWitness(f.sessionContext, f.descriptor, f.owner, f.previous), /current branch head/);
+});
+test('all four witness phases bind original executor, exact session, prior forward-write chain and fixed issuer namespace', () => {
+  for (const phase of ['predecessor', 'candidate', 'recovery', 'resume'] as const) {
+    const f = sessionFixture(phase), reader = f.sessionReader();
+    assert.deepEqual(reader.readCurrentWitness(f.sessionContext, f.descriptor, f.owner, f.previous), f.sessionProjection);
+    assert.throws(() => reader.readCurrentWitness(f.sessionContext, f.descriptor, { ...f.owner, job_id: 999 }, f.previous), /executor/);
+    assert.throws(() => reader.readCurrentWitness(f.sessionContext, { ...f.descriptor, release_id: sessionUuid(99) }, f.owner, f.previous), /immutable selected session/);
+    if (phase !== 'predecessor') assert.throws(() => reader.readCurrentWitness(f.sessionContext, f.descriptor, f.owner, undefined), /Prior witness/);
+    f.artifact.name += '-other'; assert.throws(() => reader.readDescriptor(f.sessionContext), /namespace/);
+  }
+});
+test('session refuses substitution for the selected recovery artifact and cross-phase preparation', () => {
+  const f = sessionFixture();
+  const journal = structuredClone(f.frame.journal); journal.operation_id = f.descriptor.phase_operations.candidate;
+  validatePhasePreparation(f.descriptor, 'candidate', journal);
+  assert.throws(() => validatePhasePreparation(f.descriptor, 'recovery', journal), /differs/);
+  journal.operation_id = f.descriptor.phase_operations.recovery;
+  assert.throws(() => validatePhasePreparation(f.descriptor, 'recovery', journal), /differs/);
+  const duplicate = structuredClone(f.descriptor); duplicate.witness.events.resume = duplicate.witness.events.candidate;
+  assert.throws(() => validateSessionDescriptor(duplicate), /distinct/);
+});
+test('actual witness process marker precedes fixture acquisition and survives fixture failure without replay', async () => {
+  const f = sessionFixture(), temporary = mkdtempSync(join(tmpdir(), 'attestrack-witness-fence-'));
+  try {
+    const runtime = f.witnessRuntime(temporary), cap = witnessExecution(f.sessionReader(), f.sessionContext, f.descriptor, f.owner, f.previous, runtime);
+    const marker = JSON.parse(readFileSync(join(temporary, JOB_FENCE_DIRECTORY, JOB_FENCE_FILE), 'utf8'));
+    assert.equal(marker.schema, 'attestrack.native-witness-job-consumption/v1');
+    assert.equal(marker.descriptor_sha256, f.sessionProjection.descriptor_sha256);
+    assert.equal(marker.claim_sha256, digest(canonical(f.sessionProjection.witness_claim)));
+    let acquired = 0;
+    const loader = async () => { acquired++; throw Error('Fictional fixture unavailable'); };
+    await assert.rejects(executeWitness(cap, f.target, loader), /Fictional fixture/); assert.equal(acquired, 1);
+    await assert.rejects(executeWitness(cap, f.target, loader), /capability/); assert.equal(acquired, 1);
+    assert.throws(() => witnessExecution(f.sessionReader(), f.sessionContext, f.descriptor, f.owner, f.previous, runtime), /EEXIST/);
+  } finally { rmSync(temporary, { recursive: true, force: true }); }
+});
+test('journal drift during witness fencing retains marker and exposes no fixture capability', () => {
+  const f = sessionFixture(), temporary = mkdtempSync(join(tmpdir(), 'attestrack-witness-head-race-'));
+  try {
+    const runtime = f.witnessRuntime(temporary); let reads = 0;
+    f.onRead(path => { if (path === `repos/${REPOSITORY}/actions/runs/${f.owner.run_id}` && ++reads === 2) f.ref.object.sha = '0'.repeat(40); });
+    assert.throws(() => witnessExecution(f.sessionReader(), f.sessionContext, f.descriptor, f.owner, f.previous, runtime), /head/);
+    assert.equal(existsSync(join(temporary, JOB_FENCE_DIRECTORY, JOB_FENCE_FILE)), true);
+  } finally { rmSync(temporary, { recursive: true, force: true }); }
+});
+
+test('queue intake proves the actual original controller and refuses completed or replacement queue owners', () => {
+  const f = sessionFixture(), original = { ...f.original, job_id: f.scope.id };
+  const intake: NativeIntake = { schema: 'attestrack.native-release-intake/v1', ...f.sessionContext,
+    controller: { repository_id: INFRA_ID, workflow_commit: f.source, run_id: original.run_id, run_attempt: original.run_attempt } };
+  f.artifact.name = 'attestrack-native-intake-77-1'; f.replaceArchive(intake, 'intake.json');
+  const reader = new NativeIntakeReader(f.binding, f.environment, original, f.reader);
+  const result = reader.read(f.sessionContext); assert.deepEqual(result.receipt, intake);
+  result.assertControllerActive();
+  assert.throws(() => reader.read({ ...f.sessionContext, deployment_id: 78 }), /request\/controller/);
+  f.run.status = 'completed'; f.run.conclusion = 'success';
+  assert.throws(result.assertControllerActive, /queue/); assert.throws(() => reader.read(f.sessionContext), /queue/);
+  f.run.status = 'in_progress'; f.run.conclusion = null;
+  const altered = structuredClone(intake); altered.controller.run_id++;
+  f.replaceArchive(altered, 'intake.json'); assert.throws(() => reader.read(f.sessionContext), /request\/controller/);
+});
+test('an uploaded intake cannot be consumed until the exact original scope job succeeds', () => {
+  const f = sessionFixture(), original = { ...f.original, job_id: f.scope.id };
+  const intake: NativeIntake = { schema: 'attestrack.native-release-intake/v1', ...f.sessionContext,
+    controller: { repository_id: INFRA_ID, workflow_commit: f.source, run_id: original.run_id, run_attempt: original.run_attempt } };
+  f.artifact.name = 'attestrack-native-intake-77-1'; f.replaceArchive(intake, 'intake.json');
+  f.scope.status = 'in_progress'; f.scope.conclusion = null;
+  assert.throws(() => new NativeIntakeReader(f.binding, f.environment, original, f.reader).read(f.sessionContext), /unsuccessful/);
+});
+
+test('native intake discovery selects the unique exact request namespace instead of the newest active run', () => {
+  const f = sessionFixture(), query = `${f.ip}/actions/runs?event=deployment&branch=main&head_sha=${f.source}&status=in_progress&per_page=100&page=1`;
+  const newer = { ...f.run, id: 1000 };
+  f.documents[query] = { total_count: 2, workflow_runs: [newer, f.run] };
+  f.documents[`${f.ip}/actions/runs/1000/artifacts?per_page=100&page=1`] = { total_count: 0, artifacts: [] };
+  assert.equal(discoverNativeIntake(f.binding, f.sessionContext, f.reader), null);
+  const intake: NativeIntake = { schema: 'attestrack.native-release-intake/v1', ...f.sessionContext,
+    controller: { repository_id: INFRA_ID, workflow_commit: f.source, run_id: 900, run_attempt: 1 } };
+  f.artifact.name = 'attestrack-native-intake-77-1'; f.replaceArchive(intake, 'intake.json');
+  const located = discoverNativeIntake(f.binding, f.sessionContext, f.reader)!;
+  assert.deepEqual(located, { ...f.original, job_id: f.scope.id });
+  assert.deepEqual(new NativeIntakeReader(f.binding, f.environment, located, f.reader).read(f.sessionContext).receipt, intake);
+  f.documents[`${f.ip}/actions/runs/1000/artifacts?per_page=100&page=1`] = { total_count: 1, artifacts: [{ ...f.artifact, id: 1001 }] };
+  f.documents[`${f.ip}/actions/runs/1000/attempts/1/jobs?per_page=100&page=1`] = { total_count: 1, jobs: [{ ...f.scope, id: 1002, run_id: 1000 }] };
+  assert.throws(() => discoverNativeIntake(f.binding, f.sessionContext, f.reader), /Multiple active controllers/);
+});
+test('discovery waits for exact successful scope and bounds inventory and transport before any evidence consumption', () => {
+  const f = sessionFixture(), query = `${f.ip}/actions/runs?event=deployment&branch=main&head_sha=${f.source}&status=in_progress&per_page=100&page=1`;
+  f.documents[query] = { total_count: 1, workflow_runs: [f.run] }; f.artifact.name = 'attestrack-native-intake-77-1';
+  f.scope.status = 'in_progress'; f.scope.conclusion = null;
+  assert.equal(discoverNativeIntake(f.binding, f.sessionContext, f.reader), null);
+  f.documents[query] = { total_count: 1001, workflow_runs: [f.run] };
+  assert.throws(() => discoverNativeIntake(f.binding, f.sessionContext, f.reader), /bound/);
+  const transport = new IntakeDiscoveryRead(f.binding, f.environment);
+  for (const path of ['repos/foreign/repository/actions/runs', `${f.ip}/actions/runs/900/artifacts?per_page=100&page=1`, query+'&method=POST', query.replace(/page=1$/, 'page=11')]) {
+    assert.throws(() => transport.json(path), /Unapproved/);
+  }
+  assert.throws(() => transport.bytes(), /cannot download/);
 });

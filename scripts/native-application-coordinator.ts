@@ -7,11 +7,11 @@ import { digest, readSingleZip, REPOSITORY } from './application-artifacts.ts';
 import { WORKFLOW, type PlannedRequest } from './application-release-scope.ts';
 import { canonical, type GitHubRead, type Journal } from './native-application-release.ts';
 import { claimOperation, prepareOperation, recordAcknowledgement, unknownOperation,
-  type Acknowledgement, type Executor, type Frame } from './native-application-operation.ts';
+  type Acknowledgement, type Executor, type Frame, type ReleasePhase } from './native-application-operation.ts';
 
 export type OriginalRun = Omit<Executor, 'job_id'>;
-export interface CoordinatorRecord {
-  schema: 'attestrack.native-operation-coordinator/v1';
+export interface CoordinatorRecord extends ReleasePhase {
+  schema: 'attestrack.native-operation-coordinator/v2';
   original_run: OriginalRun;
   prepared: Frame;
   current: Frame;
@@ -45,19 +45,19 @@ function original(raw: unknown): OriginalRun {
 /** Consumes an already independently admitted plan, NOT caller authorization.
  * Both producer wakeups must coalesce upstream before selecting this original run.
  */
-export function coordinatorIntent(plan: PlannedRequest, journal: Journal): CoordinatorRecord {
-  if (plan.schema !== 'attestrack.application-source-admission/v1' || plan.kind !== 'planned' || plan.repository !== REPOSITORY
+export function coordinatorIntent(plan: PlannedRequest, journal: Journal, phase: ReleasePhase): CoordinatorRecord {
+  if (phase.phase === 'recovery' || plan.schema !== 'attestrack.application-source-admission/v1' || plan.kind !== 'planned' || plan.repository !== REPOSITORY
       || !['staging', 'main'].includes(plan.branch) || plan.repository_id !== plan.context.repository_id
       || !equal(plan.artifact, journal.artifact) || plan.source_tree !== journal.artifact.source_tree || plan.targets.native_sha256 !== journal.target_sha256
       || plan.tool.profile_sha256 !== journal.tool_profile_sha256) throw Error('Admitted source/target/tool differs from prepared operation');
-  const prepared = prepareOperation(journal, plan.branch === 'staging' ? 'staging' : 'production');
-  return { schema: 'attestrack.native-operation-coordinator/v1', original_run: original(plan.context), prepared, current: structuredClone(prepared) };
+  const prepared = prepareOperation(journal, plan.branch === 'staging' ? 'staging' : 'production', phase);
+  return { schema: 'attestrack.native-operation-coordinator/v2', release_id: prepared.release_id, phase: prepared.phase, original_run: original(plan.context), prepared, current: structuredClone(prepared) };
 }
 function validated(raw: unknown): CoordinatorRecord {
-  const r = closed(raw, ['schema', 'original_run', 'prepared', 'current']);
-  if (r.schema !== 'attestrack.native-operation-coordinator/v1') throw Error('Invalid coordinator schema');
+  const r = closed(raw, ['schema', 'release_id', 'phase', 'original_run', 'prepared', 'current']);
+  if (r.schema !== 'attestrack.native-operation-coordinator/v2') throw Error('Invalid coordinator schema');
   const run = original(r.original_run), p = r.prepared as Frame;
-  if (!p || !equal(p, prepareOperation(p.journal, p.environment))) throw Error('Invalid original prepared frame');
+  if (!p || p.release_id !== r.release_id || p.phase !== r.phase || !equal(p, prepareOperation(p.journal, p.environment, p))) throw Error('Invalid original prepared frame');
   const current = r.current as Frame;
   if (!current) throw Error('Missing current operation frame');
   let expected = p;
@@ -88,9 +88,9 @@ function list<T extends { id: number }>(reader: GitHubRead, path: string, field:
   });
 }
 /** Fixed future workflow names; the current scope-only workflow cannot satisfy these. */
-export function operationJobName(record: CoordinatorRecord): string { return `native-${record.prepared.journal.operations.at(-1)!.name}`; }
+export function operationJobName(record: CoordinatorRecord): string { return `native-${record.phase}-${record.prepared.journal.operations.at(-1)!.name}`; }
 export function acknowledgementName(record: CoordinatorRecord, jobId: number): string {
-  return `attestrack-operation-${record.prepared.journal.operation_id}-${record.prepared.journal.operations.at(-1)!.name}-${jobId}-${record.original_run.run_attempt}`;
+  return `attestrack-operation-${record.release_id}-${record.phase}-${record.prepared.journal.operation_id}-${record.prepared.journal.operations.at(-1)!.name}-${jobId}-${record.original_run.run_attempt}`;
 }
 function nativeJob(reader: GitHubRead, record: CoordinatorRecord): { run: Run; job: NativeJob | null } {
   const own = record.original_run;
@@ -155,6 +155,30 @@ export class NativeOperationCoordinator {
   private readonly store: CoordinatorStore;
   private readonly github: GitHubRead;
   constructor(store: CoordinatorStore, github: GitHubRead) { this.store = store; this.github = github; }
+  /** Advance only an authenticated original ACK, never infer it from a caller's
+   * next intent. The actual store repeats transition validation and whole-head CAS.
+   * Reopening an exact next intent settles a lost ACK without replacing a claim.
+   */
+  async advanceOperation(rawIntent: CoordinatorRecord): Promise<Decision> {
+    const next = validated(rawIntent), environment = next.prepared.environment;
+    if (next.current.state !== 'prepared') throw Error('Next original prepared intent required');
+    for (let retry = 0; retry < 4; retry++) {
+      const slot = readSlot(await this.store.read(environment));
+      if (slot.record === null) throw Error('Previous operation acknowledgement required');
+      const previous = validated(slot.record);
+      if (sameIntent(previous, next)) return this.reconcile(next);
+      if (previous.current.state !== 'acknowledged' || !equal(previous.original_run, next.original_run)
+          || previous.current.environment !== environment || previous.release_id !== next.release_id || previous.phase !== next.phase) throw Error('Original acknowledged predecessor required');
+      const journal = previous.current.journal, following = next.prepared.journal;
+      if (following.operations.length !== journal.operations.length + 1
+          || !equal(following.operations.slice(0, -1), journal.operations)
+          || !equal({ ...following, operations: [] }, { ...journal, operations: [] })) throw Error('Next operation changed original acknowledged journal');
+      // validated() reconstructs prepareOperation, enforcing the closed sequence
+      // and a final unknown operation. Only this explicit next intent is persisted.
+      if (await this.persist(environment, slot, next)) return this.reconcile(next);
+    }
+    throw Error('Next operation CAS contention; no provider dispatch');
+  }
   async reconcile(rawIntent: CoordinatorRecord): Promise<Decision> {
     const intent = validated(rawIntent);
     if (intent.current.state !== 'prepared') throw Error('Original prepared intent required');

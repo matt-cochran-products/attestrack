@@ -18,6 +18,11 @@ import { NativeOperationCoordinator, coordinatorIntent, acknowledgementName, ope
 import type { PlannedRequest } from './application-release-scope.ts';
 import { JOB_FENCE_DIRECTORY, JOB_FENCE_FILE, reserveOriginalJob } from './native-application-job-fence.ts';
 import type { AuthenticatedJournalReader, Executor, Frame } from './native-application-operation.ts';
+import { observePredecessor, preparePhase, readbackPhase, readOnlyNative, executePhaseOperation } from './native-session-jobs.ts';
+import { NativeIntakeReader, intakeContext } from './native-intake-reader.ts';
+import type { SessionDescriptor, SessionContext } from './native-release-session.ts';
+import { NativeJournalProjectionReader, ISSUER_JOBS, ISSUER_WORKFLOW } from './native-journal-projection-reader.ts';
+import { INFRA, INFRA_ID, JOURNAL_STORES } from './native-journal-projection.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -293,42 +298,43 @@ test('actual native GitHub CLI reader accepts its exact repository root and reje
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
+const releasePhase = { release_id: id(8), phase: 'candidate' as const };
 const executorOwner={repository_id:41,workflow_commit:'e'.repeat(40),run_id:200,run_attempt:1,job_id:300};
 test('role-separated native operations execute exact retained components with separate durable claim and ACK steps',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
  for(let n=0;n<4;n++){
-  const journal=writer.prepareOperation(bundle,before,OP,last),prepared=prepareOperation(journal,'staging');
+  const journal=writer.prepareOperation(bundle,before,OP,last),prepared=prepareOperation(journal,'staging', releasePhase);
   assert.equal(prepared.state,'prepared');const writes=cloud.writes().length;
   // A merely prepared or interrupted/unknown record cannot obtain execution.
-  await assert.rejects(execution({async readCurrent(){return prepared;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
+  await assert.rejects(execution({async readCurrent(){return prepared;}},{...releasePhase,environment:'staging',operation_id:OP},executorOwner),/claim differs/);
   const claimed=claimOperation(prepared,{...executorOwner,job_id:300+n});assert.throws(()=>claimOperation(claimed,executorOwner),/reconciliation/);
-  const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n});
+  const cap=await fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n});
   const ack=await writer.executeOperation(bundle,tool,cap);assert.ok(cloud.writes().length>writes);
   await assert.rejects(writer.executeOperation(bundle,tool,cap),/capability/);
-  await assert.rejects(fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n}),/already issued/);
+  await assert.rejects(fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n}),/already issued/);
   const finished=recordAcknowledgement(claimed,ack);assert.equal(finished.state,'acknowledged');last=finished.journal;
  }
  assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages!.deployment_id,PC);assert.equal(last!.operations.length,4);
  assert.throws(()=>writer.prepareOperation(bundle,before,OP,last),/complete/);
 }));
 test('durable unknown, unclaimed, swapped executor/source and forged capability refuse without provider mutation',async()=>withRuntime(async tool=>{
- const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),j=writer.prepareOperation(bundle,before,OP),prepared=prepareOperation(j,'staging'),claimed=claimOperation(prepared,executorOwner);
- for(const f of [prepared,unknownOperation(claimed)])await assert.rejects(execution({async readCurrent(){return f;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
- for(const patch of [{job_id:301},{run_attempt:2},{run_id:201},{repository_id:42},{workflow_commit:'f'.repeat(40)}])await assert.rejects(execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,...patch}),/claim differs/);
- await assert.rejects(execution(undefined as never,{environment:'staging',operation_id:OP},executorOwner),/Authenticated current/);
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),j=writer.prepareOperation(bundle,before,OP),prepared=prepareOperation(j,'staging', releasePhase),claimed=claimOperation(prepared,executorOwner);
+ for(const f of [prepared,unknownOperation(claimed)])await assert.rejects(execution({async readCurrent(){return f;}},{...releasePhase,environment:'staging',operation_id:OP},executorOwner),/claim differs/);
+ for(const patch of [{job_id:301},{run_attempt:2},{run_id:201},{repository_id:42},{workflow_commit:'f'.repeat(40)}])await assert.rejects(execution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},{...executorOwner,...patch}),/claim differs/);
+ await assert.rejects(execution(undefined as never,{...releasePhase,environment:'staging',operation_id:OP},executorOwner),/Authenticated current/);
  await assert.rejects(writer.executeOperation(bundle,tool,{operation_id:OP}),/capability/);
  assert.throws(()=>writer.prepareOperation(bundle,before,OP,j),/Unknown/);assert.equal(cloud.writes().length,0);
 }));
 test('lost native ACK remains unknown and reconciliation reads existing operation without dispatching again',async()=>withRuntime(async tool=>{
- const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),prepared=prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),owner={...executorOwner,run_id:210},claimed=claimOperation(prepared,owner);
- cloud.corruptModule=true;const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner);
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),prepared=prepareOperation(writer.prepareOperation(bundle,before,OP),'staging', releasePhase),owner={...executorOwner,run_id:210},claimed=claimOperation(prepared,owner);
+ cloud.corruptModule=true;const cap=await fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},owner);
  await assert.rejects(writer.executeOperation(bundle,tool,cap),/Uploaded original/);assert.equal(cloud.writes().length,1);
- const unknown=unknownOperation(claimed);await assert.rejects(execution({async readCurrent(){return unknown;}},{environment:'staging',operation_id:OP},owner),/claim differs/);
+ const unknown=unknownOperation(claimed);await assert.rejects(execution({async readCurrent(){return unknown;}},{...releasePhase,environment:'staging',operation_id:OP},owner),/claim differs/);
  const observation=await writer.inspectOperation(bundle,OP);assert.equal(observation.worker.versions.length,1);assert.equal(cloud.writes().length,1);
 }));
 test('ACK binding tampering cannot advance a durable original claim and monolithic production path is refused',async()=>withRuntime(async tool=>{
- const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),{...executorOwner,run_id:220});
- const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,run_id:220}),ack=await writer.executeOperation(bundle,tool,cap);
+ const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP),'staging', releasePhase),{...executorOwner,run_id:220});
+ const cap=await fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},{...executorOwner,run_id:220}),ack=await writer.executeOperation(bundle,tool,cap);
  for(const patch of [{journal_sha256:'0'.repeat(64)},{operation_id:id(9)},{name:'pages-deploy'},{native_id:['bad']}])assert.throws(()=>recordAcknowledgement(claimed,{...ack,...patch} as typeof ack));
  const target=cloud.target();target.environment='production';const prod=new NativeWriter(target,cloud),writes=cloud.writes().length;
  await assert.rejects(prod.deploy(bundle,before,tool,{operation_id:OP,async append(){assert.fail('Production must not enter combined journal/provider custody');}}),/role-separated/);assert.equal(cloud.writes().length,writes);
@@ -336,14 +342,14 @@ test('ACK binding tampering cannot advance a durable original claim and monolith
 test('production remains expressible through separate claimed operations without combined writer authority',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),target=cloud.target();target.environment='production';target.pages=null;
  const writer=new NativeWriter(target,cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
- for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production'),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
+ for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production', releasePhase),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
  assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages,null);assert.equal(cloud.writes().length,2);
 }));
 
 test('confirmed final Pages ACK requires matching current deployment and operation readback',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
  for(let n=0;n<4;n++){
-  const owner={...executorOwner,run_id:240,job_id:340+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'staging'),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);
+  const owner={...executorOwner,run_id:240,job_id:340+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'staging', releasePhase),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{...releasePhase,environment:'staging',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);
   if(n===3){
    for(const pages of [null,before.pages,{...ack.after!.pages!,deployment_id:PG},{...ack.after!.pages!,operation_id:null},{...ack.after!.pages!,operation_id:id(9)}]){
     const changed=structuredClone(ack);changed.after!.pages=pages;assert.throws(()=>recordAcknowledgement(claimed,changed),/Pages serving acknowledgement/);
@@ -384,7 +390,7 @@ async function coordinatorFixture(runId = 500) {
     context, branch: 'staging', source_commit: source, source_tree: tree, promotion_pr: 7, artifact: bundle.identity, materialization: null,
     tool: { run_id: 101, run_attempt: 1, artifact_id: 92, archive_sha256: 'f'.repeat(64), profile_sha256: journal.tool_profile_sha256 },
     targets: { profile_sha256: 'f'.repeat(64), native_sha256: journal.target_sha256, http_sha256: 'f'.repeat(64) } };
-  const intent = coordinatorIntent(plan, journal), store = new FictionalCoordinatorStore();
+  const intent = coordinatorIntent(plan, journal, releasePhase), store = new FictionalCoordinatorStore();
   const run = { id: runId, run_attempt: 1, head_sha: context.workflow_commit, head_branch: 'main', head_repository: { full_name: REPOSITORY },
     event: 'workflow_run', path: '.github/workflows/application-release.yml', status: 'in_progress', conclusion: null as string | null, pull_requests: [] };
   const scope = { id: 501, name: 'scope', run_id: runId, run_attempt: 1, head_sha: context.workflow_commit, status: 'completed', conclusion: 'success' as string | null };
@@ -413,7 +419,7 @@ async function coordinatorFixture(runId = 500) {
       workflow_run: { id: runId, repository_id: 41, head_repository_id: 41, head_branch: 'main', head_sha: context.workflow_commit } });
     job.status = 'completed'; job.conclusion = 'success';
   }
-  const ack = { schema: 'attestrack.native-operation-ack/v1' as const, journal_sha256: digest(canonical(journal)), operation_id: OP,
+  const ack = { schema: 'attestrack.native-operation-ack/v2' as const, ...releasePhase, journal_sha256: digest(canonical(journal)), operation_id: OP,
     name: 'worker-upload' as const, native_id: C, after: null };
   return { cloud, writer, bundle, plan, journal, intent, store, run, job, scope, patch, reads, artifacts, coordinator, acknowledge, ack,
     setJobs(value: typeof jobs) { jobs = value; }, corruptArchive() { archive = Buffer.from('wrong bytes'); },
@@ -430,7 +436,7 @@ test('coordinator persists original intent before discovering native job; duplic
 });
 test('coordinator genuine existing writer ACK settles successful original job while outer run remains in progress', async () => withRuntime(async tool => {
   const f = await coordinatorFixture(510), claimed = await f.coordinator().reconcile(f.intent);
-  const cap = await fixtureExecution({ async readCurrent() { return claimed.record.current; } }, { environment: 'staging', operation_id: OP }, claimed.record.current.executor!);
+  const cap = await fixtureExecution({ async readCurrent() { return claimed.record.current; } }, { ...releasePhase, environment: 'staging', operation_id: OP }, claimed.record.current.executor!);
   const ack = await f.writer.executeOperation(f.bundle, tool, cap); f.acknowledge(ack);
   const result = await f.coordinator().reconcile(f.intent);
   assert.equal(result.kind, 'acknowledged'); assert.equal(result.record.current.journal.operations[0].native_id, C);
@@ -525,10 +531,10 @@ test('plan target/artifact/tool binding mismatch refuses before an intent can en
   const f = await coordinatorFixture();
   for (const field of ['target_sha256', 'tool_profile_sha256'] as const) {
     const changed = structuredClone(f.journal); changed[field] = '0'.repeat(64);
-    assert.throws(() => coordinatorIntent(f.plan, changed), /differs/);
+    assert.throws(() => coordinatorIntent(f.plan, changed, releasePhase), /differs/);
   }
   const changed = structuredClone(f.journal); changed.artifact.producer_attempt++;
-  assert.throws(() => coordinatorIntent(f.plan, changed), /differs/);
+  assert.throws(() => coordinatorIntent(f.plan, changed, releasePhase), /differs/);
   assert.equal(f.store.commits, 0);
 });
 test('concurrent journal coordinators coalesce through whole-head CAS without duplicate claim transitions', async () => {
@@ -548,6 +554,51 @@ test('native attempt changing between claim read and bookend prevents durable cl
   f.onRead(path => { if (path.endsWith('/runs/500') && ++reads === 2) f.patch.latest = { run_attempt: 2 }; });
   await assert.rejects(f.coordinator().reconcile(f.intent), /rerun/);
   assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared'); assert.equal(f.store.commits, 1);
+});
+async function nextCoordinatorFixture() {
+  const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack);
+  const acknowledged = await f.coordinator().reconcile(f.intent);
+  const journal = f.writer.prepareOperation(f.bundle, f.journal.predecessor, OP, acknowledged.record.current.journal);
+  const next = coordinatorIntent(f.plan, journal, releasePhase);
+  const job = { ...f.job, id: 504, name: operationJobName(next), status: 'in_progress', conclusion: null };
+  f.setJobs([f.scope, f.job, job]);
+  return { ...f, next, nextJob: job };
+}
+test('explicit next operation preserves durable ACK and claims its distinct original active job', async () => {
+  const f = await nextCoordinatorFixture(), previous = structuredClone(f.store.slot.record as CoordinatorRecord);
+  const next = await f.coordinator().advanceOperation(f.next);
+  assert.equal(next.kind, 'claimed-awaiting-original-job'); assert.equal(next.record.current.executor!.job_id, 504);
+  assert.deepEqual(next.record.prepared.journal.operations.slice(0, -1), previous.current.journal.operations);
+  assert.equal(f.store.commits, 5); assert.equal(f.cloud.writes().length, 0);
+  assert.deepEqual(await f.coordinator().advanceOperation(f.next), next); assert.equal(f.store.commits, 5);
+});
+test('next operation never advances an unclaimed, claimed or unknown predecessor', async () => {
+  for (const state of ['prepared', 'execution-claimed', 'unknown'] as const) {
+    const f = await nextCoordinatorFixture(), claimed = claimOperation(f.intent.prepared, { ...f.intent.original_run, job_id: f.job.id });
+    f.store.slot.record = { ...f.intent, current: state === 'prepared' ? f.intent.prepared : state === 'unknown' ? unknownOperation(claimed) : claimed };
+    await assert.rejects(f.coordinator().advanceOperation(f.next), /acknowledged/);
+    assert.equal(f.store.commits, 3); assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('next operation binds full previous journal, original run and operation prefix', async () => {
+  for (const field of ['run', 'artifact', 'predecessor', 'operation'] as const) {
+    const f = await nextCoordinatorFixture(), next = structuredClone(f.next);
+    if (field === 'run') next.original_run.run_id++;
+    else {
+      if (field === 'artifact') next.prepared.journal.artifact.producer_run++;
+      if (field === 'predecessor') next.prepared.journal.predecessor.worker.module_sha256 = '0'.repeat(64);
+      if (field === 'operation') next.prepared.journal.operation_id = id(9);
+      next.current = structuredClone(next.prepared);
+    }
+    await assert.rejects(f.coordinator().advanceOperation(next)); assert.equal(f.store.commits, 3);
+  }
+});
+test('next-operation lost CAS ACK and conflict reopen without duplicating the claim', async () => {
+  for (const fault of ['after', 'conflict'] as const) {
+    const f = await nextCoordinatorFixture(); f.store.fault = fault;
+    assert.equal((await f.coordinator().advanceOperation(f.next)).record.current.executor!.job_id, 504);
+    assert.equal(f.store.commits, 5); assert.equal(f.cloud.writes().length, 0);
+  }
 });
 test('benign native timestamps and step progress between bookends do not refuse claim or ACK', async () => {
   for (const phase of ['claim', 'ack']) {
@@ -597,7 +648,7 @@ test('authenticated storage is still structurally checked: forged terminal ACK a
 const fenceFixtureDirectories: string[] = [];
 after(() => { for (const directory of fenceFixtureDirectories) rmSync(directory, { recursive: true, force: true }); });
 function originalJobFixture(frame: Frame) {
-  const owner = frame.executor!, name = `native-${frame.journal.operations.at(-1)!.name}`;
+  const owner = frame.executor!, name = `native-${frame.phase}-${frame.journal.operations.at(-1)!.name}`;
   const temporary = mkdtempSync(join(tmpdir(), 'attestrack-fictional-job-')); fenceFixtureDirectories.push(temporary);
   const env: NodeJS.ProcessEnv = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPOSITORY, GITHUB_REPOSITORY_ID: String(owner.repository_id),
     GITHUB_SERVER_URL: 'https://github.com', GITHUB_API_URL: 'https://api.github.com', GITHUB_EVENT_NAME: 'workflow_run',
@@ -623,7 +674,7 @@ function originalJobFixture(frame: Frame) {
     marker: join(temporary, JOB_FENCE_DIRECTORY, JOB_FENCE_FILE),
     onRead(callback: (path: string) => void) { beforeRead = callback; } };
 }
-async function fixtureExecution(reader: AuthenticatedJournalReader, context: { environment: Frame['environment']; operation_id: string }, owner: Executor) {
+async function fixtureExecution(reader: AuthenticatedJournalReader, context: { release_id: string; phase: Frame['phase']; environment: Frame['environment']; operation_id: string }, owner: Executor) {
   const frame = await reader.readCurrent({ repository: REPOSITORY, ...context }) as Frame;
   return execution(reader, context, owner, originalJobFixture(frame));
 }
@@ -633,10 +684,10 @@ async function fenceFrame(runId: number) {
 }
 test('mandatory execution fence binds exact whole frame and native identity before capability issuance', async () => {
   const frame = await fenceFrame(610), runtime = originalJobFixture(frame);
-  const cap = await execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, runtime);
+  const cap = await execution({ async readCurrent() { return frame; } }, { ...releasePhase, environment: 'staging', operation_id: OP }, frame.executor!, runtime);
   assert.equal(cap.operation_id, OP);
-  assert.deepEqual(JSON.parse(readFileSync(runtime.marker, 'utf8')), { schema: 'attestrack.native-job-consumption/v1', repository: REPOSITORY,
-    environment: 'staging', operation_id: OP, executor: frame.executor, frame_sha256: digest(canonical(frame)) });
+  assert.deepEqual(JSON.parse(readFileSync(runtime.marker, 'utf8')), { schema: 'attestrack.native-job-consumption/v2', repository: REPOSITORY,
+    ...releasePhase, environment: 'staging', operation_id: OP, executor: frame.executor, frame_sha256: digest(canonical(frame)) });
   assert.equal(lstatSync(runtime.marker).mode & 0o777, 0o600);
   assert.equal(lstatSync(join(runtime.temporary, JOB_FENCE_DIRECTORY)).mode & 0o777, 0o700);
   assert.throws(() => reserveOriginalJob(frame, runtime), /EEXIST/);
@@ -706,9 +757,9 @@ test('harmless native progress is accepted but identity/status changes after mar
 test('execution cannot bypass the mandatory job fence with a matching claimed frame', async () => {
   const frame = await fenceFrame(616), runtime = originalJobFixture(frame);
   mkdirSync(join(runtime.temporary, JOB_FENCE_DIRECTORY), { mode: 0o700 });
-  await assert.rejects(execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, runtime), /EEXIST/);
+  await assert.rejects(execution({ async readCurrent() { return frame; } }, { ...releasePhase, environment: 'staging', operation_id: OP }, frame.executor!, runtime), /EEXIST/);
   const noRuntime = { github: runtime.github, env: {} };
-  await assert.rejects(execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, noRuntime), /environment/);
+  await assert.rejects(execution({ async readCurrent() { return frame; } }, { ...releasePhase, environment: 'staging', operation_id: OP }, frame.executor!, noRuntime), /environment/);
 });
 test('two fresh original-job processes race for one durable marker and only one wins', async () => {
   const frame = await fenceFrame(617), runtime = originalJobFixture(frame), fixture = join(runtime.temporary, 'fictional-race.json');
@@ -743,3 +794,103 @@ test('latest-only terminal change at the bookend prevents a stale original-job c
   assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared');
   assert.equal(f.store.commits, 1); assert.equal(f.cloud.writes().length, 0);
 });
+
+test('release phase binds frame ACK and capability before any provider write', async () => {
+  const f = await coordinatorFixture(950), prepared = f.intent.prepared, owner = { ...f.intent.original_run, job_id: f.job.id };
+  const claimed = claimOperation(prepared, owner);
+  for (const patch of [{ release_id: id(9) }, { phase: 'recovery' as const }, { phase: 'resume' as const }]) {
+    assert.throws(() => recordAcknowledgement(claimed, { ...f.ack, ...patch }), /Acknowledgement differs/);
+    await assert.rejects(execution({ async readCurrent() { return claimed; } },
+      { ...releasePhase, environment: 'staging', operation_id: OP, ...patch }, owner), /claim differs/);
+  }
+  for (const phase of ['candidate', 'recovery', 'resume'] as const) {
+    const selected = prepareOperation(f.journal, 'staging', { ...releasePhase, phase });
+    assert.equal(selected.phase, phase);
+    assert.throws(() => prepareOperation(f.journal, 'staging', { ...releasePhase, phase: 'predecessor' as never }));
+  }
+  assert.throws(() => coordinatorIntent(f.plan, f.journal, { ...releasePhase, phase: 'recovery' }), /differs/);
+  const confirmedAsPrepared = structuredClone(prepared); confirmedAsPrepared.journal.operations[0] = { name: 'worker-upload', state: 'confirmed', native_id: C };
+  assert.throws(() => claimOperation(confirmedAsPrepared, owner), /already confirmed/);
+  assert.equal(f.cloud.writes().length, 0);
+});
+test('coordinator cannot advance an ACK into another release or phase even with identical journal bytes', async () => {
+  const f = await nextCoordinatorFixture();
+  for (const patch of [{ release_id: id(9) }, { phase: 'resume' as const }]) {
+    const next = structuredClone(f.next);
+    Object.assign(next, patch); Object.assign(next.prepared, patch); Object.assign(next.current, patch);
+    const before = f.store.commits;
+    await assert.rejects(f.coordinator().advanceOperation(next), /acknowledged predecessor/);
+    assert.equal(f.store.commits, before);
+  }
+});
+
+function descriptorFor(f: Awaited<ReturnType<typeof coordinatorFixture>>): SessionDescriptor {
+  return { schema: 'attestrack.native-release-session/v1', release_id: releasePhase.release_id, environment: 'staging', original_run: f.plan.context,
+    admission_sha256: digest(canonical(f.plan)), predecessor: { ...f.bundle.identity, artifact_id: 10 }, candidate: f.bundle.identity,
+    recovery: { ...f.bundle.identity, artifact_id: 11, source_tree: 'c'.repeat(40), archive_sha256: 'c'.repeat(64) },
+    target_sha256: f.journal.target_sha256, tool_profile_sha256: f.journal.tool_profile_sha256, http_target_sha256: f.plan.targets.http_sha256,
+    persistence_contract_sha256: 'f'.repeat(64), required_operations: ['worker-upload', 'worker-switch', 'pages-assets', 'pages-deploy'],
+    phase_operations: { candidate: OP, recovery: randomUUID(), resume: randomUUID() },
+    witness: { cohort: randomUUID(), events: { predecessor: randomUUID(), candidate: randomUUID(), recovery: randomUUID(), resume: randomUUID() } } };
+}
+test('native session P observation and phase preparation use real existing writer reads with no reachable mutation', async () => {
+  const f = await coordinatorFixture(960), d = descriptorFor(f), own = { ...f.plan.context, job_id: 970 };
+  let bookends = 0;
+  class FictionalIntakeReader extends NativeIntakeReader {
+    constructor() { super({ store: { ...JOURNAL_STORES.staging, branch: 'release-ledger', genesis_head: '1'.repeat(40) },
+      issuer: { schema: 'attestrack.native-journal-issuer/v2', repository: INFRA, repository_id: INFRA_ID, workflow: ISSUER_WORKFLOW,
+        source_commit: '2'.repeat(40), workflow_blob: '3'.repeat(40), workflow_sha256: '4'.repeat(64), jobs: { ...ISSUER_JOBS } } },
+      'staging', { run_id: 1, run_attempt: 1, job_id: 2, artifact_id: 3, source_commit: '2'.repeat(40) }); }
+    override read(context: SessionContext) {
+      assert.deepEqual(context, intakeContext(f.plan, 77));
+      return { receipt: { schema: 'attestrack.native-release-intake/v1' as const, ...context,
+        controller: { repository_id: INFRA_ID, workflow_commit: '2'.repeat(40), run_id: 1, run_attempt: 1 } },
+        assertControllerActive() { bookends++; } };
+    }
+  }
+  const intake = new FictionalIntakeReader();
+  const predecessor = await observePredecessor(f.plan, own, f.cloud.target(), f.cloud, intake, 77);
+  assert.equal(bookends, 1); assert.equal(predecessor.deployment_id, 77); assert.equal(predecessor.controller.run_id, 1);
+  assert.deepEqual(predecessor.snapshot, f.journal.predecessor); assert.equal(predecessor.admission_sha256, digest(canonical(f.plan)));
+  const prepared = await preparePhase(d, 'candidate', f.bundle, f.cloud.target(), f.cloud);
+  assert.deepEqual(prepared, f.journal);
+  const readback = await readbackPhase(d, 'predecessor', own, f.cloud.target(), f.cloud);
+  assert.deepEqual(readback.snapshot, predecessor.snapshot); assert.deepEqual(readback.artifact, d.predecessor);
+  await assert.rejects(preparePhase(d, 'recovery', f.bundle, f.cloud.target(), f.cloud), /selected phase/);
+  await assert.rejects(observePredecessor(f.plan, { ...own, run_attempt: 2 }, f.cloud.target(), f.cloud, intake, 77), /admission/);
+  await assert.rejects(readbackPhase(d, 'candidate', { ...own, run_id: 999 }, f.cloud.target(), f.cloud), /original app run/);
+  assert.equal(f.cloud.writes().length, 0);
+});
+test('native observation adapter rejects methods, body and asset-token overrides before transport', async () => {
+  let calls = 0;
+  const adapter = readOnlyNative({ async request() { calls++; return {}; }, async page() { calls++; return { items: [], info: {} }; } });
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) await assert.rejects(adapter.request('/accounts/example', { method }), /refuses writes/);
+  await assert.rejects(adapter.request('/accounts/example', { method: 'GET', body: 'payload' }), /payload/);
+  await assert.rejects(adapter.request('/accounts/example', undefined, 'override'), /override/);
+  assert.equal(calls, 0); await adapter.request('/accounts/example'); await adapter.page!('/accounts/example'); assert.equal(calls, 2);
+});
+
+test('provider role core rejects cloned retained bytes before fencing and reads provider material only after original-job consumption', async () => withRuntime(async tool => {
+  const f = await coordinatorFixture(971), d = descriptorFor(f), own = { ...f.plan.context, job_id: f.job.id };
+  const claimed = claimOperation(f.intent.prepared, own), runtime = originalJobFixture(claimed);
+  // Deliberately fictional authenticated-reader seam for role ordering only.
+  // The real native archive/source/current-head proof is exercised independently
+  // by native-journal-projection.test.ts; this is not hosted qualification.
+  class FictionalClaimReader extends NativeJournalProjectionReader {
+    constructor() { super({ store: { ...JOURNAL_STORES.staging, branch: 'release-ledger', genesis_head: '1'.repeat(40) },
+      issuer: { schema: 'attestrack.native-journal-issuer/v2', repository: INFRA, repository_id: INFRA_ID, workflow: ISSUER_WORKFLOW,
+        source_commit: '2'.repeat(40), workflow_blob: '3'.repeat(40), workflow_sha256: '4'.repeat(64), jobs: { ...ISSUER_JOBS } } },
+      'staging', { run_id: 1, run_attempt: 1, job_id: 2, artifact_id: 3, source_commit: '2'.repeat(40) }); }
+    override async readCurrent() { return structuredClone(claimed); }
+  }
+  const reader = new FictionalClaimReader(), context = { ...releasePhase, environment: 'staging' as const, operation_id: OP };
+  let acquired = 0;
+  const acquire = async () => { acquired++; assert.equal(existsSync(runtime.marker), true); assert.equal(f.cloud.writes().length, 0); return f.cloud; };
+  await assert.rejects(executePhaseOperation(d, context, own, structuredClone(f.bundle), tool, f.cloud.target(), reader, acquire, runtime), /Original native artifact admission/);
+  assert.equal(existsSync(runtime.marker), false); assert.equal(acquired, 0);
+  const ack = await executePhaseOperation(d, context, own, f.bundle, tool, f.cloud.target(), reader, acquire, runtime);
+  assert.equal(ack.release_id, d.release_id); assert.equal(ack.phase, 'candidate'); assert.equal(ack.native_id, C);
+  assert.equal(acquired, 1); assert.equal(f.cloud.writes().length, 1);
+  await assert.rejects(executePhaseOperation(d, context, own, f.bundle, tool, f.cloud.target(), reader, acquire, runtime), /already issued/);
+  assert.equal(acquired, 1); assert.equal(f.cloud.writes().length, 1);
+}));

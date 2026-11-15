@@ -27,6 +27,7 @@ jobs:
       - run: node --test --experimental-test-isolation=none scripts/application-release-scope.test.ts
       # Native writer tests import the pinned-tool tests; run both once in this process.
       - run: node --test --experimental-test-isolation=none scripts/application-artifacts.test.ts scripts/native-application-release.test.ts
+      - run: node --test scripts/native-journal-projection.test.ts
       - run: pnpm audit-gate
       - run: pnpm typecheck
       - run: pnpm lint

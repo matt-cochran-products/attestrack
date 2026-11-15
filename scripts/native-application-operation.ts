@@ -1,6 +1,8 @@
 /** Role-separated operation protocol. No store, credentials, provider or activation. */
-import { canonical, type Journal, type Operation } from './native-application-release.ts';
+import { NativeGitHub, type Journal, type Operation } from './native-application-release.ts';
+import { canonical } from './native-release-canonical.ts';
 import { digest, REPOSITORY } from './application-artifacts.ts';
+import { reserveOriginalJob, type OriginalJobRuntime } from './native-application-job-fence.ts';
 const HASH=/^[a-f0-9]{64}$/, SHA=/^[a-f0-9]{40}$/, UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 function closed(x:unknown,keys:string[]):Record<string,unknown>{if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).sort().join()!==keys.sort().join())throw Error('Invalid operation record');return x as Record<string,unknown>;}
 function positive(x:unknown){if(typeof x!=='number'||!Number.isSafeInteger(x)||x<1)throw Error('Invalid native execution identity');}
@@ -36,14 +38,18 @@ export interface AuthenticatedJournalReader { readCurrent(context:{repository:ty
 export interface Execution { readonly operation_id:string }
 const capabilities=new WeakMap<Execution,Frame>();
 const issuedClaims=new Set<string>();
-/** The fixed journal role reader authenticates+decrypts CURRENT durable bytes.
+/** The fixed trusted reader authenticates the CURRENT durable frame (directly
+ * in the journal role, or through a verified public projection in a provider).
  * No plaintext reader or codec default exists. Assembly must authenticate its
- * own executor metadata; this library does not infer that from caller JSON. */
-export async function execution(reader:AuthenticatedJournalReader,context:{environment:Frame['environment'];operation_id:string},own:Executor):Promise<Execution>{
- if(!reader||typeof reader.readCurrent!=='function')throw Error('Authenticated encrypted journal reader required');
+ * own executor metadata. Mandatory native job/environment verification and the
+ * create-only job fence run before capability issuance. Runtime dependencies
+ * default to actual native GitHub reads/process.env, never a plaintext fallback. */
+export async function execution(reader:AuthenticatedJournalReader,context:{environment:Frame['environment'];operation_id:string},own:Executor,runtime:OriginalJobRuntime={github:new NativeGitHub(),env:process.env}):Promise<Execution>{
+ if(!reader||typeof reader.readCurrent!=='function')throw Error('Authenticated current journal reader required');
  const f=frame(await reader.readCurrent({repository:REPOSITORY,...context}));
  if(f.state!=='execution-claimed'||f.environment!==context.environment||f.journal.operation_id!==context.operation_id||canonical(f.executor)!==canonical(executor(own)))throw Error('Durable execution claim differs; reconcile without replay');
- const key=digest(canonical({executor:f.executor,operation_id:f.journal.operation_id,journal:f.journal}));if(issuedClaims.has(key))throw Error('Execution claim already issued; reconcile without replay');issuedClaims.add(key);
+ const key=digest(canonical({executor:f.executor,operation_id:f.journal.operation_id,journal:f.journal}));if(issuedClaims.has(key))throw Error('Execution claim already issued; reconcile without replay');
+ reserveOriginalJob(f,runtime);issuedClaims.add(key);
  const cap=Object.freeze({operation_id:f.journal.operation_id});capabilities.set(cap,f);return cap;
 }
 /** Process-local consumption is defense in depth, NOT durable exactly-once. */

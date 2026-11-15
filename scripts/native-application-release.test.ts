@@ -1,8 +1,8 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildWorkerEntry } from '../packages/deploy/src/worker-template.ts';
@@ -16,6 +16,8 @@ import { prepareOperation, claimOperation, unknownOperation, execution, recordAc
 import { NativeOperationCoordinator, coordinatorIntent, acknowledgementName, operationJobName,
   type CoordinatorRecord, type CoordinatorStore, type Slot } from './native-application-coordinator.ts';
 import type { PlannedRequest } from './application-release-scope.ts';
+import { JOB_FENCE_DIRECTORY, JOB_FENCE_FILE, reserveOriginalJob } from './native-application-job-fence.ts';
+import type { AuthenticatedJournalReader, Executor, Frame } from './native-application-operation.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -300,10 +302,10 @@ test('role-separated native operations execute exact retained components with se
   // A merely prepared or interrupted/unknown record cannot obtain execution.
   await assert.rejects(execution({async readCurrent(){return prepared;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
   const claimed=claimOperation(prepared,{...executorOwner,job_id:300+n});assert.throws(()=>claimOperation(claimed,executorOwner),/reconciliation/);
-  const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n});
+  const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n});
   const ack=await writer.executeOperation(bundle,tool,cap);assert.ok(cloud.writes().length>writes);
   await assert.rejects(writer.executeOperation(bundle,tool,cap),/capability/);
-  await assert.rejects(execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n}),/already issued/);
+  await assert.rejects(fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,job_id:300+n}),/already issued/);
   const finished=recordAcknowledgement(claimed,ack);assert.equal(finished.state,'acknowledged');last=finished.journal;
  }
  assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages!.deployment_id,PC);assert.equal(last!.operations.length,4);
@@ -313,20 +315,20 @@ test('durable unknown, unclaimed, swapped executor/source and forged capability 
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),j=writer.prepareOperation(bundle,before,OP),prepared=prepareOperation(j,'staging'),claimed=claimOperation(prepared,executorOwner);
  for(const f of [prepared,unknownOperation(claimed)])await assert.rejects(execution({async readCurrent(){return f;}},{environment:'staging',operation_id:OP},executorOwner),/claim differs/);
  for(const patch of [{job_id:301},{run_attempt:2},{run_id:201},{repository_id:42},{workflow_commit:'f'.repeat(40)}])await assert.rejects(execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,...patch}),/claim differs/);
- await assert.rejects(execution(undefined as never,{environment:'staging',operation_id:OP},executorOwner),/Authenticated encrypted/);
+ await assert.rejects(execution(undefined as never,{environment:'staging',operation_id:OP},executorOwner),/Authenticated current/);
  await assert.rejects(writer.executeOperation(bundle,tool,{operation_id:OP}),/capability/);
  assert.throws(()=>writer.prepareOperation(bundle,before,OP,j),/Unknown/);assert.equal(cloud.writes().length,0);
 }));
 test('lost native ACK remains unknown and reconciliation reads existing operation without dispatching again',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),prepared=prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),owner={...executorOwner,run_id:210},claimed=claimOperation(prepared,owner);
- cloud.corruptModule=true;const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner);
+ cloud.corruptModule=true;const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner);
  await assert.rejects(writer.executeOperation(bundle,tool,cap),/Uploaded original/);assert.equal(cloud.writes().length,1);
  const unknown=unknownOperation(claimed);await assert.rejects(execution({async readCurrent(){return unknown;}},{environment:'staging',operation_id:OP},owner),/claim differs/);
  const observation=await writer.inspectOperation(bundle,OP);assert.equal(observation.worker.versions.length,1);assert.equal(cloud.writes().length,1);
 }));
 test('ACK binding tampering cannot advance a durable original claim and monolithic production path is refused',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe(),claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP),'staging'),{...executorOwner,run_id:220});
- const cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,run_id:220}),ack=await writer.executeOperation(bundle,tool,cap);
+ const cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},{...executorOwner,run_id:220}),ack=await writer.executeOperation(bundle,tool,cap);
  for(const patch of [{journal_sha256:'0'.repeat(64)},{operation_id:id(9)},{name:'pages-deploy'},{native_id:['bad']}])assert.throws(()=>recordAcknowledgement(claimed,{...ack,...patch} as typeof ack));
  const target=cloud.target();target.environment='production';const prod=new NativeWriter(target,cloud),writes=cloud.writes().length;
  await assert.rejects(prod.deploy(bundle,before,tool,{operation_id:OP,async append(){assert.fail('Production must not enter combined journal/provider custody');}}),/role-separated/);assert.equal(cloud.writes().length,writes);
@@ -334,14 +336,14 @@ test('ACK binding tampering cannot advance a durable original claim and monolith
 test('production remains expressible through separate claimed operations without combined writer authority',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),target=cloud.target();target.environment='production';target.pages=null;
  const writer=new NativeWriter(target,cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
- for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production'),owner),cap=await execution({async readCurrent(){return claimed;}},{environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
+ for(let n=0;n<2;n++){const owner={...executorOwner,run_id:230,job_id:330+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'production'),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'production',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);last=recordAcknowledgement(claimed,ack).journal;}
  assert.equal(last!.after!.worker.version_id,C);assert.equal(last!.after!.pages,null);assert.equal(cloud.writes().length,2);
 }));
 
 test('confirmed final Pages ACK requires matching current deployment and operation readback',async()=>withRuntime(async tool=>{
  const cloud=new FictionalCloudflare(),writer=new NativeWriter(cloud.target(),cloud),bundle=nativeInput().bundle(),before=await writer.observe();let last:Journal|null=null;
  for(let n=0;n<4;n++){
-  const owner={...executorOwner,run_id:240,job_id:340+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'staging'),owner),cap=await execution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);
+  const owner={...executorOwner,run_id:240,job_id:340+n},claimed=claimOperation(prepareOperation(writer.prepareOperation(bundle,before,OP,last),'staging'),owner),cap=await fixtureExecution({async readCurrent(){return claimed;}},{environment:'staging',operation_id:OP},owner),ack=await writer.executeOperation(bundle,tool,cap);
   if(n===3){
    for(const pages of [null,before.pages,{...ack.after!.pages!,deployment_id:PG},{...ack.after!.pages!,operation_id:null},{...ack.after!.pages!,operation_id:id(9)}]){
     const changed=structuredClone(ack);changed.after!.pages=pages;assert.throws(()=>recordAcknowledgement(claimed,changed),/Pages serving acknowledgement/);
@@ -428,7 +430,7 @@ test('coordinator persists original intent before discovering native job; duplic
 });
 test('coordinator genuine existing writer ACK settles successful original job while outer run remains in progress', async () => withRuntime(async tool => {
   const f = await coordinatorFixture(510), claimed = await f.coordinator().reconcile(f.intent);
-  const cap = await execution({ async readCurrent() { return claimed.record.current; } }, { environment: 'staging', operation_id: OP }, claimed.record.current.executor!);
+  const cap = await fixtureExecution({ async readCurrent() { return claimed.record.current; } }, { environment: 'staging', operation_id: OP }, claimed.record.current.executor!);
   const ack = await f.writer.executeOperation(f.bundle, tool, cap); f.acknowledge(ack);
   const result = await f.coordinator().reconcile(f.intent);
   assert.equal(result.kind, 'acknowledged'); assert.equal(result.record.current.journal.operations[0].native_id, C);
@@ -590,6 +592,139 @@ test('authenticated storage is still structurally checked: forged terminal ACK a
   }
 });
 
+// Real isolated files, fictional public native metadata. Cleanup is test-suite
+// teardown only; production fence code deliberately has no cleanup/reset API.
+const fenceFixtureDirectories: string[] = [];
+after(() => { for (const directory of fenceFixtureDirectories) rmSync(directory, { recursive: true, force: true }); });
+function originalJobFixture(frame: Frame) {
+  const owner = frame.executor!, name = `native-${frame.journal.operations.at(-1)!.name}`;
+  const temporary = mkdtempSync(join(tmpdir(), 'attestrack-fictional-job-')); fenceFixtureDirectories.push(temporary);
+  const env: NodeJS.ProcessEnv = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPOSITORY, GITHUB_REPOSITORY_ID: String(owner.repository_id),
+    GITHUB_SERVER_URL: 'https://github.com', GITHUB_API_URL: 'https://api.github.com', GITHUB_EVENT_NAME: 'workflow_run',
+    GITHUB_REF: 'refs/heads/main', GITHUB_REF_PROTECTED: 'true', GITHUB_JOB: name,
+    GITHUB_WORKFLOW_REF: `${REPOSITORY}/.github/workflows/application-release.yml@refs/heads/main`,
+    GITHUB_SHA: owner.workflow_commit, GITHUB_WORKFLOW_SHA: owner.workflow_commit, GITHUB_RUN_ID: String(owner.run_id),
+    GITHUB_RUN_ATTEMPT: String(owner.run_attempt), RUNNER_OS: 'Linux', RUNNER_ENVIRONMENT: 'github-hosted', RUNNER_TEMP: temporary };
+  const run = { id: owner.run_id, run_attempt: owner.run_attempt, head_sha: owner.workflow_commit, head_branch: 'main', head_repository: { full_name: REPOSITORY },
+    event: 'workflow_run', path: '.github/workflows/application-release.yml', status: 'in_progress', conclusion: null as string | null };
+  const job = { id: owner.job_id, name, run_id: owner.run_id, run_attempt: owner.run_attempt, head_sha: owner.workflow_commit, status: 'in_progress', conclusion: null as string | null };
+  const scope = { ...job, id: owner.job_id + 1000, name: 'scope', status: 'completed', conclusion: 'success' };
+  const prefix = `repos/${REPOSITORY}`, documents: Record<string, unknown> = {
+    [prefix]: { id: owner.repository_id, full_name: REPOSITORY, fork: false, default_branch: 'main' },
+    [`${prefix}/actions/runs/${owner.run_id}`]: run,
+    [`${prefix}/actions/runs/${owner.run_id}/attempts/${owner.run_attempt}`]: run,
+    [`${prefix}/actions/runs/${owner.run_id}/attempts/${owner.run_attempt}/jobs?per_page=100&page=1`]: { total_count: 2, jobs: [scope, job] },
+  };
+  let beforeRead: ((path: string) => void) | null = null;
+  const github: GitHubRead = { json<T>(path: string): T {
+    beforeRead?.(path); if (!(path in documents)) throw Error(`Unexpected original job read ${path}`); return structuredClone(documents[path]) as T;
+  }, bytes() { assert.fail('Job fence never downloads a provider key or artifact'); } };
+  return { github, env, temporary, run, job, scope, documents,
+    marker: join(temporary, JOB_FENCE_DIRECTORY, JOB_FENCE_FILE),
+    onRead(callback: (path: string) => void) { beforeRead = callback; } };
+}
+async function fixtureExecution(reader: AuthenticatedJournalReader, context: { environment: Frame['environment']; operation_id: string }, owner: Executor) {
+  const frame = await reader.readCurrent({ repository: REPOSITORY, ...context }) as Frame;
+  return execution(reader, context, owner, originalJobFixture(frame));
+}
+async function fenceFrame(runId: number) {
+  const fixture = await coordinatorFixture(runId);
+  return claimOperation(fixture.intent.prepared, { ...fixture.intent.original_run, job_id: 502 });
+}
+test('mandatory execution fence binds exact whole frame and native identity before capability issuance', async () => {
+  const frame = await fenceFrame(610), runtime = originalJobFixture(frame);
+  const cap = await execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, runtime);
+  assert.equal(cap.operation_id, OP);
+  assert.deepEqual(JSON.parse(readFileSync(runtime.marker, 'utf8')), { schema: 'attestrack.native-job-consumption/v1', repository: REPOSITORY,
+    environment: 'staging', operation_id: OP, executor: frame.executor, frame_sha256: digest(canonical(frame)) });
+  assert.equal(lstatSync(runtime.marker).mode & 0o777, 0o600);
+  assert.equal(lstatSync(join(runtime.temporary, JOB_FENCE_DIRECTORY)).mode & 0o777, 0o700);
+  assert.throws(() => reserveOriginalJob(frame, runtime), /EEXIST/);
+});
+test('a fresh process cannot reacquire an existing exact original job marker', async () => {
+  const frame = await fenceFrame(611), runtime = originalJobFixture(frame); reserveOriginalJob(frame, runtime);
+  const fixture = join(runtime.temporary, 'fictional-native.json');
+  writeFileSync(fixture, JSON.stringify({ frame, env: runtime.env, documents: runtime.documents }), { mode: 0o600 });
+  const module = new URL('./native-application-job-fence.ts', import.meta.url).href;
+  const program = `import {readFileSync} from 'node:fs';import {reserveOriginalJob} from ${JSON.stringify(module)};
+    const f=JSON.parse(readFileSync(process.argv[1],'utf8'));
+    const github={json(path){if(!(path in f.documents))throw Error('Unexpected path');return f.documents[path]},bytes(){throw Error('No downloads')}};
+    try{reserveOriginalJob(f.frame,{env:f.env,github});process.stdout.write('UNSAFE_REISSUE')}catch(error){if(error.code!=='EEXIST')throw error;process.stdout.write('existing-job-refused')}`;
+  assert.equal(execFileSync(process.execPath, ['--input-type=module', '-e', program, fixture], { env: { PATH: process.env.PATH }, timeout: 10000 }).toString(), 'existing-job-refused');
+  assert.equal(JSON.parse(readFileSync(runtime.marker, 'utf8')).frame_sha256, digest(canonical(frame)));
+});
+test('empty torn directory, torn or conflicting marker, files and symlinks all permanently refuse', async () => {
+  const frame = await fenceFrame(612);
+  for (const kind of ['empty', 'torn', 'conflicting', 'file', 'symlink']) {
+    const runtime = originalJobFixture(frame), directory = join(runtime.temporary, JOB_FENCE_DIRECTORY);
+    if (kind === 'file') writeFileSync(directory, 'not a directory');
+    else if (kind === 'symlink') symlinkSync(runtime.temporary, directory);
+    else { mkdirSync(directory, { mode: 0o700 }); if (kind !== 'empty') writeFileSync(runtime.marker, kind === 'torn' ? '{' : JSON.stringify({ frame_sha256: '0'.repeat(64) })); }
+    assert.throws(() => reserveOriginalJob(frame, runtime), /EEXIST/);
+    assert.ok(lstatSync(directory)); // Refusal does not delete even malformed state.
+  }
+});
+test('untrusted runner environment or replaced original native executor refuses before any marker', async () => {
+  const frame = await fenceFrame(613);
+  for (const patch of [{ GITHUB_JOB: 'scope' }, { GITHUB_RUN_ATTEMPT: '2' }, { GITHUB_RUN_ID: '614' }, { GITHUB_REPOSITORY_ID: '42' },
+    { GITHUB_WORKFLOW_SHA: 'f'.repeat(40) }, { GITHUB_REF_PROTECTED: 'false' }, { GITHUB_EVENT_NAME: 'workflow_dispatch' }, { RUNNER_TEMP: '/tmp/../tmp' }]) {
+    const runtime = originalJobFixture(frame); Object.assign(runtime.env, patch);
+    assert.throws(() => reserveOriginalJob(frame, runtime)); assert.equal(existsSync(runtime.marker), false);
+  }
+  for (const patch of [{ id: 503 }, { run_attempt: 2 }, { head_sha: 'f'.repeat(40) }, { status: 'completed', conclusion: 'success' }]) {
+    const runtime = originalJobFixture(frame); Object.assign(runtime.job, patch);
+    assert.throws(() => reserveOriginalJob(frame, runtime)); assert.equal(existsSync(runtime.marker), false);
+  }
+});
+test('shared writable or symlinked RUNNER_TEMP cannot receive an execution fence', async () => {
+  const frame = await fenceFrame(614), writable = originalJobFixture(frame); chmodSync(writable.temporary, 0o777);
+  try { assert.throws(() => reserveOriginalJob(frame, writable), /permissions/); assert.equal(existsSync(writable.marker), false); }
+  finally { chmodSync(writable.temporary, 0o700); }
+  const linked = originalJobFixture(frame), path = linked.temporary + '-link'; fenceFixtureDirectories.push(path); symlinkSync(linked.temporary, path); linked.env.RUNNER_TEMP = path;
+  assert.throws(() => reserveOriginalJob(frame, linked), /Symlinked/); assert.equal(existsSync(linked.marker), false);
+});
+test('harmless native progress is accepted but identity/status changes after marking retain a consumed hold', async () => {
+  const frame = await fenceFrame(615);
+  for (const change of ['metadata', 'identity', 'status', 'reader-error']) {
+    const runtime = originalJobFixture(frame); let reads = 0;
+    runtime.onRead(path => {
+      if (path.endsWith('/runs/615') && ++reads === 2) {
+        assert.ok(existsSync(runtime.marker));
+        if (change === 'metadata') { Object.assign(runtime.run, { updated_at: '2026-11-14T13:00:00Z' }); Object.assign(runtime.job, { steps: [{ status: 'completed' }] }); }
+        else if (change === 'identity') runtime.job.id++;
+        else if (change === 'status') { runtime.job.status = 'completed'; runtime.job.conclusion = 'cancelled'; }
+        else throw Error('Fictional native read lost');
+      }
+    });
+    if (change === 'metadata') reserveOriginalJob(frame, runtime);
+    else assert.throws(() => reserveOriginalJob(frame, runtime));
+    assert.equal(JSON.parse(readFileSync(runtime.marker, 'utf8')).frame_sha256, digest(canonical(frame)));
+    runtime.job.id = frame.executor!.job_id; runtime.job.status = 'in_progress'; runtime.job.conclusion = null;
+    assert.throws(() => reserveOriginalJob(frame, runtime), /EEXIST/);
+  }
+});
+test('execution cannot bypass the mandatory job fence with a matching claimed frame', async () => {
+  const frame = await fenceFrame(616), runtime = originalJobFixture(frame);
+  mkdirSync(join(runtime.temporary, JOB_FENCE_DIRECTORY), { mode: 0o700 });
+  await assert.rejects(execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, runtime), /EEXIST/);
+  const noRuntime = { github: runtime.github, env: {} };
+  await assert.rejects(execution({ async readCurrent() { return frame; } }, { environment: 'staging', operation_id: OP }, frame.executor!, noRuntime), /environment/);
+});
+test('two fresh original-job processes race for one durable marker and only one wins', async () => {
+  const frame = await fenceFrame(617), runtime = originalJobFixture(frame), fixture = join(runtime.temporary, 'fictional-race.json');
+  writeFileSync(fixture, JSON.stringify({ frame, env: runtime.env, documents: runtime.documents }), { mode: 0o600 });
+  const module = new URL('./native-application-job-fence.ts', import.meta.url).href;
+  const program = `import {readFileSync} from 'node:fs';import {reserveOriginalJob} from ${JSON.stringify(module)};
+    const f=JSON.parse(readFileSync(process.argv[1],'utf8'));
+    const github={json(path){if(!(path in f.documents))throw Error('Unexpected path');return f.documents[path]},bytes(){throw Error('No downloads')}};
+    try{reserveOriginalJob(f.frame,{env:f.env,github});process.stdout.write('won')}catch(error){if(error.code!=='EEXIST')throw error;process.stdout.write('held')}`;
+  const attempt = () => new Promise<string>((resolve, reject) => {
+    execFile(process.execPath, ['--input-type=module', '-e', program, fixture], { env: { PATH: process.env.PATH }, timeout: 10000 },
+      (error, stdout) => { if (error) reject(error); else resolve(stdout); });
+  });
+  assert.deepEqual((await Promise.all([attempt(), attempt()])).sort(), ['held', 'won']);
+  assert.equal(JSON.parse(readFileSync(runtime.marker, 'utf8')).frame_sha256, digest(canonical(frame)));
+});
 test('latest-only terminal lifecycle cannot claim through a stale in-progress attempt response', async () => {
   for (const conclusion of ['success', 'cancelled', 'failure', 'timed_out']) {
     const f = await coordinatorFixture();

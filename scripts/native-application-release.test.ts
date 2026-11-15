@@ -13,6 +13,9 @@ import { canonical, Cloudflare, NativeGitHub, NativeWriter, pagesConfiguration, 
 import { loadTool } from './native-release-tool.ts';
 import { upstreamTool } from './native-release-tool.test.ts';
 import { prepareOperation, claimOperation, unknownOperation, execution, recordAcknowledgement, validateJournal } from './native-application-operation.ts';
+import { NativeOperationCoordinator, coordinatorIntent, acknowledgementName, operationJobName,
+  type CoordinatorRecord, type CoordinatorStore, type Slot } from './native-application-coordinator.ts';
+import type { PlannedRequest } from './application-release-scope.ts';
 const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(4)}-${String(n).repeat(12)}`;
 const W = id(1), P = id(2), C = id(3), DP = id(4), DC = id(5), PG = id(6), PP = id(7), PC = id(8);
 const source = 'a'.repeat(40), tree = 'b'.repeat(40);
@@ -352,3 +355,237 @@ test('confirmed final Pages ACK requires matching current deployment and operati
   const changed=structuredClone(last!);changed.after!.pages=pages;assert.throws(()=>validateJournal(changed),/Pages serving acknowledgement/);
  }
 }));
+
+// Fictional CAS transport only. Production assembly must use authenticated Git
+// journal bytes and actual compare-and-swap; this fixture is not that adapter.
+class FictionalCoordinatorStore implements CoordinatorStore {
+  slot: Slot = { head: '1'.repeat(40), record: null };
+  commits = 0;
+  fault: 'before' | 'after' | 'conflict' | null = null;
+  async read() { return structuredClone(this.slot); }
+  async compareAndSwap(_environment: 'staging' | 'production', expected: Slot, next: CoordinatorRecord) {
+    if (canonical(expected) !== canonical(this.slot)) return false;
+    const fault = this.fault; this.fault = null;
+    if (fault === 'before') throw Error('Fictional disconnected push, no commit observed');
+    if (fault === 'conflict') { this.slot.head = '2'.repeat(40); return false; }
+    this.commits++;
+    this.slot = { head: this.commits.toString(16).padStart(40, '0'), record: structuredClone(next) };
+    if (fault === 'after') throw Error('Fictional committed push with lost acknowledgement');
+    return true;
+  }
+}
+async function coordinatorFixture(runId = 500) {
+  const cloud = new FictionalCloudflare(), writer = new NativeWriter(cloud.target(), cloud), bundle = nativeInput().bundle();
+  const journal = writer.prepareOperation(bundle, await writer.observe(), OP);
+  const context = { repository_id: 41, workflow_commit: 'e'.repeat(40), run_id: runId, run_attempt: 1 };
+  const plan: PlannedRequest = { schema: 'attestrack.application-source-admission/v1', kind: 'planned', repository: REPOSITORY, repository_id: 41,
+    context, branch: 'staging', source_commit: source, source_tree: tree, promotion_pr: 7, artifact: bundle.identity, materialization: null,
+    tool: { run_id: 101, run_attempt: 1, artifact_id: 92, archive_sha256: 'f'.repeat(64), profile_sha256: journal.tool_profile_sha256 },
+    targets: { profile_sha256: 'f'.repeat(64), native_sha256: journal.target_sha256, http_sha256: 'f'.repeat(64) } };
+  const intent = coordinatorIntent(plan, journal), store = new FictionalCoordinatorStore();
+  const run = { id: runId, run_attempt: 1, head_sha: context.workflow_commit, head_branch: 'main', head_repository: { full_name: REPOSITORY },
+    event: 'workflow_run', path: '.github/workflows/application-release.yml', status: 'in_progress', conclusion: null as string | null, pull_requests: [] };
+  const scope = { id: 501, name: 'scope', run_id: runId, run_attempt: 1, head_sha: context.workflow_commit, status: 'completed', conclusion: 'success' as string | null };
+  const job = { ...scope, id: 502, name: operationJobName(intent), status: 'in_progress', conclusion: null as string | null };
+  let jobs = [scope, job], archive = Buffer.alloc(0);
+  const artifacts: Record<string, unknown>[] = [];
+  const patch: { latest?: Record<string, unknown>; run?: Record<string, unknown>; repo?: Record<string, unknown>; total?: number } = {};
+  const reads: string[] = []; let beforeRead: ((path: string) => void) | null = null;
+  const reader: GitHubRead = {
+    json<T>(path: string): T {
+      reads.push(path); beforeRead?.(path); let result: unknown;
+      if (path === `repos/${REPOSITORY}`) result = { id: 41, full_name: REPOSITORY, fork: false, default_branch: 'main', ...patch.repo };
+      else if (path === `repos/${REPOSITORY}/actions/runs/${runId}`) result = { ...run, ...patch.latest };
+      else if (path === `repos/${REPOSITORY}/actions/runs/${runId}/attempts/1`) result = { ...run, ...patch.run };
+      else if (path === `repos/${REPOSITORY}/actions/runs/${runId}/attempts/1/jobs?per_page=100&page=1`) result = { total_count: patch.total ?? jobs.length, jobs };
+      else if (path === `repos/${REPOSITORY}/actions/runs/${runId}/artifacts?per_page=100&page=1`) result = { total_count: artifacts.length, artifacts };
+      else throw Error(`Unexpected coordinator native read ${path}`);
+      return structuredClone(result) as T;
+    },
+    bytes(path) { assert.equal(path, `repos/${REPOSITORY}/actions/artifacts/901/zip`); return archive; },
+  };
+  const coordinator = () => new NativeOperationCoordinator(store, reader);
+  function acknowledge(ack: unknown) {
+    archive = execFileSync('python3', ['-c', 'import sys,io,zipfile\nb=io.BytesIO()\nwith zipfile.ZipFile(b,"w") as z:z.writestr("acknowledgement.json",sys.stdin.buffer.read())\nsys.stdout.buffer.write(b.getvalue())'], { input: JSON.stringify(ack) });
+    artifacts.push({ id: 901, name: acknowledgementName(intent, job.id), expired: false, size_in_bytes: archive.length, digest: `sha256:${digest(archive)}`,
+      workflow_run: { id: runId, repository_id: 41, head_repository_id: 41, head_branch: 'main', head_sha: context.workflow_commit } });
+    job.status = 'completed'; job.conclusion = 'success';
+  }
+  const ack = { schema: 'attestrack.native-operation-ack/v1' as const, journal_sha256: digest(canonical(journal)), operation_id: OP,
+    name: 'worker-upload' as const, native_id: C, after: null };
+  return { cloud, writer, bundle, plan, journal, intent, store, run, job, scope, patch, reads, artifacts, coordinator, acknowledge, ack,
+    setJobs(value: typeof jobs) { jobs = value; }, corruptArchive() { archive = Buffer.from('wrong bytes'); },
+    onRead(callback: (path: string) => void) { beforeRead = callback; } };
+}
+test('coordinator persists original intent before discovering native job; duplicate wakes and restart reuse exact claim', async () => {
+  const f = await coordinatorFixture();
+  const first = await f.coordinator().reconcile(f.intent);
+  assert.equal(first.kind, 'claimed-awaiting-original-job'); assert.equal(first.record.current.executor!.job_id, 502);
+  assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
+  const second = await f.coordinator().reconcile(f.intent);
+  assert.deepEqual(second, first); assert.equal(f.store.commits, 2);
+  assert.ok(f.reads.includes(`repos/${REPOSITORY}/actions/runs/500/attempts/1/jobs?per_page=100&page=1`));
+});
+test('coordinator genuine existing writer ACK settles successful original job while outer run remains in progress', async () => withRuntime(async tool => {
+  const f = await coordinatorFixture(510), claimed = await f.coordinator().reconcile(f.intent);
+  const cap = await execution({ async readCurrent() { return claimed.record.current; } }, { environment: 'staging', operation_id: OP }, claimed.record.current.executor!);
+  const ack = await f.writer.executeOperation(f.bundle, tool, cap); f.acknowledge(ack);
+  const result = await f.coordinator().reconcile(f.intent);
+  assert.equal(result.kind, 'acknowledged'); assert.equal(result.record.current.journal.operations[0].native_id, C);
+  assert.equal(f.run.status, 'in_progress'); assert.equal(f.cloud.writes().length, 1);
+  assert.deepEqual(await f.coordinator().reconcile(f.intent), result); assert.equal(f.cloud.writes().length, 1);
+}));
+test('lost journal ACK after committed prepare, claim and final ACK is reconciled without a second transition', async () => {
+  for (const phase of ['prepare', 'claim', 'ack']) {
+    const f = await coordinatorFixture();
+    if (phase === 'claim') { f.setJobs([f.scope]); await f.coordinator().reconcile(f.intent); f.setJobs([f.scope, f.job]); }
+    if (phase === 'ack') { await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack); }
+    f.store.fault = 'after'; const result = await f.coordinator().reconcile(f.intent);
+    assert.equal(result.kind, phase === 'ack' ? 'acknowledged' : 'claimed-awaiting-original-job');
+    assert.equal(f.store.commits, phase === 'ack' ? 3 : 2);
+    await f.coordinator().reconcile(f.intent); assert.equal(f.store.commits, phase === 'ack' ? 3 : 2);
+    assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('failed durable prepare never reads executor or touches provider; CAS conflict safely reopens current bytes', async () => {
+  const f = await coordinatorFixture(); f.store.fault = 'before';
+  await assert.rejects(f.coordinator().reconcile(f.intent), /write outcome unresolved/);
+  assert.equal(f.store.slot.record, null); assert.equal(f.reads.length, 0); assert.equal(f.cloud.writes().length, 0);
+  f.store.fault = 'conflict'; assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'claimed-awaiting-original-job');
+  assert.equal(f.store.commits, 2);
+});
+test('terminal success without ACK, cancellation and failure hold unknown; no replacement executor or retry', async () => {
+  for (const conclusion of ['success', 'cancelled', 'failure', 'timed_out']) {
+    const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent);
+    f.job.status = 'completed'; f.job.conclusion = conclusion;
+    const result = await f.coordinator().reconcile(f.intent); assert.equal(result.kind, 'read-only-reconciliation');
+    assert.deepEqual(await f.coordinator().reconcile(f.intent), result); assert.equal(f.store.commits, 3);
+    f.job.id = 503; await assert.rejects(f.coordinator().reconcile(f.intent), /replaced/);
+    assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('late original successful job ACK resolves durable unknown but does not reset execution', async () => {
+  const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent);
+  f.job.status = 'completed'; f.job.conclusion = 'success';
+  assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'read-only-reconciliation');
+  f.acknowledge(f.ack); assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'acknowledged');
+  assert.equal(f.store.commits, 4); assert.equal(f.cloud.writes().length, 0);
+});
+test('never finishing original executor keeps claim without expiry, and original scope-only workflow cannot claim', async () => {
+  const f = await coordinatorFixture(); f.setJobs([f.scope]);
+  for (let n = 0; n < 3; n++) assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'waiting-original-job');
+  assert.equal(f.store.commits, 1); f.setJobs([f.scope, f.job]); await f.coordinator().reconcile(f.intent);
+  for (let n = 0; n < 3; n++) assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'claimed-awaiting-original-job');
+  assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
+});
+test('wrong original run/source/attempt/repository/job and incomplete or duplicate listing cannot claim', async () => {
+  const mutations: ((f: Awaited<ReturnType<typeof coordinatorFixture>>) => void)[] = [
+    f => { f.patch.latest = { run_attempt: 2 }; }, f => { f.patch.run = { head_sha: 'f'.repeat(40) }; },
+    f => { f.patch.run = { event: 'workflow_dispatch' }; }, f => { f.patch.run = { path: '.github/workflows/foreign.yml' }; },
+    f => { f.patch.repo = { id: 42 }; }, f => { f.patch.repo = { fork: true }; },
+    f => { f.job.run_attempt = 2; }, f => { f.job.head_sha = 'f'.repeat(40); },
+    f => { f.scope.conclusion = 'failure'; }, f => { f.patch.total = 3; },
+    f => { f.setJobs([f.scope, f.job, { ...f.job, id: 503 }]); },
+  ];
+  for (const change of mutations) {
+    const f = await coordinatorFixture(); change(f); await assert.rejects(f.coordinator().reconcile(f.intent));
+    assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared'); assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('another environment intent or changed original run cannot steal the retained slot', async () => {
+  const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent);
+  const other = structuredClone(f.intent); other.original_run.run_id++;
+  await assert.rejects(f.coordinator().reconcile(other), /occupied/);
+  const changed = structuredClone(f.intent); changed.prepared.journal.operation_id = id(9); changed.current = structuredClone(changed.prepared);
+  await assert.rejects(f.coordinator().reconcile(changed), /occupied/);
+  assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
+});
+test('job-bound ACK archive origin, native hash, uniqueness and operation contents are all required', async () => {
+  const mutations: ((f: Awaited<ReturnType<typeof coordinatorFixture>>) => void)[] = [
+    f => { f.artifacts[0].digest = `sha256:${'0'.repeat(64)}`; }, f => { f.corruptArchive(); },
+    f => { f.artifacts[0].expired = true; }, f => { f.artifacts[0].workflow_run = { id: 999 }; },
+    f => { f.artifacts.push({ ...f.artifacts[0], id: 902 }); },
+  ];
+  for (const change of mutations) {
+    const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack); change(f);
+    await assert.rejects(f.coordinator().reconcile(f.intent)); assert.equal(f.store.commits, 2);
+  }
+  for (const patch of [{ operation_id: id(9) }, { journal_sha256: '0'.repeat(64) }, { name: 'worker-switch' }, { extra: true }]) {
+    const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent); f.acknowledge({ ...f.ack, ...patch });
+    await assert.rejects(f.coordinator().reconcile(f.intent)); assert.equal(f.store.commits, 2);
+  }
+});
+test('a failed provider job cannot launder even a valid ACK artifact into confirmed state', async () => {
+  const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack); f.job.conclusion = 'failure';
+  assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'read-only-reconciliation'); assert.equal(f.cloud.writes().length, 0);
+});
+test('plan target/artifact/tool binding mismatch refuses before an intent can enter the durable slot', async () => {
+  const f = await coordinatorFixture();
+  for (const field of ['target_sha256', 'tool_profile_sha256'] as const) {
+    const changed = structuredClone(f.journal); changed[field] = '0'.repeat(64);
+    assert.throws(() => coordinatorIntent(f.plan, changed), /differs/);
+  }
+  const changed = structuredClone(f.journal); changed.artifact.producer_attempt++;
+  assert.throws(() => coordinatorIntent(f.plan, changed), /differs/);
+  assert.equal(f.store.commits, 0);
+});
+test('concurrent journal coordinators coalesce through whole-head CAS without duplicate claim transitions', async () => {
+  const f = await coordinatorFixture();
+  const [one, two] = await Promise.all([f.coordinator().reconcile(f.intent), f.coordinator().reconcile(f.intent)]);
+  assert.deepEqual(one, two); assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
+});
+test('uncommitted final ACK write remains claimed and a fresh reader can persist original ACK without provider replay', async () => {
+  const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack); f.store.fault = 'before';
+  await assert.rejects(f.coordinator().reconcile(f.intent), /write outcome unresolved/);
+  assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'execution-claimed');
+  assert.equal((await f.coordinator().reconcile(f.intent)).kind, 'acknowledged');
+  assert.equal(f.store.commits, 3); assert.equal(f.cloud.writes().length, 0);
+});
+test('native attempt changing between claim read and bookend prevents durable claim', async () => {
+  const f = await coordinatorFixture(); let reads = 0;
+  f.onRead(path => { if (path.endsWith('/runs/500') && ++reads === 2) f.patch.latest = { run_attempt: 2 }; });
+  await assert.rejects(f.coordinator().reconcile(f.intent), /rerun/);
+  assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared'); assert.equal(f.store.commits, 1);
+});
+test('benign native timestamps and step progress between bookends do not refuse claim or ACK', async () => {
+  for (const phase of ['claim', 'ack']) {
+    const f = await coordinatorFixture();
+    if (phase === 'ack') { await f.coordinator().reconcile(f.intent); f.acknowledge(f.ack); }
+    let reads = 0;
+    f.onRead(path => {
+      if (path.endsWith('/runs/500') && ++reads === 2) {
+        f.patch.latest = { updated_at: '2026-11-14T12:01:00Z', display_title: 'Progress updated' };
+        f.patch.run = { updated_at: '2026-11-14T12:01:00Z', run_started_at: '2026-11-14T12:00:00Z' };
+        Object.assign(f.job, { updated_at: '2026-11-14T12:01:00Z', steps: [{ number: 1, status: 'completed', conclusion: 'success' }] });
+      }
+    });
+    const result = await f.coordinator().reconcile(f.intent);
+    assert.equal(result.kind, phase === 'ack' ? 'acknowledged' : 'claimed-awaiting-original-job');
+    assert.equal(f.store.commits, phase === 'ack' ? 3 : 2); assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('actual native identity or lifecycle changes between bookends still prevent claim', async () => {
+  const changes: ((f: Awaited<ReturnType<typeof coordinatorFixture>>) => void)[] = [
+    f => { f.job.id = 503; }, f => { f.job.name = 'foreign-operation'; },
+    f => { f.job.status = 'completed'; f.job.conclusion = 'success'; },
+    f => { f.job.run_attempt = 2; }, f => { f.job.head_sha = 'f'.repeat(40); },
+    f => { f.patch.run = { status: 'completed', conclusion: 'failure' }; },
+    f => { f.patch.run = { head_sha: 'f'.repeat(40) }; }, f => { f.patch.latest = { run_attempt: 2 }; },
+  ];
+  for (const change of changes) {
+    const f = await coordinatorFixture(); let reads = 0;
+    f.onRead(path => { if (path.endsWith('/runs/500') && ++reads === 2) change(f); });
+    await assert.rejects(f.coordinator().reconcile(f.intent));
+    assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared');
+    assert.equal(f.store.commits, 1); assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('authenticated storage is still structurally checked: forged terminal ACK and replacement executor refuse', async () => {
+  for (const kind of ['terminal', 'executor']) {
+    const f = await coordinatorFixture(); await f.coordinator().reconcile(f.intent);
+    const record = f.store.slot.record as CoordinatorRecord;
+    if (kind === 'terminal') { record.current.state = 'acknowledged'; record.current.acknowledgement = f.ack; }
+    else record.current.executor!.run_attempt++;
+    await assert.rejects(f.coordinator().reconcile(f.intent)); assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
+  }
+});

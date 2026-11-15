@@ -104,6 +104,7 @@ function nativeJob(reader: GitHubRead, record: CoordinatorRecord): { run: Run; j
         || !['in_progress', 'completed'].includes(r.status)
         || (r.status === 'in_progress' && r.conclusion !== null)) throw Error('Original native executor run differs or was rerun');
   }
+  if (latest.status !== run.status || latest.conclusion !== run.conclusion) throw Error('Original latest/attempt lifecycle disagrees; reconcile without claiming');
   const jobs = list<NativeJob>(reader, `${PREFIX}/actions/runs/${own.run_id}/attempts/${own.run_attempt}/jobs`, 'jobs');
   const scope = jobs.filter(j => j.name === 'scope');
   const bound = (j: NativeJob) => j.run_id === own.run_id && j.run_attempt === own.run_attempt && j.head_sha === own.workflow_commit;
@@ -168,7 +169,7 @@ export class NativeOperationCoordinator {
       }
       if (current.current.state === 'acknowledged') return decision(current);
       const { run, job } = nativeJob(this.github, current);
-      let next: CoordinatorRecord = structuredClone(current);
+      const next: CoordinatorRecord = structuredClone(current);
       if (current.current.state === 'prepared') {
         if (!job || job.status === 'queued' || job.status === 'waiting') {
           if (run.status === 'completed') throw Error('Original run ended without a claimable job');

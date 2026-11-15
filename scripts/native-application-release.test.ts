@@ -589,3 +589,22 @@ test('authenticated storage is still structurally checked: forged terminal ACK a
     await assert.rejects(f.coordinator().reconcile(f.intent)); assert.equal(f.store.commits, 2); assert.equal(f.cloud.writes().length, 0);
   }
 });
+
+test('latest-only terminal lifecycle cannot claim through a stale in-progress attempt response', async () => {
+  for (const conclusion of ['success', 'cancelled', 'failure', 'timed_out']) {
+    const f = await coordinatorFixture();
+    f.patch.latest = { status: 'completed', conclusion };
+    await assert.rejects(f.coordinator().reconcile(f.intent), /latest\/attempt lifecycle disagrees/);
+    assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared');
+    assert.equal(f.store.commits, 1); assert.equal(f.cloud.writes().length, 0);
+  }
+});
+test('latest-only terminal change at the bookend prevents a stale original-job claim', async () => {
+  const f = await coordinatorFixture(); let reads = 0;
+  f.onRead(path => {
+    if (path.endsWith('/runs/500') && ++reads === 2) f.patch.latest = { status: 'completed', conclusion: 'cancelled' };
+  });
+  await assert.rejects(f.coordinator().reconcile(f.intent), /latest\/attempt lifecycle disagrees/);
+  assert.equal((f.store.slot.record as CoordinatorRecord).current.state, 'prepared');
+  assert.equal(f.store.commits, 1); assert.equal(f.cloud.writes().length, 0);
+});

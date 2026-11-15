@@ -7,6 +7,8 @@ import { completeNativeList, requireNativeJobs, validate, verifyStagingPr,
 import { digest, PUBLISHER_FILES, publisherIdentity, REPOSITORY, validateContent, validateOrigin, verifiedDocument, type Payload } from './application-artifacts.ts';
 import { assetHash, requireTool, TOOL_PROFILE, type loadTool } from './native-release-tool.ts';
 import { consumeExecution, validateJournal, type Execution, type Acknowledgement } from './native-application-operation.ts';
+import { canonical } from './native-release-canonical.ts';
+export { canonical } from './native-release-canonical.ts';
 
 type ObjectValue = Record<string, unknown>;
 const HASH = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -18,11 +20,6 @@ const uuid = (x: unknown): string => { const s = string(x); if (!UUID.test(s)) t
 const array = (x: unknown): unknown[] => { if (!Array.isArray(x)) throw new Error('Invalid native list'); return x; };
 const positive = (x: unknown): number => { if (!Number.isSafeInteger(x) || Number(x) <= 0) throw new Error('Invalid native integer'); return Number(x); };
 const same = (a: unknown, b: unknown, reason: string) => { if (canonical(a) !== canonical(b)) throw new Error(reason); };
-export function canonical(value: unknown): string {
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
-  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical((value as ObjectValue)[k])).join(',') + '}';
-  return JSON.stringify(value);
-}
 function closed(v: unknown, keys: string[]): ObjectValue {
   const o = object(v); same(Object.keys(o).sort(), keys.sort(), 'Nonclosed release input'); return o;
 }
@@ -32,7 +29,7 @@ export interface GitHubRead { json<T>(path: string): T; bytes(path: string): Buf
 export class NativeGitHub implements GitHubRead {
   bytes(path: string): Buffer {
     if (path !== `repos/${REPOSITORY}` && !path.startsWith(`repos/${REPOSITORY}/`)) throw new Error('Foreign native GitHub read');
-    return execFileSync('gh', ['api', path], { timeout: 30000, maxBuffer: 96 * 1024 * 1024 });
+    return execFileSync('gh', ['api', '--hostname', 'github.com', path], { timeout: 30000, maxBuffer: 96 * 1024 * 1024 });
   }
   json<T>(path: string): T { return JSON.parse(this.bytes(path).toString()); }
 }

@@ -28,6 +28,11 @@ function artifact(bytes: Buffer): NativeArtifact {
   return { id: 91, name: 'attestrack-application-1', expired: false, size_in_bytes: bytes.length, digest: `sha256:${digest(bytes)}`,
     workflow_run: { id: run.id, repository_id: 41, head_repository_id: 41, head_branch: 'staging', head_sha: sha } };
 }
+test('current publisher source has an exact reviewed implementation entry', () => {
+  const current = publisherIdentity(path => readFileSync(join(root, path)));
+  const policy = JSON.parse(readFileSync(join(root, 'release/application-publishers.json'), 'utf8'));
+  assert.deepEqual(policy.implementations[current.sha256], { schema: 2, files: current.files });
+});
 test('v2 retains generated entry/template/recipe identity without weakening same-tree v1 checks', () => {
   const p = payload(); p.schema = 'attestrack.application-bytes/v2';
   p.files.push(fileBytes('worker/entry.ts', Buffer.from(buildWorkerEntry()))); p.files.sort((a, b) => a.path < b.path ? -1 : 1); p.inventory_sha256 = inventory(p.files);
@@ -116,7 +121,7 @@ test('actual main CLI selects original staged ZIP from history over1000 runs; no
     p.source.head_sha = head; p.source.built_sha = head; p.source.tree = nativeTree; p.source.pull_request!.head_sha = head;
     const bytes = zip('application.json', Buffer.from(JSON.stringify(p))), a = artifact(bytes); a.workflow_run.head_sha = head;
     const fixture = { head, nativeTree, staged, current, sourceRun, artifact: a, historyTotal: 1001, zip: bytes.toString('base64') }; writeFileSync(join(temp, 'native.json'), JSON.stringify(fixture));
-    writeFileSync(join(bin, 'gh'), `#!${process.execPath}\nconst fs=require('fs');const f=JSON.parse(fs.readFileSync(${JSON.stringify(join(temp, 'native.json'))}));const p=process.argv[3];let r;\n` +
+    writeFileSync(join(bin, 'gh'), `#!${process.execPath}\nconst fs=require('fs');const f=JSON.parse(fs.readFileSync(${JSON.stringify(join(temp, 'native.json'))}));const argv=process.argv.slice(2);if(argv.length!==4||argv[0]!=='api'||argv[1]!=='--hostname'||argv[2]!=='github.com')throw Error('wrong fixed-host API argv');const p=argv[3];let r;\n` +
       `if(p.endsWith('/attestrack'))r={id:41};else if(p.includes('/branches/main'))r={protected:f.protected??true,commit:{sha:f.head}};else if(p.includes('/git/commits/'))r={tree:{sha:f.nativeTree}};\n` +
       `else if(p.includes('/workflows/')){if(p.includes('status='))throw Error('Filtered discovery forbidden');r={total_count:f.historyTotal,workflow_runs:[{...f.staged,...(f.noCandidate?{conclusion:'failure'}:{})},...Array.from({length:99},(_,i)=>({...f.staged,id:1000+i,conclusion:'failure'}))]};}else if(p.includes('/attempts/')){const s=p.includes('/50/');const run=s?f.sourceRun:f.staged;const names=s?['resolve','checks / ci','checks / warehouse','checks / e2e / e2e','checks / Build gate','Build gate']:['scope','staging-build'];r={total_count:names.length,jobs:names.map((name,i)=>({id:i+1,name,run_id:run.id,run_attempt:1,head_sha:f.head,status:'completed',conclusion:'success',...f.jobPatch}))};}\n` +
       `else if(p.includes('/artifacts/91/zip')){process.stdout.write(Buffer.from(f.zip,'base64'));process.exit(0);}else if(p.includes('/100/artifacts'))r={total_count:1,artifacts:[f.artifact]};\n` +
@@ -124,7 +129,7 @@ test('actual main CLI selects original staged ZIP from history over1000 runs; no
     const forbidden = join(temp, 'forbidden');
     for (const name of ['pnpm', 'npm', 'npx', 'esbuild']) writeFileSync(join(bin, name), `#!/bin/sh\necho forbidden >> '${forbidden}'\nexit 97\n`, { mode: 0o755 });
     const invoke = (mode = 'materialize') => spawnSync(process.execPath, [join(repo, 'scripts/application-artifacts.ts'), mode], { cwd: repo,
-      env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: temp, RUNNER_TEMP: temp, GITHUB_REPOSITORY: REPOSITORY, GITHUB_REPOSITORY_ID: '41', GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: head, GITHUB_RUN_ID: '200', GITHUB_RUN_ATTEMPT: '1' }, encoding: 'utf8', timeout: 30000 });
+      env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: temp, RUNNER_TEMP: temp, GH_HOST: 'untrusted.invalid', GITHUB_REPOSITORY: REPOSITORY, GITHUB_REPOSITORY_ID: '41', GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: head, GITHUB_RUN_ID: '200', GITHUB_RUN_ATTEMPT: '1' }, encoding: 'utf8', timeout: 30000 });
     const result = invoke();
     assert.equal(result.status, 0, result.stderr); assert.equal(existsSync(forbidden), false);
     const out = join(temp, 'attestrack-application');
@@ -140,6 +145,43 @@ test('actual main CLI selects original staged ZIP from history over1000 runs; no
     }
     writeFileSync(join(temp, 'native.json'), JSON.stringify(fixture));
     assert.notEqual(invoke('build').status, 0); assert.equal(existsSync(forbidden), false);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
+test('retained source CLI pins both API and run-download hosts despite foreign GH_HOST', () => {
+  const temp = mkdtempSync(join(tmpdir(), 'attestrack-retained-host-'));
+  const repo = join(temp, 'repo'), bin = join(temp, 'bin'), calls = join(temp, 'calls.jsonl');
+  mkdirSync(repo); mkdirSync(bin);
+  try {
+    const script = '.github/actions/retained-build/retained-build.ts';
+    mkdirSync(dirname(join(repo, script)), { recursive: true }); cpSync(join(root, script), join(repo, script));
+    const git = (...args: string[]) => execFileSync('/usr/bin/git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
+    git('init', '-q'); git('config', 'user.name', 'Fictional'); git('config', 'user.email', 'fictional@example.invalid');
+    git('add', '.'); git('commit', '-qm', 'fictional retained source');
+    const head = git('rev-parse', 'HEAD'), sourceTree = git('rev-parse', 'HEAD^{tree}');
+    const original = { ...run, id: 50, head_sha: head, path: '.github/workflows/ci.yml' };
+    const evidence = { schema: 1, repository: REPOSITORY, workflow: 'ci.yml', run_id: 50, run_attempt: 1,
+      head_sha: head, built_sha: head, tree: sourceTree };
+    const name = 'retained-build-ci.yml-1', prefix = `repos/${REPOSITORY}`;
+    const data = { [`${prefix}/actions/workflows/ci.yml/runs?per_page=100&page=1`]: { total_count: 1, workflow_runs: [original] },
+      [`${prefix}/actions/runs/50/artifacts?per_page=100`]: { artifacts: [{ name, expired: false }] },
+      [`${prefix}/git/commits/${head}`]: { tree: { sha: sourceTree } } };
+    writeFileSync(join(bin, 'gh'), `#!${process.execPath}\nconst fs=require('fs'),path=require('path'),a=process.argv.slice(2);\n` +
+      `fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(a)+'\\n');const data=${JSON.stringify(data)};\n` +
+      `if(a[0]==='api'){if(a.length!==4||a[1]!=='--hostname'||a[2]!=='github.com'||!(a[3] in data))throw Error('foreign API');process.stdout.write(JSON.stringify(data[a[3]]));}\n` +
+      `else{if(a.length!==9||JSON.stringify(a.slice(0,8))!==${JSON.stringify(JSON.stringify(['run', 'download', '50', '--repo', `github.com/${REPOSITORY}`, '--name', name, '--dir']))})throw Error('foreign download');fs.writeFileSync(path.join(a[8],'build-result.json'),${JSON.stringify(JSON.stringify(evidence))});}\n`, { mode: 0o755 });
+    const event = join(temp, 'event.json'), output = join(temp, 'output'), summary = join(temp, 'summary');
+    writeFileSync(event, '{}'); writeFileSync(output, ''); writeFileSync(summary, '');
+    const result = spawnSync(process.execPath, [join(repo, script)], { cwd: repo, encoding: 'utf8', timeout: 30000,
+      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: temp, GH_HOST: 'untrusted.invalid', RUNNER_TEMP: temp,
+        GITHUB_REPOSITORY: REPOSITORY, GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_RUN_ID: '200',
+        GITHUB_EVENT_PATH: event, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary,
+        RETAINED_BUILD_MODE: 'resolve', RETAINED_BUILD_WORKFLOW: 'ci.yml' } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(readFileSync(output, 'utf8'), /build-required=false\nrun-id=50\n/);
+    const actual = readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line) as string[]);
+    assert.equal(actual.filter(a => a[0] === 'run').length, 1);
+    assert.equal(actual.filter(a => a[0] === 'api').length, 3);
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });
 

@@ -68,17 +68,24 @@ Normal required remote CI and independent review remain mandatory.
    public Git head before consumption. A stale/changed head refuses; never
    silently adopt latest. Journal and provider waiting jobs must run in parallel
    after `scope`, avoiding a dependency cycle where claiming requires a job that
-   cannot start until claim completes. No such projection reader exists yet.
-3. Close same-job process restart with a mandatory create-only, fsynced marker
-   under the trusted original job's `RUNNER_TEMP` before issuing `Execution` or
-   reading provider material. Use a fixed non-symlink path, bind exact full frame
-   and original native repository/run/attempt/job, sync file and parent directory,
-   refuse any existing/torn/conflicting marker, and never remove/reset it in the
-   job. A crash after marking but before dispatch intentionally holds unknown.
-   Require fixed trusted workflow/runner execution with no retry wrappers or
-   directory cleanup. New jobs/attempts fail the original identity binding.
-   This fence and projection are a recommended source contract, not implemented
-   by this packet. The existing process-local Set/WeakMap is insufficient alone.
+   cannot start until claim completes. The source consumer and fence integration
+   now exist in `native-journal-projection-reader.ts`; its source-owned issuer
+   configuration stays null until actual producer source/genesis/read authority
+   are reviewed. See [native-journal-projection.md](native-journal-projection.md).
+3. Wire the implemented mandatory job fence into the eventual fixed provider
+   entrypoint before provider material is read. `execution()` now calls
+   `reserveOriginalJob()` before issuing a capability, authenticating actual
+   original environment/run/attempt/job and successful scope through native
+   read-only metadata. A pinned Linux directory descriptor anchors an exclusively
+   created directory and `O_EXCL | O_NOFOLLOW` marker beneath `RUNNER_TEMP`.
+   The marker binds the full canonical frame SHA-256, environment, operation and
+   complete native executor; file, directory and temporary-root directory are
+   fsynced. An existing directory also refuses, including a crash before marker
+   creation. There is no deletion, reset or replay path. The process-local
+   Set/WeakMap remains supplemental. Fixed job names match the coordinator's
+   `native-<operation>` contract; no current hosted job is added. The current-head
+   public projection consumer from step 2 remains unconfigured. Do not pass
+   age/signing/store-writer material into a provider to work around that gap.
 4. Wire actual durable controller jobs, original artifact readers in the provider
    process, retained witness intent before POST, read-only inspect after uncertain
    witness writes, P/C/R/resume authority and independent native/HTTP/warehouse
@@ -105,6 +112,24 @@ admitted retry can acquire exclusion. An existing claim/consumption or uncertain
 effect remains held for reconciliation, with no timeout, deletion or blind retry.
 
 ## Job-local fence evidence and its limit
+
+The fence defaults to the real native GitHub reader and `process.env` through
+`execution()`. Its explicit dependencies support fictional native CI fixtures,
+not caller-selected authority in a hosted workflow. It requires Linux, the exact
+original protected-main workflow and job, and an owned temporary directory with
+no group/other write permission or symlink ancestry. Native bookends compare
+identity and active lifecycle; incidental timestamps and step progress may vary.
+Failure after marker creation preserves the hold, even before provider dispatch.
+The provider entrypoint has not been wired; key acquisition must be sequenced
+after this gate there, not claimed as complete from this source helper alone.
+
+Eight new authored tests cover the marker binding/modes, a fresh process trying
+again, two concurrent fresh processes, torn/conflicting/symlink state, foreign
+native job/environment, unsafe temporary directories, semantic metadata progress
+versus identity/lifecycle changes, and mandatory capability gating. Existing
+fictional native writer tests also traverse the real temporary-file fence. The
+only cleanup is test-suite teardown of its own fictional directories. These new
+tests await native source CI; local checks parse syntax without executing modules.
 
 GitHub documents `RUNNER_TEMP` as job-scoped and cleaned at job boundaries; it
 also documents that `GITHUB_RUN_ATTEMPT` advances on rerun. This supports a

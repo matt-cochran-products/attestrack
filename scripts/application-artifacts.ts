@@ -123,7 +123,7 @@ export function verifiedDocument(a: NativeArtifact, r: Run, repositoryId: number
 function command(args: string[]): Buffer {
   return execFileSync(args[0], args.slice(1), { maxBuffer: 96 * 1024 * 1024, timeout: 30000 });
 }
-const api = <T>(path: string): T => JSON.parse(command(['gh', 'api', path]).toString());
+const api = <T>(path: string): T => JSON.parse(command(['gh', 'api', '--hostname', 'github.com', path]).toString());
 function list<T extends { id: number }>(path: string, field: string): T[] {
   return completeNativeList<T>(page => {
     const r = api<Record<string, unknown>>(`${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`);
@@ -138,7 +138,7 @@ function archive(run: Run, repositoryId: number, name: string, inner: string): {
   const found = list<NativeArtifact>(`${prefix}/actions/runs/${run.id}/artifacts`, 'artifacts').filter(a => a.name === name);
   if (found.length !== 1) throw new Error('Required original artifact is missing or ambiguous');
   const a = found[0];
-  const bytes = command(['gh', 'api', `${prefix}/actions/artifacts/${a.id}/zip`]);
+  const bytes = command(['gh', 'api', '--hostname', 'github.com', `${prefix}/actions/artifacts/${a.id}/zip`]);
   return { value: verifiedDocument(a, run, repositoryId, name, bytes, inner), artifact: a };
 }
 function checkSource(e: Evidence, repositoryId: number, tree: string): void {
